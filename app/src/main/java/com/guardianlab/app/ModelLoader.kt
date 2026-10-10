@@ -12,7 +12,7 @@ class ModelLoader(context: Context) {
 
     init {
         val modelBytes = context.assets
-            .open("yolo11n_v2_phone_detector.onnx")
+            .open("guardianlab_yolo26_blue_light_v1_ONE2MANY.onnx")
             .use { it.readBytes() }
 
         val sessionOptions = OrtSession.SessionOptions().apply {

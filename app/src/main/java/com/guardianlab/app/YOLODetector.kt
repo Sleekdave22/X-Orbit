@@ -135,13 +135,15 @@ class YOLODetector(
         // 1. Letterbox image to 640 x 640
         // ------------------------------------------------------------
 
-        val scale = min(
-            INPUT_SIZE.toFloat() / originalWidth.toFloat(),
-            INPUT_SIZE.toFloat() / originalHeight.toFloat()
+        // Match Ultralytics LetterBox: round resized dimensions (ties to even)
+        // and use the actual integer border offsets when mapping boxes back.
+        val resizeScale = min(
+            INPUT_SIZE.toDouble() / originalWidth.toDouble(),
+            INPUT_SIZE.toDouble() / originalHeight.toDouble()
         )
-
-        val resizedWidth = (originalWidth * scale).toInt()
-        val resizedHeight = (originalHeight * scale).toInt()
+        val scale = resizeScale.toFloat()
+        val resizedWidth = Math.rint(originalWidth * resizeScale).toInt().coerceIn(1, INPUT_SIZE)
+        val resizedHeight = Math.rint(originalHeight * resizeScale).toInt().coerceIn(1, INPUT_SIZE)
 
         val resizedBitmap = Bitmap.createScaledBitmap(
             bitmap,
@@ -150,8 +152,8 @@ class YOLODetector(
             true
         )
 
-        val padX = (INPUT_SIZE - resizedWidth) / 2f
-        val padY = (INPUT_SIZE - resizedHeight) / 2f
+        val padX = ((INPUT_SIZE - resizedWidth) / 2).toFloat()
+        val padY = ((INPUT_SIZE - resizedHeight) / 2).toFloat()
 
         // ------------------------------------------------------------
         // 2. Build NCHW float input
@@ -351,9 +353,15 @@ class YOLODetector(
             // --------------------------------------------------------
 
             val finalDetections = applyNms(detections, NMS_IOU_THRESHOLD)
-            val finalProposals = applyNms(proposalCandidates, NMS_IOU_THRESHOLD)
-                .sortedByDescending { it.confidence }
-                .take(PROPOSAL_TOP_K)
+
+            // Diagnostic-only full post-NMS proposal list.
+            // finalProposals below remains the exact same top-K behavior.
+            val allNmsProposals =
+                applyNms(proposalCandidates, NMS_IOU_THRESHOLD)
+                    .sortedByDescending { it.confidence }
+
+            val finalProposals =
+                allNmsProposals.take(PROPOSAL_TOP_K)
 
             // D1-L8C Synchronized Sequential Logging & Capture
             if (capturingForThisFrame) {
@@ -384,6 +392,80 @@ class YOLODetector(
 
                 val timestamp = android.os.SystemClock.elapsedRealtime()
                 val frameIdStr = String.format(Locale.US, "%06d", frameId)
+
+                // ------------------------------------------------------------
+                // D1 PRE-NMS DIAGNOSTIC
+                //
+                // Every 10th diagnostic frame, save EVERY proposal candidate
+                // that passed PROPOSAL_CONFIDENCE_THRESHOLD, BEFORE NMS.
+                //
+                // This does not alter inference, NMS, finalProposals,
+                // detections, or protection behavior.
+                // ------------------------------------------------------------
+                if (frameId % 10L == 0L) {
+
+                    val preNmsSnapshot =
+                        proposalCandidates
+                            .sortedByDescending { it.confidence }
+                            .toList()
+
+                    val targetDir = diagnosticFilesDir
+
+                    diagnosticScope.launch {
+                        try {
+                            targetDir?.let { dir ->
+
+                                val file =
+                                    File(
+                                        dir,
+                                        "d1_l8c_prenms_$frameIdStr.csv"
+                                    )
+
+                                val csv = buildString {
+                                    append(
+                                        "rank,confidence,x1,y1,x2,y2,width,height\n"
+                                    )
+
+                                    preNmsSnapshot.forEachIndexed { index, proposal ->
+
+                                        val width = proposal.x2 - proposal.x1
+                                        val height = proposal.y2 - proposal.y1
+
+                                        append(
+                                            "%d,%.9f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n".format(
+                                                Locale.US,
+                                                index + 1,
+                                                proposal.confidence,
+                                                proposal.x1,
+                                                proposal.y1,
+                                                proposal.x2,
+                                                proposal.y2,
+                                                width,
+                                                height
+                                            )
+                                        )
+                                    }
+                                }
+
+                                file.writeText(csv)
+
+                                Log.d(
+                                    "GL_YOLO_PRENMS_SAVE",
+                                    "frame=$frameIdStr | " +
+                                        "candidates=${preNmsSnapshot.size} | " +
+                                        "saved=${file.absolutePath}"
+                                )
+                            }
+
+                        } catch (e: Exception) {
+                            Log.e(
+                                "GL_YOLO_PRENMS_SAVE",
+                                "Failed to save pre-NMS CSV",
+                                e
+                            )
+                        }
+                    }
+                }
                 val detectionTopStr = if (finalDetections.isNotEmpty()) {
                     "%.6f".format(Locale.US, finalDetections.maxOf { it.confidence })
                 } else {
@@ -449,6 +531,21 @@ class YOLODetector(
                     "NONE"
                 }
 
+                val contentTop5Str =
+                    contentProposals
+                        .sortedByDescending { it.confidence }
+                        .take(5)
+                        .joinToString(";") { proposal ->
+                            "c=%.6f,b=(%.1f,%.1f,%.1f,%.1f)".format(
+                                Locale.US,
+                                proposal.confidence,
+                                proposal.x1,
+                                proposal.y1,
+                                proposal.x2,
+                                proposal.y2
+                            )
+                        }
+
                 val scaleTop =
                     finalProposals.maxByOrNull { it.confidence }
 
@@ -506,6 +603,31 @@ class YOLODetector(
                         "%.4f".format(Locale.US, it)
                     } ?: "NONE"
 
+                val postNmsRanks11To30Str =
+                    allNmsProposals
+                        .drop(PROPOSAL_TOP_K)
+                        .take(20)
+                        .mapIndexed { index, proposal ->
+                            val rank = PROPOSAL_TOP_K + index + 1
+                            "r%d:c=%.6f,b=(%.1f,%.1f,%.1f,%.1f)".format(
+                                Locale.US,
+                                rank,
+                                proposal.confidence,
+                                proposal.x1,
+                                proposal.y1,
+                                proposal.x2,
+                                proposal.y2
+                            )
+                        }
+                        .joinToString(";")
+
+                Log.d(
+                    "GL_YOLO_POSTNMS",
+                    "frame=$frameIdStr | " +
+                        "survivors=${allNmsProposals.size} | " +
+                        "ranks11to30=[$postNmsRanks11To30Str]"
+                )
+
                 Log.d(
                     "GL_YOLO_SEQUENCE",
                     "D1-L8C | " +
@@ -526,7 +648,8 @@ class YOLODetector(
                         "scaleAreaRatio=$scaleAreaRatioStr | " +
                         "contentCandidates=${contentProposals.size} | " +
                         "contentTop=$contentTopStr | " +
-                        "contentBox=($contentBoxStr)"
+                        "contentBox=($contentBoxStr) | " +
+                        "contentTop5=[$contentTop5Str]"
                 )
 
                 // Condition evaluation for PNG saving

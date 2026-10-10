@@ -34,10 +34,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var shieldController: ShieldController
     private lateinit var cameraManager: CameraManager
     private lateinit var faceDetectionManager: FaceDetectionManager
+    private lateinit var protectionDiagnostics: ProtectionDiagnostics
     private val yoloDetectionHistory = ArrayDeque<Boolean>()
     private var isYoloThreatConfirmed = false
     private var lastStrongYoloElapsedMs: Long? = null
     private val lightingAnalyzer = LightingAnalyzer()
+    private val guardianEvidenceEngine = GuardianEvidenceEngine()
     private var lastYoloStrongConfidence: Float? = null
 
     private companion object {
@@ -71,6 +73,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        protectionDiagnostics = ProtectionDiagnostics(java.io.File(filesDir, "protection-diagnostics"))
+        protectionDiagnostics.transition("session", "started", android.os.SystemClock.elapsedRealtime())
         Log.d("GuardianFlow", "MAIN ACTIVITY STARTED")
 
         // MobileClipSequential7Probe.run(this) // D1-L8L completed; disabled
@@ -145,6 +149,7 @@ class MainActivity : ComponentActivity() {
                         android.widget.Toast.LENGTH_LONG
                     ).show()
                 } else {
+                    guardianEvidenceEngine.reset()
                     yoloDetector.startDiagnostic(filesDir)
                     text = "STOP D1-L8C"
                     android.widget.Toast.makeText(
@@ -160,9 +165,20 @@ class MainActivity : ComponentActivity() {
             android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
-            bottomMargin = 50
+            bottomMargin = (24 * resources.displayMetrics.density).toInt()
         }
         layout.addView(diagnosticButton, diagnosticButtonParams)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(diagnosticButton) { view, insets ->
+            val navigation = insets.getInsets(
+                androidx.core.view.WindowInsetsCompat.Type.navigationBars()
+            )
+            val params = view.layoutParams as android.widget.FrameLayout.LayoutParams
+            params.bottomMargin = navigation.bottom +
+                (24 * resources.displayMetrics.density).toInt()
+            view.layoutParams = params
+            insets
+        }
+        androidx.core.view.ViewCompat.requestApplyInsets(diagnosticButton)
         diagnosticButton.bringToFront()
 
         warningText.bringToFront()
@@ -184,6 +200,8 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 Log.d("GuardianFlow", "Face count received: $count")
 
+                protectionDiagnostics.transition("viewer", if (count >= 2) "additional_viewer" else "clear",
+                    android.os.SystemClock.elapsedRealtime(), "\"face_count\":$count")
                 val shouldProtect =
                     guardianEngine.shouldActivateProtection(count) || isYoloThreatConfirmed
 
@@ -285,9 +303,105 @@ class MainActivity : ComponentActivity() {
                         "YOLODetector",
                         "YOLO INPUT: avgRGB=($avgR,$avgG,$avgB), brightness=${"%.1f".format(avgBrightness)}"
                     )
+                    val inferenceStartedNs = System.nanoTime()
                     val frameResult = yoloDetector.detectFrame(bitmap)
+                    val inferenceMs = (System.nanoTime() - inferenceStartedNs) / 1_000_000.0
                     val yoloDetections = frameResult.detections
                     val proposals = frameResult.proposals
+
+                    if (yoloDetector.isDiagnosticActive()) {
+                        val proposalAudit =
+                            proposals.mapIndexed { index, proposal ->
+                                val width = proposal.x2 - proposal.x1
+                                val height = proposal.y2 - proposal.y1
+
+                                "#${index + 1}" +
+                                    ":c=${"%.6f".format(
+                                        java.util.Locale.US,
+                                        proposal.confidence
+                                    )}" +
+                                    ",box=(${
+                                        "%.1f".format(
+                                            java.util.Locale.US,
+                                            proposal.x1
+                                        )
+                                    },${
+                                        "%.1f".format(
+                                            java.util.Locale.US,
+                                            proposal.y1
+                                        )
+                                    },${
+                                        "%.1f".format(
+                                            java.util.Locale.US,
+                                            proposal.x2
+                                        )
+                                    },${
+                                        "%.1f".format(
+                                            java.util.Locale.US,
+                                            proposal.y2
+                                        )
+                                    })" +
+                                    ",w=${"%.1f".format(
+                                        java.util.Locale.US,
+                                        width
+                                    )}" +
+                                    ",h=${"%.1f".format(
+                                        java.util.Locale.US,
+                                        height
+                                    )}"
+                            }.joinToString(" | ")
+
+                        Log.d(
+                            "GL_EVIDENCE_PROPOSALS",
+                            proposalAudit
+                        )
+                    }
+
+                    // ============================================================
+                    // GUARDIAN EVIDENCE SHADOW MODE
+                    //
+                    // Diagnostic only.
+                    // Does NOT control protection.
+                    // ============================================================
+
+                    val evidenceSnapshot = guardianEvidenceEngine.update(
+                        proposals = proposals,
+                        frameWidth = bitmap.width,
+                        frameHeight = bitmap.height
+                    )
+
+                    if (yoloDetector.isDiagnosticActive()) {
+                        Log.d(
+                            "GL_EVIDENCE_SHADOW",
+                            "profile=${lightingState.profileKey} | " +
+                                "candidate=${evidenceSnapshot.hasCandidate} | " +
+                                "conf=${"%.6f".format(
+                                    java.util.Locale.US,
+                                    evidenceSnapshot.confidence
+                                )} | " +
+                                "wRatio=${"%.4f".format(
+                                    java.util.Locale.US,
+                                    evidenceSnapshot.widthRatio
+                                )} | " +
+                                "hRatio=${"%.4f".format(
+                                    java.util.Locale.US,
+                                    evidenceSnapshot.heightRatio
+                                )} | " +
+                                "areaRatio=${"%.4f".format(
+                                    java.util.Locale.US,
+                                    evidenceSnapshot.areaRatio
+                                )} | " +
+                                "aspect=${"%.4f".format(
+                                    java.util.Locale.US,
+                                    evidenceSnapshot.aspectRatio
+                                )} | " +
+                                "iouPrev=${"%.4f".format(
+                                    java.util.Locale.US,
+                                    evidenceSnapshot.iouWithPrevious
+                                )} | " +
+                                "persistence=${evidenceSnapshot.persistenceFrames}"
+                        )
+                    }
 
                     // ============================================================
                     // D1-L7A — BEST YOLO PROPOSAL CROP VALIDATION
@@ -466,6 +580,13 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val nowElapsedMs = android.os.SystemClock.elapsedRealtime()
+                    val diagnosticBoxes = yoloDetections.take(10).joinToString(",") {
+                        "{\"confidence\":${it.confidence},\"box\":[${it.x1},${it.y1},${it.x2},${it.y2}]}"
+                    }
+                    protectionDiagnostics.sample(nowElapsedMs,
+                        "\"inference_ms\":$inferenceMs,\"threshold\":$activeYoloStrongConfidence,\"strong_phone\":$hasStrongPhoneDetection," +
+                        "\"lighting\":\"${lightingState.profileKey}\",\"frame_width\":${bitmap.width},\"frame_height\":${bitmap.height}," +
+                        "\"boxes\":[$diagnosticBoxes]")
 
                     if (!isYoloThreatConfirmed) {
 
@@ -482,6 +603,8 @@ class MainActivity : ComponentActivity() {
 
                         if (strongFrames >= YOLO_CONFIRMATION_REQUIRED) {
                             isYoloThreatConfirmed = true
+                            protectionDiagnostics.transition("phone", "confirmed", nowElapsedMs,
+                                "\"votes\":$strongFrames,\"threshold\":$activeYoloStrongConfidence,\"boxes\":[$diagnosticBoxes],\"inference_ms\":$inferenceMs")
                             lastStrongYoloElapsedMs = nowElapsedMs
 
                             Log.d(
@@ -541,6 +664,7 @@ class MainActivity : ComponentActivity() {
 
                             if (elapsedSinceStrong >= YOLO_HOLD_MS) {
                                 isYoloThreatConfirmed = false
+                                protectionDiagnostics.transition("phone", "cleared", nowElapsedMs)
                                 lastStrongYoloElapsedMs = null
                                 yoloDetectionHistory.clear()
 

@@ -26,3 +26,24 @@ ml_training/runs/
 
 # YOLO training models
 *.pt
+
+# Local tooling, diagnostics and source snapshots
+.kotlin/
+.artifacts/
+.idea/deploymentTargetSelector.xml
+.idea/planningMode.xml
+/project_codebase.txt
+/D1_*/
+/D1_*.txt
+/D1_*.log
+/D1_*.png
+/D1_*.zip
+/diagnostics/
+*.before_*
+
+# Credentials and signing material
+.env
+.env.*
+*.jks
+*.keystore
+key.properties

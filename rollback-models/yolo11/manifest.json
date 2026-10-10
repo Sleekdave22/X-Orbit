@@ -1,0 +1,15 @@
+{
+  "reason": "Unused YOLO11 rollback assets; active detector is YOLO26 ONE2MANY",
+  "models": [
+    {
+      "filename": "yolo11n_v2_phone_detector.onnx",
+      "sha256": "86eebaddecb5c299009e5bb526fad99a7e539c0483cacf6aee6d536cde1866e2",
+      "bytes": 10604186
+    },
+    {
+      "filename": "yolo11n.tflite",
+      "sha256": "1068361d8a8ec4fce3a93eb927efb092a0a8b24f1156e14c0ff37cc997b58bfc",
+      "bytes": 10763700
+    }
+  ]
+}
