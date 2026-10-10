@@ -29,11 +29,21 @@ class ShieldController(
         textSize = 16f
         gravity = Gravity.CENTER
     }
+    private val falseAlarmNote = TextView(rootLayout.context).apply {
+        setText(R.string.protection_false_alarm_guidance)
+        setTextColor(Color.WHITE)
+        textSize = 14f
+        gravity = Gravity.CENTER
+        maxWidth = (320 * rootLayout.resources.displayMetrics.density).toInt()
+        val padding = (12 * rootLayout.resources.displayMetrics.density).toInt()
+        setPadding(padding, padding, padding, padding)
+    }
     private val overrideButton = Button(rootLayout.context)
     private val controls = LinearLayout(rootLayout.context).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(Color.BLACK)
         setPadding(16, 8, 16, 8)
+        addView(falseAlarmNote)
         addView(pauseStatus)
         addView(overrideButton)
         visibility = View.GONE
@@ -73,6 +83,7 @@ class ShieldController(
     private fun updateControls() {
         val paused = pauseState.isPaused()
         controls.visibility = if (paused || latestThreat != null) View.VISIBLE else View.GONE
+        falseAlarmNote.visibility = if (paused) View.GONE else View.VISIBLE
         pauseStatus.text = if (paused) "Protection paused · ${pauseState.remainingSeconds()}s remaining" else ""
         pauseStatus.visibility = if (paused) View.VISIBLE else View.GONE
         overrideButton.text = if (paused) "Resume protection" else "Show screen for 30 seconds"

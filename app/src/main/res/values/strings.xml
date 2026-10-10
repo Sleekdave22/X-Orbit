@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">GuardianLab</string>
+    <string name="protection_false_alarm_guidance">Think this is a false alarm? Try changing your position or adjusting your device’s angle so the camera has a clearer view. You can also pause protection for 30 seconds.</string>
 </resources>
