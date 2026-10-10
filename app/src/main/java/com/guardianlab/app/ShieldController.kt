@@ -3,6 +3,9 @@ package com.guardianlab.app
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import android.widget.Button
+import android.widget.LinearLayout
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
@@ -19,6 +22,85 @@ class ShieldController(
 
     private val protectionTargets = mutableListOf<ProtectionTarget>()
 
+    private val pauseState = ProtectionOverride { SystemClock.elapsedRealtime() }
+    private var latestThreat: String? = null
+    private val pauseStatus = TextView(rootLayout.context).apply {
+        setTextColor(Color.WHITE)
+        textSize = 16f
+        gravity = Gravity.CENTER
+    }
+    private val overrideButton = Button(rootLayout.context)
+    private val controls = LinearLayout(rootLayout.context).apply {
+        orientation = LinearLayout.VERTICAL
+        setBackgroundColor(Color.BLACK)
+        setPadding(16, 8, 16, 8)
+        addView(pauseStatus)
+        addView(overrideButton)
+        visibility = View.GONE
+    }
+    private val tick = object : Runnable {
+        override fun run() {
+            if (pauseState.isPaused()) {
+                updateControls()
+                handler.postDelayed(this, 250L)
+            } else {
+                resumeProtection()
+            }
+        }
+    }
+
+    init {
+        rootLayout.addView(controls, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            bottomMargin = (100 * rootLayout.resources.displayMetrics.density).toInt()
+        })
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(controls) { view, insets ->
+            val params = view.layoutParams as FrameLayout.LayoutParams
+            params.bottomMargin = insets.getInsets(
+                androidx.core.view.WindowInsetsCompat.Type.navigationBars()
+            ).bottom + (100 * rootLayout.resources.displayMetrics.density).toInt()
+            view.layoutParams = params
+            insets
+        }
+        overrideButton.setOnClickListener {
+            if (pauseState.isPaused()) resumeProtection() else pauseProtection()
+        }
+    }
+
+    private fun updateControls() {
+        val paused = pauseState.isPaused()
+        controls.visibility = if (paused || latestThreat != null) View.VISIBLE else View.GONE
+        pauseStatus.text = if (paused) "Protection paused · ${pauseState.remainingSeconds()}s remaining" else ""
+        pauseStatus.visibility = if (paused) View.VISIBLE else View.GONE
+        overrideButton.text = if (paused) "Resume protection" else "Show screen for 30 seconds"
+        controls.bringToFront()
+    }
+
+    private fun pauseProtection() {
+        pauseState.pause()
+        handler.removeCallbacks(hideRunnable)
+        hideScheduled = false
+        hideRunnable.run()
+        warningText.animate().setListener(null).cancel()
+        warningText.visibility = View.GONE
+        updateControls()
+        handler.removeCallbacks(tick)
+        handler.post(tick)
+    }
+
+    private fun resumeProtection() {
+        pauseState.resume()
+        handler.removeCallbacks(tick)
+        latestThreat?.let { showProtection(it) } ?: updateControls()
+    }
+
+    fun dispose() {
+        handler.removeCallbacksAndMessages(null)
+    }
+
     private var hideScheduled = false
 
     private val hideRunnable = Runnable {
@@ -28,6 +110,8 @@ class ShieldController(
         shieldView.visibility = View.GONE
         blurPanel.visibility = View.GONE
         warningText.text = ""
+
+        updateControls()
 
         protectionTargets.forEach { target ->
 
@@ -50,6 +134,18 @@ class ShieldController(
     }
 
     fun showProtection(message: String) {
+        latestThreat = message
+        if (pauseState.isPaused()) {
+            warningText.animate().setListener(null).cancel()
+            warningText.visibility = View.GONE
+            updateControls()
+            return
+        }
+        updateControls()
+        warningText.animate().setListener(null).cancel()
+        warningText.visibility = View.VISIBLE
+        warningText.translationY = 0f
+
 
         handler.removeCallbacks(hideRunnable)
         hideScheduled = false
@@ -93,10 +189,17 @@ class ShieldController(
             rootLayout.addView(overlay, params)
 
             target.protectionOverlay = overlay
+            controls.bringToFront()
         }
     }
 
     fun hideProtectionWithDelay(delayMillis: Long = 3000) {
+        latestThreat = null
+        if (pauseState.isPaused()) {
+            updateControls()
+            return
+        }
+
 
         if (
             protectionTargets.any {
@@ -109,6 +212,7 @@ class ShieldController(
     }
 
     fun clearImmediately() {
+        latestThreat = null
 
         handler.removeCallbacks(hideRunnable)
         hideScheduled = false

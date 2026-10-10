@@ -695,4 +695,9 @@ class MainActivity : ComponentActivity() {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
+    override fun onDestroy() {
+        if (::shieldController.isInitialized) shieldController.dispose()
+        super.onDestroy()
+    }
+
 }
