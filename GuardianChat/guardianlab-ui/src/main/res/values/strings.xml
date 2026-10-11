@@ -1,0 +1,8 @@
+<resources>
+    <string name="guardianlab_guidance">Think this is a false alarm? Try changing your position or adjusting your device’s angle so the camera has a clearer view. You can also pause protection for 30 seconds.</string>
+    <string name="guardianlab_guidance_no_override">Think this is a false alarm? Try changing your position or adjusting your device’s angle so the camera has a clearer view.</string>
+    <string name="guardianlab_show_screen">Show screen for 30 seconds</string>
+    <string name="guardianlab_resume">Resume protection</string>
+    <string name="guardianlab_paused">Protection paused · %1$d seconds remaining</string>
+    <string name="guardianlab_protected">Protected by GuardianLab</string>
+</resources>
