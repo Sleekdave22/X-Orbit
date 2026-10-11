@@ -8,7 +8,7 @@ import java.io.File
 class ChatApi(val base:String, val token:String="") {
  init {
   val u=URL(base);val h=u.host
-  require(u.protocol=="http" && (h=="localhost" || h=="127.0.0.1" || h.startsWith("192.168.") || h.startsWith("10.") || h.matches(Regex("172\\.(1[6-9]|2[0-9]|3[01])\\..*")) || h.endsWith(".local"))) { "Use your Mac's local Wi-Fi address (http://192.168…:8765)" }
+  require(u.protocol=="https" && (h=="localhost" || h=="127.0.0.1" || h.startsWith("192.168.") || h.startsWith("10.") || h.matches(Regex("172\\.(1[6-9]|2[0-9]|3[01])\\..*")) || h.endsWith(".local"))) { "Use your Mac's local Wi-Fi address (https://192.168…:8766)" }
   require(u.userInfo==null && u.path in listOf("","/")) {"Enter only the server address"}
  }
  fun request(path:String,body:JSONObject?=null):JSONObject {

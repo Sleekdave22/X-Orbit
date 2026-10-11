@@ -19,3 +19,6 @@ design/
 *.mp4
 
 .DS_Store
+
+server/tls/
+*.key

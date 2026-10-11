@@ -4,7 +4,7 @@ import argparse, base64, hashlib, hmac, json, os, re, mimetypes, secrets, sqlite
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
-import sys, zlib, struct
+import sys, zlib, struct, ssl
 sys.path.insert(0,str(Path(__file__).parent/"vendor"))
 import qrcode
 from functools import lru_cache
@@ -90,6 +90,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             parsed=urlparse(self.path)
+            if parsed.path=='/guardianchat-ca.crt':
+                data=(Path(__file__).parent.parent/'chat/src/main/res/raw/guardianchat_local_ca.crt').read_bytes();self.send_response(200);self.send_header('Content-Type','application/x-x509-ca-cert');self.send_header('Content-Disposition','attachment; filename=guardianchat-ca.crt');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path in ('/roboto-0.ttf','/roboto-1.ttf'):
                 data=(Path(__file__).parent/parsed.path[1:]).read_bytes()
                 self.send_response(200);self.send_header('Content-Type','font/ttf');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
@@ -272,7 +274,10 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError,ConnectionResetError):pass
         except Exception:self.reply(500,{'error':'Server could not save this message'})
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--host',default='0.0.0.0');p.add_argument('--port',type=int,default=8765);p.add_argument('--data',default=str(Path(__file__).parent/'data'));a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--host',default='0.0.0.0');p.add_argument('--port',type=int,default=8765);p.add_argument('--data',default=str(Path(__file__).parent/'data'));p.add_argument('--cert');p.add_argument('--key');a=p.parse_args();
+    if bool(a.cert)!=bool(a.key):p.error('Supply both --cert and --key')
     s=ChatServer((a.host,a.port),a.data)
+    if a.cert:
+        context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.minimum_version=ssl.TLSVersion.TLSv1_2;context.load_cert_chain(a.cert,a.key);s.socket=context.wrap_socket(s.socket,server_side=True)
     print(f'GuardianChat LAN server on port {a.port}. Invitation code is in {s.data / "invite.txt"}. Use test content only.',flush=True)
     s.serve_forever()
