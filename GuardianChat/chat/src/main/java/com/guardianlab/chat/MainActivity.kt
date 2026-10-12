@@ -117,7 +117,7 @@ class MainActivity:ComponentActivity(){
   row.addView(onceChoice,LinearLayout.LayoutParams(dp(32),dp(32)).apply {marginEnd=dp(8)});row.addView(button("🎙"){voiceType()}.apply {contentDescription="Voice typing";minWidth=0;minimumWidth=0;setPadding(0,0,0,0);textSize=20f},LinearLayout.LayoutParams(dp(32),dp(40)));row.addView(sendButton);composer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;addView(row,LinearLayout.LayoutParams(-1,dp(64)))};root.addView(composer,LinearLayout.LayoutParams(-1,-2))
   val tools=LinearLayout(this);tools.addView(button("Attach"){if(!sending){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply {type="*/*";addCategory(Intent.CATEGORY_OPENABLE)};startActivityForResult(intent,20)}},LinearLayout.LayoutParams(0,-2,1f))
   recordButton=button("Voice note"){if(recorder!=null)finishRecording() else if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)startRecording() else requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),11)};tools.addView(recordButton,LinearLayout.LayoutParams(0,-2,1f));root.addView(tools)
-  root.addView(text("Videos up to 30 MB · other attachments up to 8 MB · voice notes up to 60 seconds · glasses detection experimental, not enabled",12f));setContentView(root)
+  setContentView(root)
   fetchMessages()
  }
  private fun fetchMessages(){if(fetching || peer.isEmpty())return;fetching=true;val gen=generation;val target=peer;val cursor=after
