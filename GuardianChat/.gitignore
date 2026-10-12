@@ -15,3 +15,5 @@ server/tls/
 
 chat/src/main/assets/firebase-config.json
 server/private/
+
+server/.venv-push/
