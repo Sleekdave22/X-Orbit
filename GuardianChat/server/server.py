@@ -159,9 +159,9 @@ class Handler(BaseHTTPRequestHandler):
                         r=dict(row);r['peer']=r['recipient'] if r['caller']==uid else r['caller'];r['direction']='outgoing' if r['caller']==uid else 'incoming';r['duration']=max(0,int((r['ended'] or time.time())-r['connected'])) if r['connected'] else 0;r.update(self.server.call_event(row,uid));items.append(r)
                     self.reply(200,{'calls':items});return
                 if parsed.path=='/message-status':
-                    mid=int(parse_qs(parsed.query).get('id',['0'])[0]);row=db.execute('SELECT deleted_all FROM messages WHERE id=? AND (sender=? OR recipient=?)',(mid,uid,uid)).fetchone()
+                    mid=int(parse_qs(parsed.query).get('id',['0'])[0]);row=db.execute('SELECT deleted_all,protected_media,fileid FROM messages WHERE id=? AND (sender=? OR recipient=?)',(mid,uid,uid)).fetchone()
                     if not row:self.reply(404,{'error':'Message unavailable'});return
-                    self.reply(200,{'deleted':bool(row['deleted_all'])});return
+                    self.reply(200,{'deleted':bool(row['deleted_all']),'protected_transfer_pending':bool(row['protected_media'] and row['fileid'])});return
                 if parsed.path=='/media':
                     peer=parse_qs(parsed.query).get('peer',[''])[0]
                     if not peer:self.reply(400,{'error':'Choose a conversation'});return

@@ -23,14 +23,14 @@ class ChatTest(unittest.TestCase):
   visible=self.call('/messages?peer='+a['id'],token=b['token'])['messages'][0];self.assertEqual(visible['protected_media'],1);self.assertIsNone(visible['fileid']);self.assertEqual(visible['text'],'');self.assertNotIn('protected_device',visible)
   with self.assertRaises(urllib.error.HTTPError):self.call('/protected/open',{'message_id':mid,'device':device},a['token'])
   with self.assertRaises(urllib.error.HTTPError):self.call('/messages/forward',{'message_id':mid,'peer':b['id'],'client_id':'blocked'},a['token'])
-  item=self.call('/protected/open',{'message_id':mid,'device':device},b['token']);fid=item['fileid']
+  item=self.call('/protected/open',{'message_id':mid,'device':device},b['token']);fid=item['fileid'];self.assertTrue(self.call('/message-status?id='+str(mid),token=b['token'])['protected_transfer_pending'])
   with self.assertRaises(urllib.error.HTTPError):self.call('/files/'+fid,token=b['token'])
   with self.assertRaises(urllib.error.HTTPError):self.call('/protected/open',{'message_id':mid,'device':other},b['token'])
   request=urllib.request.Request(self.base+'/files/'+fid,headers={'Authorization':'Bearer '+b['token'],'X-View-Token':item['view_token'],'X-Protected-Device':device})
   with urllib.request.urlopen(request) as response:self.assertEqual(response.read(),b'protected')
   self.assertEqual(self.call('/media?peer='+a['id'],token=b['token'])['media'],[])
   self.call('/protected/received',{'message_id':mid,'device':device},b['token']);self.call('/protected/received',{'message_id':mid,'device':device},b['token'])
-  self.assertFalse(self.server.file_path(fid,item['filename'],item['mime']).exists())
+  self.assertFalse(self.server.file_path(fid,item['filename'],item['mime']).exists());self.assertFalse(self.call('/message-status?id='+str(mid),token=b['token'])['protected_transfer_pending'])
   with self.assertRaises(urllib.error.HTTPError):self.call('/protected/open',{'message_id':mid,'device':other},b['token'])
   with self.server.db() as db:row=db.execute('SELECT text,fileid,protected_media FROM messages WHERE id=?',(mid,)).fetchone();self.assertIsNone(row['fileid']);self.assertEqual(row['text'],'');self.assertEqual(row['protected_media'],1)
  def test_protected_ack_never_removes_ordinary_media(self):
