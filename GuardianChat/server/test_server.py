@@ -17,6 +17,16 @@ class ChatTest(unittest.TestCase):
   for other in getattr(self,'accounts',[]):self.call('/contacts',{'code':other['id']},user['token'])
   self.accounts=getattr(self,'accounts',[])+[user]
   return user
+ def test_view_once_prefetch_does_not_consume_content(self):
+  a=self.register('Sender');b=self.register('Receiver')
+  mid=self.call('/messages',{'peer':b['id'],'text':'Caption','filename':'photo.png','mime':'image/png','data':base64.b64encode(b'photo').decode(),'client_id':'prefetch','view_once':True},a['token'])['id']
+  with self.assertRaises(urllib.error.HTTPError):self.call('/once/download',{'message_id':mid},a['token'])
+  item=self.call('/once/download',{'message_id':mid},b['token']);self.assertEqual(item['opened'],0)
+  request=urllib.request.Request(self.base+'/files/'+item['fileid'],headers={'Authorization':'Bearer '+b['token'],'X-View-Token':item['view_token']})
+  with urllib.request.urlopen(request) as response:self.assertEqual(response.read(),b'photo')
+  opened=self.call('/open',{'message_id':mid},b['token']);self.assertEqual(opened['opened'],1)
+  with self.assertRaises(urllib.error.HTTPError):self.call('/once/download',{'message_id':mid},b['token'])
+  self.call('/close',{'message_id':mid},b['token'])
  def test_presence_is_account_scoped_and_expires(self):
   import time
   a=self.register('Present');b=self.register('Contact');stranger=self.call('/register',{'invite':self.server.invite,'name':'Stranger'})

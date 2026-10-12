@@ -391,6 +391,15 @@ class Handler(BaseHTTPRequestHandler):
                     db.execute('INSERT OR IGNORE INTO contacts VALUES(?,?)',(uid,code))
                     db.execute('INSERT OR IGNORE INTO contacts VALUES(?,?)',(code,uid))
                 self.reply(200,{'contact':dict(other)});return
+            if self.path=='/once/download':
+                with self.server.db() as db:
+                    db.execute('BEGIN IMMEDIATE')
+                    row=db.execute('SELECT * FROM messages WHERE id=? AND recipient=? AND view_once=1 AND opened=0 AND deleted_all=0 AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?)',(int(body['message_id']),uid,uid)).fetchone()
+                    if not row:self.reply(404,{'error':'View-once content unavailable'});return
+                    lease=secrets.token_urlsafe(32)
+                    db.execute('UPDATE messages SET lease_hash=?,lease_until=? WHERE id=?',(hashlib.sha256(lease.encode()).hexdigest(),int(time.time())+600,row['id']))
+                    item=dict(row);item.pop('lease_hash',None);item.pop('lease_until',None);item['view_token']=lease
+                self.reply(200,item);return
             if self.path in ('/open','/close'):
                 with self.server.db() as db:
                     db.execute('BEGIN IMMEDIATE')
