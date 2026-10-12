@@ -15,3 +15,5 @@ Without both configurations, background ringing is not active. After activation,
 The GuardianChat Firebase project and Android client have been configured locally. The private credential and Android configuration remain excluded from Git. Start the server with `server/.venv-push/bin/python server/server.py` (plus the existing TLS arguments for HTTPS). Recreate that environment with `python3 -m venv server/.venv-push` and `server/.venv-push/bin/python -m pip install -r server/requirements-push.txt`. The Intel Mac dependency constraint uses a compatible prebuilt wheel.
 
 A configured device must open the app once while signed in to register its push token. Keep Android notification permission and Incoming call alerts enabled. Live background ringing still needs an end-to-end call test.
+
+Incoming alerts use Android CallStyle and a full-screen intent. The call screen may appear over the lock screen; chat screens do not. On Android 14 and later, Settings offers an Incoming call screen shortcut to Android’s permission page. Android chooses the banner presentation while unlocked.
