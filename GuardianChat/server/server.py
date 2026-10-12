@@ -154,7 +154,10 @@ class Handler(BaseHTTPRequestHandler):
                         r=dict(row);r['peer']=r['recipient'] if r['caller']==uid else r['caller'];r['direction']='outgoing' if r['caller']==uid else 'incoming';r['duration']=max(0,int((r['ended'] or time.time())-r['connected'])) if r['connected'] else 0;r.update(self.server.call_event(row,uid));items.append(r)
                     self.reply(200,{'calls':items});return
                 if parsed.path=='/media':
-                    rows=db.execute('SELECT m.*,u.name AS peer_name FROM messages m JOIN users u ON u.id=CASE WHEN m.sender=? THEN m.recipient ELSE m.sender END WHERE (m.sender=? OR m.recipient=?) AND m.view_once=0 AND m.fileid IS NOT NULL ORDER BY m.time DESC,m.id DESC',(uid,uid,uid))
+                    peer=parse_qs(parsed.query).get('peer',[''])[0]
+                    if not peer:self.reply(400,{'error':'Choose a conversation'});return
+                    if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():self.reply(403,{'error':'Conversation unavailable'});return
+                    rows=db.execute('SELECT m.*,u.name AS peer_name FROM messages m JOIN users u ON u.id=CASE WHEN m.sender=? THEN m.recipient ELSE m.sender END WHERE ((m.sender=? AND m.recipient=?) OR (m.sender=? AND m.recipient=?)) AND m.view_once=0 AND m.fileid IS NOT NULL ORDER BY m.time DESC,m.id DESC',(uid,uid,peer,peer,uid))
                     items=[]
                     for row in rows:
                         item=dict(row);item.pop('lease_hash',None);item.pop('lease_until',None);items.append(item)

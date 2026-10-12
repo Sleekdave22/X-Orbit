@@ -49,12 +49,15 @@ class ChatTest(unittest.TestCase):
   a=self.register('Caller');b=self.register('Recipient');call=self.call('/calls/start',{'peer':b['id'],'offer':{'type':'offer','sdp':'offer'}},a['token']);self.call('/calls/end',{'id':call['id']},a['token'])
   self.server.shutdown();self.server.server_close();self.server=ChatServer(('127.0.0.1',0),self.tmp.name,reset_call_history=True);self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start();self.base=f'http://127.0.0.1:{self.server.server_port}'
   history=self.call('/call-history',token=a['token'])['calls'];self.assertEqual(history[0]['id'],call['id']);self.assertEqual(history[0]['outcome'],'cancelled');self.assertEqual(len(self.call('/messages?peer='+b['id'],token=a['token'])['messages']),1)
- def test_media_library_is_account_scoped_and_excludes_view_once(self):
-  a=self.register('A');b=self.register('B');c=self.call('/register',{'invite':self.server.invite,'name':'C'})
+ def test_media_library_is_conversation_scoped_and_excludes_view_once(self):
+  a=self.register('A');b=self.register('B');c=self.register('C');outsider=self.call('/register',{'invite':self.server.invite,'name':'Outsider'})
   for once in [False,True]:self.call('/messages',{'peer':b['id'],'text':'','client_id':str(once),'filename':'photo.png','mime':'image/png','data':base64.b64encode(b'image test').decode(),'view_once':once},a['token'])
-  for token in [a['token'],b['token']]:
-   media=self.call('/media',token=token)['media'];self.assertEqual(len(media),1);self.assertEqual(media[0]['view_once'],0);self.assertNotIn('lease_hash',media[0])
-  self.assertEqual(self.call('/media',token=c['token'])['media'],[])
+  self.call('/messages',{'peer':c['id'],'text':'','client_id':'other-chat','filename':'other.png','mime':'image/png','data':base64.b64encode(b'other image').decode()},a['token'])
+  for owner,peer in [(a,b),(b,a)]:
+   media=self.call('/media?peer='+peer['id'],token=owner['token'])['media'];self.assertEqual(len(media),1);self.assertEqual(media[0]['filename'],'photo.png');self.assertEqual(media[0]['view_once'],0);self.assertNotIn('lease_hash',media[0])
+  self.assertEqual(self.call('/media?peer='+c['id'],token=b['token'])['media'],[])
+  for path,token in [('/media',a['token']),('/media?peer='+b['id'],outsider['token'])]:
+   with self.assertRaises(urllib.error.HTTPError):self.call(path,token=token)
  def test_call_message_is_unique_and_missed_label_is_per_account(self):
   a=self.register('A');b=self.register('B');call=self.call('/calls/start',{'peer':b['id'],'offer':{'type':'offer','sdp':'private signalling'}},a['token'])
   self.call('/calls/end',{'id':call['id']},a['token']);self.call('/calls/end',{'id':call['id']},a['token'])
