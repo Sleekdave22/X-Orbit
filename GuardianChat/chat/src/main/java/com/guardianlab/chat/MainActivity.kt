@@ -118,9 +118,9 @@ class MainActivity:ComponentActivity(){
   fun compact(label:String,description:String,action:()->Unit)=button(label,action).apply {contentDescription=description;textSize=14f;minWidth=0;minimumWidth=0;minHeight=0;minimumHeight=0;setPadding(0,0,0,0)}
   val controls=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};val top=LinearLayout(this);val bottom=LinearLayout(this)
   fun addControl(target:LinearLayout,view:View){target.addView(view,LinearLayout.LayoutParams(dp(28),dp(32)).apply {marginStart=dp(1)})}
-  addControl(top,compact("☺","Open emoji keyboard"){toggleEmoji()});onceChoice=onceToggle(false){};addControl(top,onceChoice!!);addControl(top,compact("🎙","Voice typing"){voiceType()})
+  addControl(top,compact("☺","Open emoji keyboard"){toggleEmoji()}.apply {backgroundTintList=null;background=null});onceChoice=onceToggle(false){};addControl(top,onceChoice!!);addControl(top,compact("🎙","Voice typing"){voiceType()})
   addControl(bottom,compact("＋","Attach media or file"){if(!sending){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply {type="*/*";addCategory(Intent.CATEGORY_OPENABLE)};startActivityForResult(intent,20)}})
-  recordButton=compact("●","Record voice note"){if(recorder!=null)finishRecording() else if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)startRecording() else requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),11)};addControl(bottom,recordButton!!)
+  recordButton=compact("▂▆▃","Record voice note"){if(recorder!=null)finishRecording() else if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)startRecording() else requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),11)};addControl(bottom,recordButton!!)
   sendButton=compact("➤","Send message"){if(pendingSend!=null){pendingSend?.invoke()}else{val content=draft?.text.toString().trim();if(content.isNotEmpty())send(content)}}.apply {textSize=15f};addControl(bottom,sendButton!!)
   controls.orientation=LinearLayout.HORIZONTAL;controls.addView(top);controls.addView(bottom);row.addView(controls);composer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;addView(row,LinearLayout.LayoutParams(-1,-2))};root.addView(composer,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(6)})
   setContentView(root)
@@ -193,10 +193,10 @@ class MainActivity:ComponentActivity(){
  private fun startRecording(){if(sending || screen!="chat")return
   try{val f=File(cacheDir,"voice-${UUID.randomUUID()}.m4a");val r=MediaRecorder();r.setAudioSource(MediaRecorder.AudioSource.MIC);r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);r.setAudioEncodingBitRate(64000);r.setAudioSamplingRate(22050);r.setOutputFile(f.absolutePath);r.prepare();r.start();recordingFile=f;recorder=r;recordButton?.text="■";main.postDelayed(recordLimit,60000)}catch(e:Exception){cancelRecording();toast("Microphone unavailable")}
  }
- private fun finishRecording(){val r=recorder?:return;val f=recordingFile;recorder=null;recordingFile=null;main.removeCallbacks(recordLimit);recordButton?.text="●"
+ private fun finishRecording(){val r=recorder?:return;val f=recordingFile;recorder=null;recordingFile=null;main.removeCallbacks(recordLimit);recordButton?.text="▂▆▃"
   try{r.stop();r.release();if(f!=null)previewSend(file=f,filename="Voice note.m4a",mime="audio/mp4")}catch(e:Exception){r.release();f?.delete();toast("Voice note too short. Try again.")}
  }
- private fun cancelRecording(){main.removeCallbacks(recordLimit);recorder?.let {try{it.stop()}catch(_:Exception){};it.release()};recorder=null;recordingFile?.delete();recordingFile=null;recordButton?.text="●"}
+ private fun cancelRecording(){main.removeCallbacks(recordLimit);recorder?.let {try{it.stop()}catch(_:Exception){};it.release()};recorder=null;recordingFile?.delete();recordingFile=null;recordButton?.text="▂▆▃"}
  override fun onRequestPermissionsResult(code:Int,permissions:Array<out String>,results:IntArray){super.onRequestPermissionsResult(code,permissions,results);if(results.firstOrNull()!=PackageManager.PERMISSION_GRANTED){toast("Permission not granted");if(code==10 || code==12){pendingOnce=null;monitor?.stop("Camera permission denied")};return};if(code==12){pendingOnce?.let {pendingOnce=null;openOnce(it)};return};if(code==10 && enabled && screen=="viewer")monitor?.start();if(code==11)startRecording();if(code==13)startAlerts()}
  private val viewLimit=Runnable {if(viewOnceId!=null){toast("View-once session ended");showChat()}}
  private fun closeOnce(){
