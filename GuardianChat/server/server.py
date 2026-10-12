@@ -43,6 +43,10 @@ class ChatServer(ThreadingHTTPServer):
         with self.db() as db:
             db.execute('CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL)')
             db.execute('INSERT OR IGNORE INTO sessions SELECT token_hash,id FROM users')
+        with self.db() as db:
+            db.execute('CREATE INDEX IF NOT EXISTS messages_participants_id ON messages(sender,recipient,id)')
+            db.execute('CREATE INDEX IF NOT EXISTS messages_unread ON messages(recipient,read_at,sender)')
+            db.execute('CREATE INDEX IF NOT EXISTS messages_undelivered ON messages(recipient,delivered_at,id)')
         self.login_attempts={}
         self.migrate_files()
         self.expire_views()
