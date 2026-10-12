@@ -17,6 +17,22 @@ class ChatTest(unittest.TestCase):
   for other in getattr(self,'accounts',[]):self.call('/contacts',{'code':other['id']},user['token'])
   self.accounts=getattr(self,'accounts',[])+[user]
   return user
+ def test_voice_call_contact_authorization_and_lifecycle(self):
+  a=self.register('Caller');b=self.register('Recipient');stranger=self.call('/register',{'invite':self.server.invite,'name':'Stranger'})
+  offer={'type':'offer','sdp':'test offer'};answer={'type':'answer','sdp':'test answer'}
+  with self.assertRaises(urllib.error.HTTPError):self.call('/calls/start',{'peer':stranger['id'],'offer':offer},a['token'])
+  call=self.call('/calls/start',{'peer':b['id'],'offer':offer},a['token']);self.assertEqual(call['state'],'ringing')
+  self.assertEqual(self.call('/calls',token=stranger['token'])['calls'],[])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/calls/answer',{'id':call['id'],'answer':answer},a['token'])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/calls/end',{'id':call['id']},stranger['token'])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/calls/start',{'peer':a['id'],'offer':offer},b['token'])
+  active=self.call('/calls/answer',{'id':call['id'],'answer':answer},b['token']);self.assertEqual(active['state'],'active')
+  self.assertEqual(self.call('/calls',token=a['token'])['calls'][0]['answer'],answer)
+  ended=self.call('/calls/end',{'id':call['id']},a['token']);self.assertEqual(ended['state'],'ended');self.assertIsNone(ended['offer']);self.assertIsNone(ended['answer'])
+ def test_voice_call_timeout_clears_signalling(self):
+  a=self.register('Caller');b=self.register('Recipient');call=self.call('/calls/start',{'peer':b['id'],'offer':{'type':'offer','sdp':'offer'}},a['token'])
+  with self.server.call_lock:self.server.calls[call['id']]['created']-=46
+  ended=self.call('/calls',token=a['token'])['calls'][0];self.assertEqual(ended['state'],'ended');self.assertIsNone(ended['offer'])
  def test_password_change_requires_current_password(self):
   a=self.register('Password account')
   self.call('/password',{'password':'first passphrase 123'},a['token'])

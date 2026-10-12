@@ -69,3 +69,5 @@ Unread badges appear in a small oxblood circle at the right. Messages predating 
 Enter sends a message; Shift+Enter adds a line. Android’s soft keyboard shows Send for the message field. Side insets are 8 dp on Android and 8 px in the browser; browser layouts use the full width on phone-sized screens.
 
 Live arrivals in the conversation you are viewing are read immediately and do not create an unread divider; only the unread backlog on entering creates that divider. Outgoing status circles: hollow = sending, white = accepted by server, dark oxblood = recipient app acknowledged receipt, bright oxblood = conversation displayed/read. Receipt acknowledgements for view-once content do not consume or open it. Browser sounds unlock after clicking or typing; Enable sound & notifications plays a test chime. The Mac/browser tab must be unmuted. Local HTTP system notifications remain browser-dependent.
+
+Same-Wi-Fi voice-call testing is described in [VOICE_CALLS.md](VOICE_CALLS.md). Both clients must remain open. Bright/Dark appearance is under Settings.
