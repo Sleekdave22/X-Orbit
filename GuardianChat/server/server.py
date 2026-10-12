@@ -173,11 +173,13 @@ class Handler(BaseHTTPRequestHandler):
                 if parsed.path=='/users':
                     items=[dict(r) for r in db.execute('SELECT u.id,u.name,u.nickname,u.profile_version,(SELECT COUNT(*) FROM messages m WHERE m.sender=u.id AND m.recipient=c.owner AND m.read_at=0) unread,(SELECT COALESCE(MAX(id),0) FROM messages m WHERE m.sender=u.id AND m.recipient=c.owner) latest FROM users u JOIN contacts c ON c.peer=u.id WHERE c.owner=? ORDER BY u.name',(uid,))]
                     for item in items:
-                        last=db.execute('SELECT * FROM messages WHERE (sender=? AND recipient=?) OR (sender=? AND recipient=?) ORDER BY id DESC LIMIT 1',(uid,item['id'],item['id'],uid)).fetchone()
+                        last=db.execute('SELECT * FROM messages WHERE (sender=? AND recipient=?) OR (sender=? AND recipient=?) ORDER BY time DESC,id DESC LIMIT 1',(uid,item['id'],item['id'],uid)).fetchone()
+                        item['last_activity']=last['time'] if last else 0
                         if last:
                             if last['kind']=='call':
                                 history=db.execute('SELECT * FROM call_history WHERE id=?',(last['call_id'],)).fetchone();item['preview']=self.server.call_event(history,uid)['label'] if history else 'Audio call'
                             else:item['preview']='View-once content' if last['view_once'] else (last['text'] or last['filename'] or '')[:120]
+                    items.sort(key=lambda item:(-item['last_activity'],item['name'].casefold(),item['id']))
                     self.reply(200,{'users':items});return
                 if parsed.path=='/inbox':
                     self.reply(200,{'ids':[r['id'] for r in db.execute('SELECT id FROM messages WHERE recipient=? AND delivered_at=0 ORDER BY id LIMIT 500',(uid,))]});return

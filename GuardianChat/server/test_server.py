@@ -58,6 +58,17 @@ class ChatTest(unittest.TestCase):
   self.assertEqual(self.call('/media?peer='+c['id'],token=b['token'])['media'],[])
   for path,token in [('/media',a['token']),('/media?peer='+b['id'],outsider['token'])]:
    with self.assertRaises(urllib.error.HTTPError):self.call(path,token=token)
+ def test_chat_list_uses_latest_activity_time_in_both_directions(self):
+  owner=self.register('Owner');a=self.register('Alpha');z=self.register('Zebra');quiet=self.register('Quiet')
+  first=self.call('/messages',{'peer':a['id'],'text':'Incoming','client_id':'incoming'},owner['token'])['id']
+  second=self.call('/messages',{'peer':owner['id'],'text':'Recent reply','client_id':'reply'},z['token'])['id']
+  with self.server.db() as db:
+   db.execute('UPDATE messages SET time=2000 WHERE id=?',(first,));db.execute('UPDATE messages SET time=1000 WHERE id=?',(second,))
+  users=self.call('/users',token=owner['token'])['users'];self.assertEqual([u['id'] for u in users],[a['id'],z['id'],quiet['id']])
+  with self.server.db() as db:db.execute('UPDATE messages SET time=3000 WHERE id=?',(second,))
+  self.assertEqual(self.call('/users',token=owner['token'])['users'][0]['id'],z['id'])
+  call=self.call('/calls/start',{'peer':a['id'],'offer':{'type':'offer','sdp':'offer'}},owner['token']);self.call('/calls/end',{'id':call['id']},owner['token'])
+  users=self.call('/users',token=owner['token'])['users'];self.assertEqual(users[0]['id'],a['id']);self.assertIn('audio call',users[0]['preview'])
  def test_call_message_is_unique_and_missed_label_is_per_account(self):
   a=self.register('A');b=self.register('B');call=self.call('/calls/start',{'peer':b['id'],'offer':{'type':'offer','sdp':'private signalling'}},a['token'])
   self.call('/calls/end',{'id':call['id']},a['token']);self.call('/calls/end',{'id':call['id']},a['token'])
