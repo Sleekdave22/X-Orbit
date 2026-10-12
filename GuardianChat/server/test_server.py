@@ -48,7 +48,19 @@ class ChatTest(unittest.TestCase):
  def test_call_history_survives_server_restart(self):
   a=self.register('Caller');b=self.register('Recipient');call=self.call('/calls/start',{'peer':b['id'],'offer':{'type':'offer','sdp':'offer'}},a['token']);self.call('/calls/end',{'id':call['id']},a['token'])
   self.server.shutdown();self.server.server_close();self.server=ChatServer(('127.0.0.1',0),self.tmp.name,reset_call_history=True);self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start();self.base=f'http://127.0.0.1:{self.server.server_port}'
-  history=self.call('/call-history',token=a['token'])['calls'];self.assertEqual(history[0]['id'],call['id']);self.assertEqual(history[0]['outcome'],'cancelled')
+  history=self.call('/call-history',token=a['token'])['calls'];self.assertEqual(history[0]['id'],call['id']);self.assertEqual(history[0]['outcome'],'cancelled');self.assertEqual(len(self.call('/messages?peer='+b['id'],token=a['token'])['messages']),1)
+ def test_media_library_is_account_scoped_and_excludes_view_once(self):
+  a=self.register('A');b=self.register('B');c=self.call('/register',{'invite':self.server.invite,'name':'C'})
+  for once in [False,True]:self.call('/messages',{'peer':b['id'],'text':'','client_id':str(once),'filename':'photo.png','mime':'image/png','data':base64.b64encode(b'image test').decode(),'view_once':once},a['token'])
+  for token in [a['token'],b['token']]:
+   media=self.call('/media',token=token)['media'];self.assertEqual(len(media),1);self.assertEqual(media[0]['view_once'],0);self.assertNotIn('lease_hash',media[0])
+  self.assertEqual(self.call('/media',token=c['token'])['media'],[])
+ def test_call_message_is_unique_and_missed_label_is_per_account(self):
+  a=self.register('A');b=self.register('B');call=self.call('/calls/start',{'peer':b['id'],'offer':{'type':'offer','sdp':'private signalling'}},a['token'])
+  self.call('/calls/end',{'id':call['id']},a['token']);self.call('/calls/end',{'id':call['id']},a['token'])
+  mine=self.call('/messages?peer='+b['id'],token=a['token'])['messages'];theirs=self.call('/messages?peer='+a['id'],token=b['token'])['messages']
+  self.assertEqual(len(mine),1);self.assertEqual(mine[0]['kind'],'call');self.assertEqual(mine[0]['call']['label'],'Cancelled outgoing audio call');self.assertEqual(theirs[0]['call']['label'],'Missed audio call');self.assertTrue(theirs[0]['call']['missed']);self.assertNotIn('private signalling',json.dumps(mine))
+  self.assertEqual(self.call('/users',token=b['token'])['users'][0]['preview'],'Missed audio call')
  def test_password_change_requires_current_password(self):
   a=self.register('Password account')
   self.call('/password',{'password':'first passphrase 123'},a['token'])
