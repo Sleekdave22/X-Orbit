@@ -112,17 +112,17 @@ class MainActivity:ComponentActivity(){
  private fun showChat(){closeOnce();releasePlayback();screen="chat";firstMessageLoad=true;unreadShown=false;generation++;after=0
   val root=root(peerName){showPeople()};val header=root.getChildAt(0) as LinearLayout;header.background=boundary().apply {setColor(Color.rgb(48,48,48))};header.getChildAt(1).setOnClickListener {showProfile(peer)};header.addView(profileIcon(peer,peerName),2,LinearLayout.LayoutParams(dp(36),dp(36)));scroller=ScrollView(this);messages=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};scroller!!.addView(messages);scroller!!.background=boundary();scroller!!.setPadding(dp(6),0,dp(6),0)
   root.addView(text("Chat • camera off",13f));root.addView(scroller,LinearLayout.LayoutParams(-1,0,1f))
-  val row=LinearLayout(this).apply {gravity=Gravity.BOTTOM}
-  draft=messageField().apply {setSingleLine(false);minLines=1;maxLines=3;textSize=14f;minimumHeight=dp(40);setPadding(dp(10),dp(8),dp(10),dp(8));background=GradientDrawable().apply {setColor(Color.rgb(38,38,38));setStroke(dp(1),Color.DKGRAY);cornerRadius=dp(14).toFloat()}}
-  
+  val row=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL;setPadding(dp(6),0,dp(4),0);background=GradientDrawable().apply {setColor(Color.rgb(38,38,38));setStroke(dp(1),Color.DKGRAY);cornerRadius=dp(14).toFloat()}}
+  draft=messageField().apply {setSingleLine(false);minLines=1;maxLines=3;textSize=14f;minimumHeight=dp(40);setPadding(dp(4),dp(8),dp(4),dp(8));background=null}
+  row.addView(draft,LinearLayout.LayoutParams(0,-2,1f))
   fun compact(label:String,description:String,action:()->Unit)=button(label,action).apply {contentDescription=description;textSize=14f;minWidth=0;minimumWidth=0;minHeight=0;minimumHeight=0;setPadding(0,0,0,0)}
   val controls=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};val top=LinearLayout(this);val bottom=LinearLayout(this)
-  fun addControl(target:LinearLayout,view:View){target.addView(view,LinearLayout.LayoutParams(dp(40),dp(36)).apply {marginStart=dp(2)})}
+  fun addControl(target:LinearLayout,view:View){target.addView(view,LinearLayout.LayoutParams(dp(28),dp(32)).apply {marginStart=dp(1)})}
   addControl(top,compact("☺","Open emoji keyboard"){toggleEmoji()});onceChoice=onceToggle(false){};addControl(top,onceChoice!!);addControl(top,compact("🎙","Voice typing"){voiceType()})
   addControl(bottom,compact("＋","Attach media or file"){if(!sending){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply {type="*/*";addCategory(Intent.CATEGORY_OPENABLE)};startActivityForResult(intent,20)}})
   recordButton=compact("●","Record voice note"){if(recorder!=null)finishRecording() else if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)startRecording() else requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),11)};addControl(bottom,recordButton!!)
-  sendButton=compact("Send","Send message"){if(pendingSend!=null){pendingSend?.invoke()}else{val content=draft?.text.toString().trim();if(content.isNotEmpty())send(content)}}.apply {textSize=11f};addControl(bottom,sendButton!!)
-  controls.orientation=LinearLayout.HORIZONTAL;controls.addView(top);controls.addView(bottom);row.gravity=Gravity.END;row.addView(controls);composer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;addView(row,LinearLayout.LayoutParams(-1,-2));addView(draft,LinearLayout.LayoutParams(-1,-2))};root.addView(composer,LinearLayout.LayoutParams(-1,-2))
+  sendButton=compact("➤","Send message"){if(pendingSend!=null){pendingSend?.invoke()}else{val content=draft?.text.toString().trim();if(content.isNotEmpty())send(content)}}.apply {textSize=15f};addControl(bottom,sendButton!!)
+  controls.orientation=LinearLayout.HORIZONTAL;controls.addView(top);controls.addView(bottom);row.addView(controls);composer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;addView(row,LinearLayout.LayoutParams(-1,-2))};root.addView(composer,LinearLayout.LayoutParams(-1,-2))
   setContentView(root)
   fetchMessages()
  }
