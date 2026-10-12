@@ -17,6 +17,24 @@ class ChatTest(unittest.TestCase):
   for other in getattr(self,'accounts',[]):self.call('/contacts',{'code':other['id']},user['token'])
   self.accounts=getattr(self,'accounts',[])+[user]
   return user
+ def test_presence_is_account_scoped_and_expires(self):
+  import time
+  a=self.register('Present');b=self.register('Contact');stranger=self.call('/register',{'invite':self.server.invite,'name':'Stranger'})
+  with self.assertRaises(urllib.error.HTTPError):self.call('/presence',{})
+  self.call('/presence',{},a['token'])
+  status=self.call('/profile?id='+a['id'],token=b['token']);self.assertTrue(status['online']);self.assertGreater(status['last_seen'],0)
+  with self.assertRaises(urllib.error.HTTPError):self.call('/profile?id='+a['id'],token=stranger['token'])
+  with self.server.db() as db:db.execute('UPDATE users SET last_seen=? WHERE id=?',(int(time.time())-46,a['id']))
+  status=self.call('/profile?id='+a['id'],token=b['token']);self.assertFalse(status['online']);self.assertGreater(status['last_seen'],0)
+  self.assertFalse(next(u for u in self.call('/users',token=b['token'])['users'] if u['id']==a['id'])['online'])
+ def test_multi_recipient_view_once_copies_are_independent(self):
+  a=self.register('Sender');b=self.register('First');c=self.register('Second')
+  body={'text':'Caption','view_once':True,'filename':'image.png','mime':'image/png','data':base64.b64encode(b'picture').decode()}
+  first=self.call('/messages',dict(body,peer=b['id'],client_id='first-copy'),a['token'])['id'];second=self.call('/messages',dict(body,peer=c['id'],client_id='second-copy'),a['token'])['id']
+  self.assertEqual(self.call('/messages',dict(body,peer=b['id'],client_id='first-copy'),a['token'])['id'],first)
+  with self.server.db() as db:
+   rows=list(db.execute('SELECT fileid,recipient,text,view_once FROM messages WHERE id IN (?,?)',(first,second)))
+  self.assertEqual(len(rows),2);self.assertNotEqual(rows[0]['fileid'],rows[1]['fileid']);self.assertTrue(all(row['view_once'] and row['text']=='Caption' for row in rows))
  def test_voice_call_contact_authorization_and_lifecycle(self):
   a=self.register('Caller');b=self.register('Recipient');stranger=self.call('/register',{'invite':self.server.invite,'name':'Stranger'})
   offer={'type':'offer','sdp':'test offer'};answer={'type':'answer','sdp':'test answer'}

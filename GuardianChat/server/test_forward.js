@@ -1,0 +1,8 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require('crypto');
+const html=fs.readFileSync(__dirname+'/index.html','utf8');
+const source=html.slice(html.indexOf('async function sendForward(){'),html.indexOf("el('draft').addEventListener('paste'",html.indexOf('async function sendForward(){')));
+const nodes={previewCaption:{value:'Shared caption'},previewOnce:{checked:true},sendMedia:{disabled:false},outName:{textContent:''},draft:{value:'Shared caption'},once:{checked:true}};
+const requests=[];let fail=true;
+const context={crypto,forwardTargets:[{id:'first',name:'First'},{id:'second',name:'Second'}],pendingFile:null,previewVoice:null,voiceRecorder:null,voiceStarting:false,busy:false,el:id=>nodes[id],api:async(path,body)=>{requests.push(body);if(body.peer==='second'&&fail)throw Error('offline')},error:()=>{},messages:()=>{},closeOutgoing:()=>{context.forwardTargets=null},peopleSignature:''};
+vm.createContext(context);vm.runInContext(source,context);
+(async()=>{await context.sendForward();assert.equal(requests.length,2);assert(requests.every(r=>r.text==='Shared caption'&&r.view_once===true));assert.equal(context.forwardTargets.length,1);const failedID=requests[1].client_id;fail=false;await context.sendForward();assert.equal(requests.length,3);assert.equal(requests[2].peer,'second');assert.equal(requests[2].client_id,failedID);assert.equal(context.forwardTargets,null);assert.equal(nodes.once.checked,false);assert.equal(nodes.previewOnce.checked,false);console.log('Multi-recipient forwarding and safe retry passed')})().catch(e=>{console.error(e);process.exitCode=1});

@@ -31,7 +31,7 @@ class ChatServer(ThreadingHTTPServer):
             db.executescript('''CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,name TEXT NOT NULL,token_hash TEXT UNIQUE NOT NULL);
             CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT,sender TEXT NOT NULL,recipient TEXT NOT NULL,text TEXT NOT NULL,filename TEXT,mime TEXT,fileid TEXT,size INTEGER,time INTEGER,client_id TEXT NOT NULL,UNIQUE(sender,client_id));''')
             user_columns={r[1] for r in db.execute('PRAGMA table_info(users)')}
-            for name,kind in [('password_hash',"TEXT DEFAULT ''"),('nickname','TEXT'),('profile_version','INTEGER DEFAULT 0'),('avatar',"TEXT DEFAULT ''"),('avatar_mime',"TEXT DEFAULT ''")]:
+            for name,kind in [('password_hash',"TEXT DEFAULT ''"),('nickname','TEXT'),('profile_version','INTEGER DEFAULT 0'),('avatar',"TEXT DEFAULT ''"),('avatar_mime',"TEXT DEFAULT ''"),('last_seen','INTEGER DEFAULT 0')]:
                 if name not in user_columns:db.execute(f'ALTER TABLE users ADD COLUMN {name} {kind}')
             db.execute('UPDATE users SET nickname=id WHERE nickname IS NULL')
             db.execute('CREATE UNIQUE INDEX IF NOT EXISTS unique_nickname ON users(nickname COLLATE NOCASE)')
@@ -174,14 +174,15 @@ class Handler(BaseHTTPRequestHandler):
                 if parsed.path=='/profile':
                     target=parse_qs(parsed.query).get('id',[uid])[0]
                     if target!=uid and not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,target)).fetchone():self.reply(404,{'error':'Profile unavailable'});return
-                    row=db.execute('SELECT id,name,nickname,avatar,avatar_mime,profile_version FROM users WHERE id=?',(target,)).fetchone()
+                    row=db.execute('SELECT id,name,nickname,avatar,avatar_mime,profile_version,last_seen FROM users WHERE id=?',(target,)).fetchone()
                     if not row:self.reply(404,{'error':'Profile unavailable'});return
-                    profile=dict(row);
+                    profile=dict(row);profile['online']=profile['last_seen']>int(time.time())-45;
                     if target==uid:profile['has_password']=bool(db.execute('SELECT password_hash FROM users WHERE id=?',(uid,)).fetchone()['password_hash'])
                     profile['qr_png']=account_qr(target);self.reply(200,profile);return
                 if parsed.path=='/users':
-                    items=[dict(r) for r in db.execute('SELECT u.id,u.name,u.nickname,u.profile_version,(SELECT COUNT(*) FROM messages m WHERE m.sender=u.id AND m.recipient=c.owner AND m.read_at=0) unread,(SELECT COALESCE(MAX(id),0) FROM messages m WHERE m.sender=u.id AND m.recipient=c.owner) latest FROM users u JOIN contacts c ON c.peer=u.id WHERE c.owner=? ORDER BY u.name',(uid,))]
+                    items=[dict(r) for r in db.execute('SELECT u.id,u.name,u.nickname,u.profile_version,u.last_seen,(SELECT COUNT(*) FROM messages m WHERE m.sender=u.id AND m.recipient=c.owner AND m.read_at=0) unread,(SELECT COALESCE(MAX(id),0) FROM messages m WHERE m.sender=u.id AND m.recipient=c.owner) latest FROM users u JOIN contacts c ON c.peer=u.id WHERE c.owner=? ORDER BY u.name',(uid,))]
                     for item in items:
+                        item['online']=item['last_seen']>int(time.time())-45
                         last=db.execute('SELECT * FROM messages WHERE ((sender=? AND recipient=?) OR (sender=? AND recipient=?)) AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?) ORDER BY time DESC,id DESC LIMIT 1',(uid,item['id'],item['id'],uid,uid)).fetchone()
                         item['last_activity']=last['time'] if last else 0
                         if last:
@@ -266,6 +267,9 @@ class Handler(BaseHTTPRequestHandler):
                 with self.server.db() as db:db.execute('INSERT INTO sessions VALUES(?,?)',(hashlib.sha256(token.encode()).hexdigest(),uid))
                 self.reply(201,{'id':uid,'token':token,'name':name,'nickname':nickname});return
             uid=self.user()
+            if self.path=='/presence':
+                with self.server.db() as presence_db:presence_db.execute('UPDATE users SET last_seen=? WHERE id=?',(int(time.time()),uid))
+                self.reply(200,{'ok':True});return
             if self.path.startswith('/calls/'):
                 with self.server.call_lock:
                     self.server.expire_calls()
