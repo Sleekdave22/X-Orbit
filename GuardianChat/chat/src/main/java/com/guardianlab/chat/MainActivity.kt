@@ -112,7 +112,7 @@ class MainActivity:ComponentActivity(){
  private fun showChat(){closeOnce();releasePlayback();screen="chat";firstMessageLoad=true;unreadShown=false;generation++;after=0
   val root=root(peerName){showPeople()};val header=root.getChildAt(0) as LinearLayout;header.background=boundary().apply {setColor(Color.rgb(48,48,48))};header.getChildAt(1).setOnClickListener {showProfile(peer)};header.addView(profileIcon(peer,peerName),2,LinearLayout.LayoutParams(dp(36),dp(36)));scroller=ScrollView(this);messages=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};scroller!!.addView(messages);scroller!!.background=boundary();scroller!!.setPadding(dp(6),0,dp(6),0)
   root.addView(text("Chat • camera off",13f));root.addView(scroller,LinearLayout.LayoutParams(-1,0,1f))
-  val row=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL;setPadding(dp(6),0,dp(4),0);background=GradientDrawable().apply {setColor(Color.rgb(38,38,38));setStroke(dp(1),Color.DKGRAY);cornerRadius=dp(14).toFloat()}}
+  val row=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL;setPadding(dp(6),0,dp(4),0);background=GradientDrawable().apply {setColor(Color.rgb(38,38,38));setStroke(dp(1),Color.DKGRAY);cornerRadius=dp(22).toFloat()}}
   draft=messageField().apply {setSingleLine(false);minLines=1;maxLines=3;textSize=14f;minimumHeight=dp(40);setPadding(dp(4),dp(8),dp(4),dp(8));background=null}
   row.addView(draft,LinearLayout.LayoutParams(0,-2,1f))
   fun compact(label:String,description:String,action:()->Unit)=button(label,action).apply {contentDescription=description;textSize=14f;minWidth=0;minimumWidth=0;minHeight=0;minimumHeight=0;setPadding(0,0,0,0)}
@@ -122,7 +122,7 @@ class MainActivity:ComponentActivity(){
   addControl(bottom,compact("＋","Attach media or file"){if(!sending){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply {type="*/*";addCategory(Intent.CATEGORY_OPENABLE)};startActivityForResult(intent,20)}})
   recordButton=compact("●","Record voice note"){if(recorder!=null)finishRecording() else if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)startRecording() else requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),11)};addControl(bottom,recordButton!!)
   sendButton=compact("➤","Send message"){if(pendingSend!=null){pendingSend?.invoke()}else{val content=draft?.text.toString().trim();if(content.isNotEmpty())send(content)}}.apply {textSize=15f};addControl(bottom,sendButton!!)
-  controls.orientation=LinearLayout.HORIZONTAL;controls.addView(top);controls.addView(bottom);row.addView(controls);composer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;addView(row,LinearLayout.LayoutParams(-1,-2))};root.addView(composer,LinearLayout.LayoutParams(-1,-2))
+  controls.orientation=LinearLayout.HORIZONTAL;controls.addView(top);controls.addView(bottom);row.addView(controls);composer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;addView(row,LinearLayout.LayoutParams(-1,-2))};root.addView(composer,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(6)})
   setContentView(root)
   fetchMessages()
  }
