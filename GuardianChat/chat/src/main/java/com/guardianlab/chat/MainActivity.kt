@@ -128,10 +128,10 @@ class MainActivity:ComponentActivity(){
   val controls=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};val top=LinearLayout(this);val bottom=LinearLayout(this)
   fun addControl(target:LinearLayout,view:View){target.addView(view,LinearLayout.LayoutParams(dp(26),dp(32)))}
   onceChoice=onceToggle(false){};addControl(top,onceChoice!!);addControl(top,compact("🎙","Voice typing"){voiceType()})
-  addControl(bottom,compact("＋","Attach media or file"){if(!sending){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply {type="*/*";addCategory(Intent.CATEGORY_OPENABLE)};startActivityForResult(intent,20)}})
+  row.addView(compact("＋","Attach media or file"){if(!sending){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply {type="*/*";addCategory(Intent.CATEGORY_OPENABLE)};startActivityForResult(intent,20)}}.apply {backgroundTintList=null;background=null;textSize=22f},1,LinearLayout.LayoutParams(dp(28),dp(36)))
   recordButton=compact("","Record voice note"){if(recorder!=null)finishRecording() else if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)startRecording() else requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),11)};recordButton?.apply {backgroundTintList=null;background=null;setCompoundDrawablesWithIntrinsicBounds(voiceWaveform(),null,null,null);compoundDrawablePadding=0;gravity=Gravity.CENTER};addControl(bottom,recordButton!!)
-  sendButton=compact("➤","Send message"){if(pendingSend!=null){pendingSend?.invoke()}else{val content=draft?.text.toString().trim();if(content.isNotEmpty())send(content)}}.apply {textSize=15f};addControl(bottom,sendButton!!)
-  controls.orientation=LinearLayout.HORIZONTAL;controls.addView(top);controls.addView(bottom);row.addView(controls);composer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;addView(row,LinearLayout.LayoutParams(-1,-2))};root.addView(composer,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(6)})
+  sendButton=compact("➤","Send message"){if(pendingSend!=null){pendingSend?.invoke()}else{val content=draft?.text.toString().trim();if(content.isNotEmpty())send(content)}}.apply {textSize=21f};bottom.addView(sendButton,LinearLayout.LayoutParams(dp(38),dp(38)).apply {marginStart=dp(3)})
+  controls.orientation=LinearLayout.HORIZONTAL;controls.addView(top);controls.addView(bottom);row.addView(controls);composer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;addView(row,LinearLayout.LayoutParams(-1,-2))};root.addView(composer,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(6);bottomMargin=dp(10)})
   showContent(root)
   fetchMessages()
  }
