@@ -117,9 +117,10 @@ class MainActivity:ComponentActivity(){
   draft=messageField().apply {setSingleLine(false);minLines=1;maxLines=3;textSize=14f;minimumHeight=dp(40);setPadding(dp(4),dp(8),dp(4),dp(8));background=null}
   row.addView(draft,LinearLayout.LayoutParams(0,-2,1f))
   fun compact(label:String,description:String,action:()->Unit)=button(label,action).apply {contentDescription=description;textSize=14f;minWidth=0;minimumWidth=0;minHeight=0;minimumHeight=0;setPadding(0,0,0,0)}
+  row.addView(compact("☺","Open emoji keyboard"){toggleEmoji()}.apply {backgroundTintList=null;background=null;textSize=23f},0,LinearLayout.LayoutParams(dp(26),dp(32)))
   val controls=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};val top=LinearLayout(this);val bottom=LinearLayout(this)
-  fun addControl(target:LinearLayout,view:View){target.addView(view,LinearLayout.LayoutParams(dp(28),dp(32)).apply {marginStart=dp(1)})}
-  addControl(top,compact("☺","Open emoji keyboard"){toggleEmoji()}.apply {backgroundTintList=null;background=null});onceChoice=onceToggle(false){};addControl(top,onceChoice!!);addControl(top,compact("🎙","Voice typing"){voiceType()})
+  fun addControl(target:LinearLayout,view:View){target.addView(view,LinearLayout.LayoutParams(dp(26),dp(32)))}
+  onceChoice=onceToggle(false){};addControl(top,onceChoice!!);addControl(top,compact("🎙","Voice typing"){voiceType()})
   addControl(bottom,compact("＋","Attach media or file"){if(!sending){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply {type="*/*";addCategory(Intent.CATEGORY_OPENABLE)};startActivityForResult(intent,20)}})
   recordButton=compact("","Record voice note"){if(recorder!=null)finishRecording() else if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)startRecording() else requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),11)};recordButton?.apply {backgroundTintList=null;background=null;foreground=voiceWaveform()};addControl(bottom,recordButton!!)
   sendButton=compact("➤","Send message"){if(pendingSend!=null){pendingSend?.invoke()}else{val content=draft?.text.toString().trim();if(content.isNotEmpty())send(content)}}.apply {textSize=15f};addControl(bottom,sendButton!!)
