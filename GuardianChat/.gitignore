@@ -10,15 +10,8 @@ __pycache__/
 device-ui*.xml
 *.log
 
-.kotlin/
-design/
-*.sqlite*
-*.apk
-*.jpg
-*.png
-*.mp4
-
-.DS_Store
-
 server/tls/
 *.key
+
+chat/src/main/assets/firebase-config.json
+server/private/

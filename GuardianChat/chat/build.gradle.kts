@@ -6,6 +6,7 @@ android {
  compileOptions { sourceCompatibility = JavaVersion.VERSION_11; targetCompatibility = JavaVersion.VERSION_11 }
 }
 dependencies {
+ implementation("com.google.firebase:firebase-messaging:25.1.3")
  implementation(project(":guardianlab"))
  implementation(project(":guardianlab-ui"))
  implementation("androidx.activity:activity-ktx:1.8.0")

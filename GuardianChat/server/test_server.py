@@ -17,6 +17,21 @@ class ChatTest(unittest.TestCase):
   for other in getattr(self,'accounts',[]):self.call('/contacts',{'code':other['id']},user['token'])
   self.accounts=getattr(self,'accounts',[])+[user]
   return user
+ def test_call_push_is_session_scoped_and_contains_no_media(self):
+  a=self.register('Caller');b=self.register('Receiver');token='test-push-token-'+'a'*40
+  self.call('/push/register',{'push_token':token},b['token'])
+  self.call('/push/unregister',{'push_token':token},a['token'])
+  class FakePush:
+   enabled=True
+   def __init__(self):self.events=[];self.ready=threading.Event()
+   def send(self,token,data):self.events.append((token,data));self.ready.set()
+  fake=FakePush();self.server.push=fake
+  call=self.call('/calls/start',{'peer':b['id'],'offer':{'type':'offer','sdp':'test offer'}},a['token']);self.assertTrue(fake.ready.wait(2));self.assertEqual(fake.events[0][0],token);payload=fake.events[0][1];self.assertEqual(payload['event'],'call_ringing');self.assertEqual(payload['recipient'],b['id']);self.assertEqual(set(payload),{'event','call_id','recipient','expires_at'})
+  fake.ready.clear();self.call('/calls/end',{'id':call['id']},a['token']);self.assertTrue(fake.ready.wait(2));self.assertEqual(fake.events[-1][1]['event'],'call_cancelled')
+  self.call('/password',{'password':'test-pass-123'},b['token']);self.call('/logout',{},b['token'])
+  with self.server.db() as db:active=list(db.execute('SELECT p.token FROM push_devices p JOIN sessions s ON s.token_hash=p.session_hash AND s.user_id=p.user_id WHERE p.user_id=?',(b['id'],)));self.assertEqual(active,[])
+ def test_push_registration_requires_login(self):
+  with self.assertRaises(urllib.error.HTTPError):self.call('/push/register',{'push_token':'x'*40})
  def test_protected_media_transfer_binding_and_recovery_denial(self):
   a=self.register('Sender');b=self.register('Receiver');device='original-'+'a'*40;other='replacement-'+'b'*40
   mid=self.call('/messages',{'peer':b['id'],'text':'Private caption','filename':'secret.png','mime':'image/png','data':base64.b64encode(b'protected').decode(),'client_id':'sealed','protected_media':True},a['token'])['id']

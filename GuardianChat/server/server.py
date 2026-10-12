@@ -8,6 +8,7 @@ from urllib.parse import urlparse, parse_qs
 import sys, zlib, struct, ssl, threading
 sys.path.insert(0,str(Path(__file__).parent/"vendor"))
 import qrcode
+from push import PushGateway
 from functools import lru_cache
 @lru_cache(maxsize=1024)
 def account_qr(uid):
@@ -22,6 +23,7 @@ MAX_BODY = 41 * 1024 * 1024
 class ChatServer(ThreadingHTTPServer):
     daemon_threads = True
     def __init__(self, address, data, reset_call_history=False):
+        self.push=PushGateway(Path(data)/"firebase-service-account.json")
         self.data=Path(data); self.data.mkdir(parents=True,exist_ok=True); self.data.chmod(0o700)
         (self.data/'files').mkdir(exist_ok=True)
         code=self.data/'invite.txt'
@@ -40,7 +42,7 @@ class ChatServer(ThreadingHTTPServer):
                 if name not in columns:
                     db.execute(f'ALTER TABLE messages ADD COLUMN {name} {kind}')
                     if name=='read_at':db.execute('UPDATE messages SET read_at=?',(int(time.time()),))
-        with self.db() as db:db.execute('CREATE TABLE IF NOT EXISTS contacts(owner TEXT NOT NULL,peer TEXT NOT NULL,PRIMARY KEY(owner,peer))')
+        with self.db() as db:db.execute('CREATE TABLE IF NOT EXISTS push_devices(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,session_hash TEXT NOT NULL,updated INTEGER NOT NULL)');db.execute('CREATE TABLE IF NOT EXISTS contacts(owner TEXT NOT NULL,peer TEXT NOT NULL,PRIMARY KEY(owner,peer))')
         with self.db() as db:
             db.execute('CREATE TABLE IF NOT EXISTS call_history(id TEXT PRIMARY KEY,caller TEXT NOT NULL,recipient TEXT NOT NULL,started REAL NOT NULL,connected REAL,ended REAL,outcome TEXT NOT NULL)')
             if 'kind' not in {r[1] for r in db.execute('PRAGMA table_info(call_history)')}:db.execute("ALTER TABLE call_history ADD COLUMN kind TEXT DEFAULT 'audio'")
@@ -62,6 +64,16 @@ class ChatServer(ThreadingHTTPServer):
         self.migrate_files()
         self.expire_views()
         super().__init__(address,Handler)
+    def push_call(self,call,event):
+        if not self.push.enabled:return
+        targets=[call['recipient']] if event=='call_ringing' else [call['caller'],call['recipient']]
+        expires=int(call['created']+45) if event=='call_ringing' else int(time.time()+45)
+        with self.db() as db:devices=[dict(r) for r in db.execute('SELECT p.token,p.user_id FROM push_devices p JOIN sessions s ON s.token_hash=p.session_hash AND s.user_id=p.user_id WHERE p.user_id IN (%s)' % ','.join('?' for _ in targets),targets)]
+        def deliver():
+            for device in devices:
+                try:self.push.send(device['token'],{'event':event,'call_id':call['id'],'recipient':device['user_id'],'expires_at':str(expires)})
+                except Exception:pass
+        threading.Thread(target=deliver,daemon=True).start()
     def expire_calls(self):
         now=time.time()
         for key,call in list(self.calls.items()):
@@ -71,6 +83,7 @@ class ChatServer(ThreadingHTTPServer):
                 self.finish_call(call,'No answer' if call['state']=='ringing' else 'Connection lost','missed' if call['state']=='ringing' else 'disconnected')
     def finish_call(self,call,reason,outcome):
         if call['state']=='ended':return
+        self.push_call(call,'call_cancelled')
         now=time.time();call.update(state='ended',reason=reason,ended_at=now,offer=None,answer=None)
         with self.db() as db:
             db.execute('UPDATE call_history SET ended=?,outcome=? WHERE id=?',(now,outcome,call['id']))
@@ -269,6 +282,14 @@ class Handler(BaseHTTPRequestHandler):
                 with self.server.db() as db:db.execute('INSERT INTO sessions VALUES(?,?)',(hashlib.sha256(token.encode()).hexdigest(),uid))
                 self.reply(201,{'id':uid,'token':token,'name':name,'nickname':nickname});return
             uid=self.user()
+            if self.path in ('/push/register','/push/unregister'):
+                push_token=str(body.get('push_token',''))
+                if not 20<=len(push_token)<=4096:raise ValueError()
+                session_hash=hashlib.sha256(self.headers.get('Authorization','').removeprefix('Bearer ').encode()).hexdigest()
+                with self.server.db() as db:
+                    if self.path=='/push/register':db.execute('INSERT INTO push_devices(token,user_id,session_hash,updated) VALUES(?,?,?,?) ON CONFLICT(token) DO UPDATE SET user_id=excluded.user_id,session_hash=excluded.session_hash,updated=excluded.updated',(push_token,uid,session_hash,int(time.time())))
+                    else:db.execute('DELETE FROM push_devices WHERE token=? AND user_id=?',(push_token,uid))
+                self.reply(200,{'registered':self.path=='/push/register','push_configured':self.server.push.enabled});return
             if self.path=='/presence':
                 with self.server.db() as presence_db:presence_db.execute('UPDATE users SET last_seen=? WHERE id=?',(int(time.time()),uid))
                 self.reply(200,{'ok':True});return
@@ -284,6 +305,7 @@ class Handler(BaseHTTPRequestHandler):
                         if any(c['state']!='ended' and (uid in (c['caller'],c['recipient']) or peer in (c['caller'],c['recipient'])) for c in self.server.calls.values()):self.reply(409,{'error':'You or this contact are already in a call'});return
                         key=uuid.uuid4().hex;now=time.time();call={'id':key,'kind':kind,'caller':uid,'recipient':peer,'state':'ringing','offer':offer,'answer':None,'created':now,'seen':{uid:now,peer:now}};self.server.calls[key]=call;
                         with self.server.db() as db:db.execute('INSERT INTO call_history(id,caller,recipient,started,outcome,kind) VALUES(?,?,?,?,?,?)',(key,uid,peer,now,'ringing',kind))
+                        self.server.push_call(call,'call_ringing')
                         self.reply(201,self.server.call_view(call,uid));return
                     call=self.server.calls.get(str(body.get('id','')))
                     if not call or uid not in (call['caller'],call['recipient']):raise PermissionError('Call unavailable')
