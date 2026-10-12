@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 class ProtectionMonitor(private val host:ComponentActivity,private val changed:(ProtectionDecision,String)->Unit):AutoCloseable {
  private val main=Handler(Looper.getMainLooper())
  private val worker=Executors.newSingleThreadExecutor()
- private val controller=ProtectionController(ProtectionPolicy(allowTemporaryOverride=false))
+ private val controller=ProtectionController(ProtectionPolicy(initialClearMillis=750L,allowTemporaryOverride=false))
  private var detector:GuardianDetector?=null
  private val faces=FaceDetection.getClient(FaceDetectorOptions.Builder().setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST).build())
  private var provider:ProcessCameraProvider?=null
@@ -33,7 +33,7 @@ class ProtectionMonitor(private val host:ComponentActivity,private val changed:(
   if(now-startAt>12000 && controller.tick(now).state==ProtectionState.INITIALIZING){stop("Camera did not start. Try monitoring again.");return}
   changed(controller.tick(now),lastReason);main.postDelayed(this,250)
  }}}
- init {power.addThermalStatusListener(host.mainExecutor,thermal)}
+ init {power.addThermalStatusListener(host.mainExecutor,thermal);worker.execute {try{if(detector==null)detector=GuardianDetector(host.applicationContext)}catch(_:Exception){}}}
  fun start(){
   if(active || closed)return
   if(host.checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){stop("Camera permission required");return}
@@ -61,7 +61,7 @@ class ProtectionMonitor(private val host:ComponentActivity,private val changed:(
          raw=image.toBitmap();upright=if(image.imageInfo.rotationDegrees==0)raw else Bitmap.createBitmap(raw,0,0,raw.width,raw.height,Matrix().apply {postRotate(image.imageInfo.rotationDegrees.toFloat())},true)
          val quality=view.evaluate(upright)
          val boxes=if(quality.usable)detector!!.detect(upright) else emptyList()
-         val found=phone.evaluate(upright,boxes).phonePresent
+         val qualification=phone.evaluate(upright,boxes);val found=qualification.phonePresent
          val phoneFinished=SystemClock.elapsedRealtime()
          // A phone risk must mask immediately; do not wait for face inference.
          if(found)main.post {if(active && gen==generation){
@@ -75,7 +75,7 @@ class ProtectionMonitor(private val host:ComponentActivity,private val changed:(
           Tasks.await(task,1500,TimeUnit.MILLISECONDS).size>=2
          } else false
          val completed=SystemClock.elapsedRealtime()
-         if(host.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0)android.util.Log.d("GuardianChatLatency","phone_ms=${phoneFinished-arrived} total_ms=${completed-arrived} phone=$found")
+         if(host.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0)android.util.Log.d("GuardianChatLatency","phone_ms=${phoneFinished-arrived} total_ms=${completed-arrived} phone=$found faces=$extra usable=${quality.usable} threshold=${qualification.confidenceThreshold} boxes=${boxes.size} max_score=${boxes.maxOfOrNull {it.confidence}?:0f}")
          main.post {if(active && gen==generation){
           lastReason=if(extra && found)"Phone and additional faces detected" else if(extra)"Additional faces detected" else if(found)"Phone detected" else "Monitoring active"
           val stale=SystemClock.elapsedRealtime()-arrived>=1500

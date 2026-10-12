@@ -9,9 +9,10 @@ data class ProtectionPolicy(
  val staleMillis: Long = 2000,
  val manualResume: Boolean = false,
  val coverOnCandidate: Boolean = true,
+ val initialClearMillis: Long = clearMillis,
  val allowTemporaryOverride: Boolean = false
 ) {
- init { require(threshold in 0f..1f); require(confirmationFrames in 1..windowFrames); require(clearMillis > 0 && staleMillis > 0) }
+ init { require(threshold in 0f..1f); require(confirmationFrames in 1..windowFrames); require(clearMillis > 0 && staleMillis > 0 && initialClearMillis > 0) }
 }
 enum class ProtectionState { INITIALIZING, WAITING_FOR_CLEAR, CLEAR, POSSIBLE_DEVICE, DEVICE_CONFIRMED, READY_TO_RESUME, CAMERA_VIEW_UNAVAILABLE, MONITORING_UNAVAILABLE }
 data class ProtectionDecision(val state: ProtectionState, val coverContent: Boolean, val pauseRemainingSeconds: Long = 0L)
@@ -22,20 +23,24 @@ class ProtectionController(val policy: ProtectionPolicy = ProtectionPolicy()) {
  private val history = ArrayDeque<Boolean>()
  private var lastFrame: Long? = null
  private var clearSince: Long? = null
+ private var startup = true
  private var latched = false
  private var decision = ProtectionDecision(ProtectionState.INITIALIZING, true)
  fun reset(): ProtectionDecision {
   pauseUntil = 0L
+  startup = true
   history.clear(); lastFrame = null; clearSince = null; latched = false
   decision = ProtectionDecision(ProtectionState.INITIALIZING, true); return decision
  }
  fun unavailable(): ProtectionDecision {
+  startup = false
   pauseUntil = 0L
   history.clear(); lastFrame = null; clearSince = null; latched = true
   decision = ProtectionDecision(ProtectionState.MONITORING_UNAVAILABLE, true); return decision
  }
  /** An arriving frame with an unusable view must never count as a clear frame. */
  fun cameraViewUnavailable(now: Long): ProtectionDecision {
+  startup = false
   pauseUntil = 0L
   history.clear(); lastFrame = now; clearSince = null; latched = true
   decision = ProtectionDecision(ProtectionState.CAMERA_VIEW_UNAVAILABLE, true); return decision
@@ -51,9 +56,10 @@ class ProtectionController(val policy: ProtectionPolicy = ProtectionPolicy()) {
   lastFrame = now
   history.addLast(devicePresent)
   while (history.size > policy.windowFrames) history.removeFirst()
+  if (devicePresent) startup = false
   if (devicePresent) clearSince = null else if (clearSince == null) clearSince = now
   if (devicePresent && history.count { it } >= policy.confirmationFrames) latched = true
-  val cleared = clearSince?.let { now - it >= policy.clearMillis } ?: false
+  val cleared = clearSince?.let { now - it >= if(startup)policy.initialClearMillis else policy.clearMillis } ?: false
   decision = when {
    latched && cleared && policy.manualResume -> ProtectionDecision(ProtectionState.READY_TO_RESUME, true)
    latched && cleared -> { latched = false; history.clear(); ProtectionDecision(ProtectionState.CLEAR, false) }
@@ -63,6 +69,7 @@ class ProtectionController(val policy: ProtectionPolicy = ProtectionPolicy()) {
    decision.coverContent -> ProtectionDecision(ProtectionState.WAITING_FOR_CLEAR, true)
    else -> ProtectionDecision(ProtectionState.CLEAR, false)
   }
+  if(decision.state==ProtectionState.CLEAR)startup=false
   return effective(now)
  }
  /** Keep protection latched while discarding votes from a previous qualification threshold. */

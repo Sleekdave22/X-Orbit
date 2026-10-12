@@ -22,14 +22,14 @@ class ChatApi(val base:String, val token:String="") {
    check(ok){json.optString("error","Server error")};return json
   }finally{c.disconnect()}
  }
- fun download(id:String,out:File,viewToken:String=""){
+ fun download(id:String,out:File,viewToken:String="",progress:((Long,Long)->Unit)?=null){
   require(id.matches(Regex("[a-f0-9]{32}")))
   val c=URL(base.trimEnd('/')+"/files/$id").openConnection() as HttpURLConnection
   try {
    c.connectTimeout=6000;c.readTimeout=20000;c.setRequestProperty("Authorization","Bearer $token")
    if(viewToken.isNotEmpty())c.setRequestProperty("X-View-Token",viewToken)
    check(c.responseCode==200){"File unavailable"}
-   c.inputStream.use {input->out.outputStream().use {sink->val buffer=ByteArray(65536);var total=0;while(true){val n=input.read(buffer);if(n<0)break;total+=n;check(total<=30*1024*1024){"File exceeds test limit"};sink.write(buffer,0,n)}}}
+   val expected=c.contentLengthLong;progress?.invoke(0,expected);c.inputStream.use {input->out.outputStream().use {sink->val buffer=ByteArray(65536);var total=0;while(true){val n=input.read(buffer);if(n<0)break;total+=n;check(total<=30*1024*1024){"File exceeds test limit"};sink.write(buffer,0,n);progress?.invoke(total.toLong(),expected)}}};progress?.invoke(out.length(),out.length())
   }catch(e:Exception){out.delete();throw e}finally{c.disconnect()}
  }
 }

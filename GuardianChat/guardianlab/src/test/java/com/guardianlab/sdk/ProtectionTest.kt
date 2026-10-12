@@ -2,6 +2,13 @@ package com.guardianlab.sdk
 import org.junit.Test
 import org.junit.Assert.*
 class ProtectionTest {
+ @Test fun fasterInitialCheckStillCoversCandidatesAndNeedsFullRecovery() {
+  val c=ProtectionController(ProtectionPolicy(initialClearMillis=750));assertTrue(c.frame(false,0).coverContent);assertTrue(c.frame(false,400).coverContent);assertFalse(c.frame(false,800).coverContent);assertTrue(c.frame(true,900).coverContent);for(t in 1000L..3500L step 500)assertTrue(c.frame(false,t).coverContent);assertFalse(c.frame(false,4000).coverContent)
+ }
+ @Test fun startupDetectionDoesNotUseShortClearPeriod() {
+  val c=ProtectionController(ProtectionPolicy(initialClearMillis=750));c.frame(true,0);for(t in 100L..2600L step 500)assertTrue(c.frame(false,t).coverContent);assertFalse(c.frame(false,3100).coverContent)
+ }
+
  private fun clear(c:ProtectionController,start:Long) { for(t in start..start+3000 step 500)c.frame(false,t) }
  private fun confirm(c:ProtectionController,start:Long) {c.frame(true,start);c.frame(true,start+100);c.frame(true,start+200)}
  @Test fun startsCoveredUntilThreeClearSeconds() {
