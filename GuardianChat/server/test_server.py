@@ -17,6 +17,28 @@ class ChatTest(unittest.TestCase):
   for other in getattr(self,'accounts',[]):self.call('/contacts',{'code':other['id']},user['token'])
   self.accounts=getattr(self,'accounts',[])+[user]
   return user
+ def test_protected_media_transfer_binding_and_recovery_denial(self):
+  a=self.register('Sender');b=self.register('Receiver');device='original-'+'a'*40;other='replacement-'+'b'*40
+  mid=self.call('/messages',{'peer':b['id'],'text':'Private caption','filename':'secret.png','mime':'image/png','data':base64.b64encode(b'protected').decode(),'client_id':'sealed','protected_media':True},a['token'])['id']
+  visible=self.call('/messages?peer='+a['id'],token=b['token'])['messages'][0];self.assertEqual(visible['protected_media'],1);self.assertIsNone(visible['fileid']);self.assertEqual(visible['text'],'');self.assertNotIn('protected_device',visible)
+  with self.assertRaises(urllib.error.HTTPError):self.call('/protected/open',{'message_id':mid,'device':device},a['token'])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/messages/forward',{'message_id':mid,'peer':b['id'],'client_id':'blocked'},a['token'])
+  item=self.call('/protected/open',{'message_id':mid,'device':device},b['token']);fid=item['fileid']
+  with self.assertRaises(urllib.error.HTTPError):self.call('/files/'+fid,token=b['token'])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/protected/open',{'message_id':mid,'device':other},b['token'])
+  request=urllib.request.Request(self.base+'/files/'+fid,headers={'Authorization':'Bearer '+b['token'],'X-View-Token':item['view_token'],'X-Protected-Device':device})
+  with urllib.request.urlopen(request) as response:self.assertEqual(response.read(),b'protected')
+  self.assertEqual(self.call('/media?peer='+a['id'],token=b['token'])['media'],[])
+  self.call('/protected/received',{'message_id':mid,'device':device},b['token']);self.call('/protected/received',{'message_id':mid,'device':device},b['token'])
+  self.assertFalse(self.server.file_path(fid,item['filename'],item['mime']).exists())
+  with self.assertRaises(urllib.error.HTTPError):self.call('/protected/open',{'message_id':mid,'device':other},b['token'])
+  with self.server.db() as db:row=db.execute('SELECT text,fileid,protected_media FROM messages WHERE id=?',(mid,)).fetchone();self.assertIsNone(row['fileid']);self.assertEqual(row['text'],'');self.assertEqual(row['protected_media'],1)
+ def test_protected_ack_never_removes_ordinary_media(self):
+  a=self.register('Sender');b=self.register('Receiver');base={'peer':b['id'],'filename':'photo.png','mime':'image/png','data':base64.b64encode(b'photo').decode(),'client_id':'conflict','protected_media':True,'view_once':True}
+  with self.assertRaises(urllib.error.HTTPError):self.call('/messages',base,a['token'])
+  base.update(client_id='ordinary',protected_media=False,view_once=False);mid=self.call('/messages',base,a['token'])['id']
+  with self.assertRaises(urllib.error.HTTPError):self.call('/protected/received',{'message_id':mid,'device':'secret-'+'a'*40},b['token'])
+  item=self.call('/messages?peer='+a['id'],token=b['token'])['messages'][0];self.assertEqual(self.call('/files/'+item['fileid'],token=b['token']),b'photo')
  def test_view_once_prefetch_does_not_consume_content(self):
   a=self.register('Sender');b=self.register('Receiver')
   mid=self.call('/messages',{'peer':b['id'],'text':'Caption','filename':'photo.png','mime':'image/png','data':base64.b64encode(b'photo').decode(),'client_id':'prefetch','view_once':True},a['token'])['id']

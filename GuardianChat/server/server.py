@@ -36,7 +36,7 @@ class ChatServer(ThreadingHTTPServer):
             db.execute('UPDATE users SET nickname=id WHERE nickname IS NULL')
             db.execute('CREATE UNIQUE INDEX IF NOT EXISTS unique_nickname ON users(nickname COLLATE NOCASE)')
             columns={r[1] for r in db.execute('PRAGMA table_info(messages)')}
-            for name,kind in [('delivered_at','INTEGER DEFAULT 0'),('read_at','INTEGER DEFAULT 0'),('view_once','INTEGER DEFAULT 0'),('opened','INTEGER DEFAULT 0'),('lease_hash','TEXT'),('lease_until','INTEGER'),('kind',"TEXT DEFAULT 'message'"),('call_id','TEXT'),('reply_to','INTEGER'),('deleted_all','INTEGER DEFAULT 0')]:
+            for name,kind in [('delivered_at','INTEGER DEFAULT 0'),('read_at','INTEGER DEFAULT 0'),('view_once','INTEGER DEFAULT 0'),('opened','INTEGER DEFAULT 0'),('lease_hash','TEXT'),('lease_until','INTEGER'),('kind',"TEXT DEFAULT 'message'"),('call_id','TEXT'),('reply_to','INTEGER'),('deleted_all','INTEGER DEFAULT 0'),('protected_media','INTEGER DEFAULT 0'),('protected_device','TEXT')]:
                 if name not in columns:
                     db.execute(f'ALTER TABLE messages ADD COLUMN {name} {kind}')
                     if name=='read_at':db.execute('UPDATE messages SET read_at=?',(int(time.time()),))
@@ -166,7 +166,7 @@ class Handler(BaseHTTPRequestHandler):
                     peer=parse_qs(parsed.query).get('peer',[''])[0]
                     if not peer:self.reply(400,{'error':'Choose a conversation'});return
                     if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():self.reply(403,{'error':'Conversation unavailable'});return
-                    rows=db.execute('SELECT m.*,u.name AS peer_name FROM messages m JOIN users u ON u.id=CASE WHEN m.sender=? THEN m.recipient ELSE m.sender END WHERE ((m.sender=? AND m.recipient=?) OR (m.sender=? AND m.recipient=?)) AND m.view_once=0 AND m.fileid IS NOT NULL AND m.id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?) ORDER BY m.time DESC,m.id DESC',(uid,uid,peer,peer,uid,uid))
+                    rows=db.execute('SELECT m.*,u.name AS peer_name FROM messages m JOIN users u ON u.id=CASE WHEN m.sender=? THEN m.recipient ELSE m.sender END WHERE ((m.sender=? AND m.recipient=?) OR (m.sender=? AND m.recipient=?)) AND m.view_once=0 AND m.protected_media=0 AND m.fileid IS NOT NULL AND m.id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?) ORDER BY m.time DESC,m.id DESC',(uid,uid,peer,peer,uid,uid))
                     items=[]
                     for row in rows:
                         item=dict(row);item.pop('lease_hash',None);item.pop('lease_until',None);items.append(item)
@@ -188,7 +188,7 @@ class Handler(BaseHTTPRequestHandler):
                         if last:
                             if last['kind']=='call':
                                 history=db.execute('SELECT * FROM call_history WHERE id=?',(last['call_id'],)).fetchone();item['preview']=self.server.call_event(history,uid)['label'] if history else 'Audio call'
-                            else:item['preview']='View-once content' if last['view_once'] else (last['text'] or last['filename'] or '')[:120]
+                            else:item['preview']='Protected media' if last['protected_media'] else 'View-once content' if last['view_once'] else (last['text'] or last['filename'] or '')[:120]
                     if parse_qs(parsed.query).get('all',['0'])[0]!='1':
                         items=[item for item in items if not db.execute('SELECT 1 FROM chat_hidden WHERE owner=? AND peer=? AND through_id>=(SELECT COALESCE(MAX(id),0) FROM messages WHERE (sender=? AND recipient=?) OR (sender=? AND recipient=?))',(uid,item['id'],uid,item['id'],item['id'],uid)).fetchone()]
                     items.sort(key=lambda item:(-item['last_activity'],item['name'].casefold(),item['id']))
@@ -206,8 +206,9 @@ class Handler(BaseHTTPRequestHandler):
                         item=dict(r);item.pop('lease_hash',None);item.pop('lease_until',None)
                         if item.get('reply_to'):
                             original=db.execute('SELECT m.*,u.name AS sender_name FROM messages m JOIN users u ON u.id=m.sender WHERE m.id=? AND ((m.sender=? AND m.recipient=?) OR (m.sender=? AND m.recipient=?)) AND m.id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?)',(item['reply_to'],uid,peer,peer,uid,uid)).fetchone()
-                            item['reply']={'id':item['reply_to'],'name':original['sender_name'] if original else '', 'text':('View-once content' if original['view_once'] else (original['text'] or original['filename'] or 'Message')[:140]) if original else 'Message unavailable'}
-                        if item['view_once']:item.update(text='',filename='View-once content',mime='',fileid=None,size=0)
+                            item['reply']={'id':item['reply_to'],'name':original['sender_name'] if original else '', 'text':('Protected media' if original['protected_media'] else 'View-once content' if original['view_once'] else (original['text'] or original['filename'] or 'Message')[:140]) if original else 'Message unavailable'}
+                        if item['view_once'] or item['protected_media']:item.update(text='',filename='Protected media' if item['protected_media'] else 'View-once content',mime='',fileid=None,size=0)
+                        item.pop('protected_device',None)
                         if item.get('kind')=='call':
                             history=db.execute('SELECT * FROM call_history WHERE id=?',(item['call_id'],)).fetchone()
                             if history:item['call']=self.server.call_event(history,uid)
@@ -219,7 +220,8 @@ class Handler(BaseHTTPRequestHandler):
                     fid=parsed.path.split('/')[-1]
                     row=db.execute('SELECT * FROM messages WHERE fileid=? AND (sender=? OR recipient=?) AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?)',(fid,uid,uid,uid)).fetchone()
                     if not row: self.reply(404,{'error':'File not available'});return
-                    if row['view_once']:
+                    if row['view_once'] or row['protected_media']:
+                        if row['protected_media'] and not hmac.compare_digest(hashlib.sha256(self.headers.get('X-Protected-Device','').encode()).hexdigest(),row['protected_device'] or ''):self.reply(403,{'error':'Protected media belongs to another device'});return
                         lease=self.headers.get('X-View-Token','')
                         valid=uid==row['recipient'] and row['lease_until'] and row['lease_until']>=time.time() and hmac.compare_digest(hashlib.sha256(lease.encode()).hexdigest(),row['lease_hash'] or '')
                         if not valid:self.reply(403,{'error':'View-once session unavailable'});return
@@ -359,12 +361,12 @@ class Handler(BaseHTTPRequestHandler):
                         if scope=='everyone':
                             if row['sender']!=uid or row['kind']=='call':self.reply(403,{'error':'Only the sender can delete this message for everyone'});return
                             if row['fileid']:self.server.file_path(row['fileid'],row['filename'],row['mime']).unlink(missing_ok=True)
-                            db.execute("UPDATE messages SET text='This message was deleted',filename=NULL,mime=NULL,fileid=NULL,size=0,view_once=0,opened=0,lease_hash=NULL,lease_until=NULL,reply_to=NULL,deleted_all=1,read_at=?,delivered_at=? WHERE id=?",(int(time.time()),int(time.time()),row['id']))
+                            db.execute("UPDATE messages SET text='This message was deleted',filename=NULL,mime=NULL,fileid=NULL,size=0,view_once=0,protected_media=0,protected_device=NULL,opened=0,lease_hash=NULL,lease_until=NULL,reply_to=NULL,deleted_all=1,read_at=?,delivered_at=? WHERE id=?",(int(time.time()),int(time.time()),row['id']))
                             self.reply(200,{'deleted':True,'scope':'everyone'});return
                         db.execute('INSERT OR IGNORE INTO message_hidden VALUES(?,?)',(uid,row['id']))
                         if row['recipient']==uid:db.execute('UPDATE messages SET read_at=?,delivered_at=? WHERE id=?',(int(time.time()),int(time.time()),row['id']))
                         self.reply(200,{'deleted':True});return
-                    if row['view_once'] or row['deleted_all'] or row['kind']=='call':self.reply(403,{'error':'This content cannot be forwarded'});return
+                    if row['view_once'] or row['protected_media'] or row['deleted_all'] or row['kind']=='call':self.reply(403,{'error':'This content cannot be forwarded'});return
                     peer=str(body['peer']);client=str(body['client_id'])
                     if not 1<=len(client)<=80:raise ValueError()
                     if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():self.reply(403,{'error':'Add this contact first'});return
@@ -391,6 +393,25 @@ class Handler(BaseHTTPRequestHandler):
                     db.execute('INSERT OR IGNORE INTO contacts VALUES(?,?)',(uid,code))
                     db.execute('INSERT OR IGNORE INTO contacts VALUES(?,?)',(code,uid))
                 self.reply(200,{'contact':dict(other)});return
+            if self.path in ('/protected/open','/protected/received'):
+                device=str(body.get('device',''))
+                if not 32<=len(device)<=128:raise ValueError()
+                device_hash=hashlib.sha256(device.encode()).hexdigest()
+                with self.server.db() as db:
+                    db.execute('BEGIN IMMEDIATE')
+                    row=db.execute('SELECT * FROM messages WHERE id=? AND recipient=? AND protected_media=1 AND deleted_all=0 AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?)',(int(body['message_id']),uid,uid)).fetchone()
+                    if not row:self.reply(404,{'error':'Protected media unavailable'});return
+                    if row['protected_device'] and not hmac.compare_digest(row['protected_device'],device_hash):self.reply(410,{'error':'This protected media is unavailable on a different device'});return
+                    if self.path=='/protected/received':
+                        if not row['protected_device']:self.reply(409,{'error':'Download protected media first'});return
+                        if row['fileid']:self.server.file_path(row['fileid'],row['filename'],row['mime']).unlink(missing_ok=True)
+                        db.execute('UPDATE messages SET text=?,fileid=NULL,size=0,lease_hash=NULL,lease_until=NULL WHERE id=?',('',row['id']))
+                        self.reply(200,{'stored':True});return
+                    if not row['fileid']:self.reply(410,{'error':'Protected media only exists on the original device'});return
+                    lease=secrets.token_urlsafe(32)
+                    db.execute('UPDATE messages SET protected_device=?,lease_hash=?,lease_until=?,read_at=?,delivered_at=? WHERE id=?',(device_hash,hashlib.sha256(lease.encode()).hexdigest(),int(time.time())+120,int(time.time()),int(time.time()),row['id']))
+                    item=dict(row);item.pop('protected_device',None);item.pop('lease_hash',None);item.pop('lease_until',None);item['view_token']=lease
+                self.reply(200,item);return
             if self.path=='/once/download':
                 with self.server.db() as db:
                     db.execute('BEGIN IMMEDIATE')
@@ -434,12 +455,14 @@ class Handler(BaseHTTPRequestHandler):
                     mime=str(body.get('mime','application/octet-stream'))[:100]
                     fid=uuid.uuid4().hex
                 if not text and not data:raise ValueError()
-                once=bool(body.get('view_once',False))
+                once=bool(body.get('view_once',False));protected=bool(body.get('protected_media',False))
+                if protected and (once or not data):self.reply(400,{'error':'Protected media requires an attachment and cannot also be view once'});return
+                if protected and not mime.startswith(('image/','video/','audio/')):self.reply(400,{'error':'Protected media supports images, videos and audio'});return
                 if once and data and not (mime.startswith(('image/','video/','audio/','text/')) or mime=='application/pdf'):
                     self.reply(400,{'error':'View once supports messages, images, video, audio, text and PDF previews'});return
                 if data:self.server.file_path(fid,filename,mime).write_bytes(data)
                 try:
-                    cur=db.execute('INSERT INTO messages(sender,recipient,text,filename,mime,fileid,size,time,client_id,view_once,reply_to) VALUES(?,?,?,?,?,?,?,?,?,?,?)',(uid,peer,text,filename,mime,fid,len(data) if data else 0,int(time.time()*1000),client,int(once),reply))
+                    cur=db.execute('INSERT INTO messages(sender,recipient,text,filename,mime,fileid,size,time,client_id,view_once,reply_to,protected_media) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',(uid,peer,text,filename,mime,fid,len(data) if data else 0,int(time.time()*1000),client,int(once),reply,int(protected)))
                     msgid=cur.lastrowid
                 except Exception:
                     if fid:self.server.file_path(fid,filename,mime).unlink(missing_ok=True)

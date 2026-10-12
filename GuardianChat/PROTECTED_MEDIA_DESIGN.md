@@ -11,4 +11,4 @@ This is a separate choice from ordinary attachments and View Once. It applies on
 - Viewing uses a temporary private playback file, deleted on close and cleaned up after interrupted sessions. It is excluded from the clipboard FileProvider and media library.
 - Browser accounts may send protected media, but viewing requires Android GuardianLab support.
 
-Activation is pending approval because device binding and removal of the server copy intentionally make recovery impossible. Rooted or compromised devices cannot be given an absolute access guarantee.
+Approved by the user: device binding and removal of the confirmed transfer copy intentionally make recovery impossible. Rooted or compromised devices cannot be given an absolute access guarantee.
