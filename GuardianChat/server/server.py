@@ -20,7 +20,7 @@ MAX_VIDEO = 30 * 1024 * 1024
 MAX_BODY = 41 * 1024 * 1024
 class ChatServer(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, address, data):
+    def __init__(self, address, data, reset_call_history=False):
         self.data=Path(data); self.data.mkdir(parents=True,exist_ok=True); self.data.chmod(0o700)
         (self.data/'files').mkdir(exist_ok=True)
         code=self.data/'invite.txt'
@@ -41,6 +41,9 @@ class ChatServer(ThreadingHTTPServer):
                     if name=='read_at':db.execute('UPDATE messages SET read_at=?',(int(time.time()),))
         with self.db() as db:db.execute('CREATE TABLE IF NOT EXISTS contacts(owner TEXT NOT NULL,peer TEXT NOT NULL,PRIMARY KEY(owner,peer))')
         with self.db() as db:
+            db.execute('CREATE TABLE IF NOT EXISTS call_history(id TEXT PRIMARY KEY,caller TEXT NOT NULL,recipient TEXT NOT NULL,started REAL NOT NULL,connected REAL,ended REAL,outcome TEXT NOT NULL)')
+            db.execute('CREATE INDEX IF NOT EXISTS call_history_caller ON call_history(caller,started)');db.execute('CREATE INDEX IF NOT EXISTS call_history_recipient ON call_history(recipient,started)')
+            if reset_call_history:db.execute("UPDATE call_history SET ended=?,outcome='interrupted' WHERE ended IS NULL",(time.time(),))
             db.execute('CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL)')
             db.execute('INSERT OR IGNORE INTO sessions SELECT token_hash,id FROM users')
         with self.db() as db:
@@ -58,11 +61,15 @@ class ChatServer(ThreadingHTTPServer):
             if call['state']=='ended':
                 if now-call['ended_at']>60:del self.calls[key]
             elif (call['state']=='ringing' and now-call['created']>45) or now-min(call['seen'].values())>35 and call['state']=='active':
-                call.update(state='ended',reason='No answer' if call['state']=='ringing' else 'Connection lost',ended_at=now,offer=None,answer=None)
+                self.finish_call(call,'No answer' if call['state']=='ringing' else 'Connection lost','missed' if call['state']=='ringing' else 'disconnected')
+    def finish_call(self,call,reason,outcome):
+        if call['state']=='ended':return
+        now=time.time();call.update(state='ended',reason=reason,ended_at=now,offer=None,answer=None)
+        with self.db() as db:db.execute('UPDATE call_history SET ended=?,outcome=? WHERE id=?',(now,outcome,call['id']))
     def call_view(self,call,uid):
         peer=call['recipient'] if uid==call['caller'] else call['caller']
         with self.db() as db:row=db.execute('SELECT name FROM users WHERE id=?',(peer,)).fetchone()
-        return {k:call.get(k) for k in ('id','caller','recipient','state','offer','answer','reason')}|{'peer':peer,'peer_name':row['name'] if row else 'Contact'}
+        return {k:call.get(k) for k in ('id','caller','recipient','state','offer','answer','reason','connected')}|{'peer':peer,'peer_name':row['name'] if row else 'Contact'}
     def db(self):
         db=sqlite3.connect(self.data/'chat.sqlite',timeout=15);db.row_factory=sqlite3.Row;db.execute('PRAGMA secure_delete=ON');return db
     def delete_view(self, db, row):
@@ -106,8 +113,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             parsed=urlparse(self.path)
-            if parsed.path in ('/calls.js','/call.html'):
-                data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
+            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css'):
+                data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/guardianchat-ca.crt':
                 data=(Path(__file__).parent.parent/'chat/src/main/res/raw/guardianchat_local_ca.crt').read_bytes();self.send_response(200);self.send_header('Content-Type','application/x-x509-ca-cert');self.send_header('Content-Disposition','attachment; filename=guardianchat-ca.crt');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path in ('/roboto-0.ttf','/roboto-1.ttf'):
@@ -125,6 +132,13 @@ class Handler(BaseHTTPRequestHandler):
                             call['seen'][uid]=time.time();calls.append(self.server.call_view(call,uid))
                     self.reply(200,{'calls':calls});return
             with self.server.db() as db:
+                if parsed.path=='/call-history':
+                    with self.server.call_lock:self.server.expire_calls()
+                    rows=db.execute('SELECT h.*,u.name,u.nickname,u.profile_version FROM call_history h JOIN users u ON u.id=CASE WHEN h.caller=? THEN h.recipient ELSE h.caller END WHERE h.caller=? OR h.recipient=? ORDER BY h.started DESC LIMIT 200',(uid,uid,uid))
+                    items=[]
+                    for row in rows:
+                        r=dict(row);r['peer']=r['recipient'] if r['caller']==uid else r['caller'];r['direction']='outgoing' if r['caller']==uid else 'incoming';r['duration']=max(0,int((r['ended'] or time.time())-r['connected'])) if r['connected'] else 0;items.append(r)
+                    self.reply(200,{'calls':items});return
                 if parsed.path=='/profile':
                     target=parse_qs(parsed.query).get('id',[uid])[0]
                     if target!=uid and not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,target)).fetchone():self.reply(404,{'error':'Profile unavailable'});return
@@ -211,7 +225,9 @@ class Handler(BaseHTTPRequestHandler):
                         with self.server.db() as db:
                             if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():raise PermissionError('Add this contact first')
                         if any(c['state']!='ended' and (uid in (c['caller'],c['recipient']) or peer in (c['caller'],c['recipient'])) for c in self.server.calls.values()):self.reply(409,{'error':'You or this contact are already in a call'});return
-                        key=uuid.uuid4().hex;now=time.time();call={'id':key,'caller':uid,'recipient':peer,'state':'ringing','offer':offer,'answer':None,'created':now,'seen':{uid:now,peer:now}};self.server.calls[key]=call;self.reply(201,self.server.call_view(call,uid));return
+                        key=uuid.uuid4().hex;now=time.time();call={'id':key,'caller':uid,'recipient':peer,'state':'ringing','offer':offer,'answer':None,'created':now,'seen':{uid:now,peer:now}};self.server.calls[key]=call;
+                        with self.server.db() as db:db.execute('INSERT INTO call_history(id,caller,recipient,started,outcome) VALUES(?,?,?,?,?)',(key,uid,peer,now,'ringing'))
+                        self.reply(201,self.server.call_view(call,uid));return
                     call=self.server.calls.get(str(body.get('id','')))
                     if not call or uid not in (call['caller'],call['recipient']):raise PermissionError('Call unavailable')
                     if self.path=='/calls/answer':
@@ -219,7 +235,12 @@ class Handler(BaseHTTPRequestHandler):
                         if uid!=call['recipient'] or call['state']!='ringing':raise PermissionError('Call cannot be answered')
                         if not isinstance(answer,dict) or answer.get('type')!='answer' or not isinstance(answer.get('sdp'),str) or not 1<=len(answer['sdp'])<=65536:raise ValueError('Invalid answer')
                         call.update(state='active',answer=answer);call['seen'][uid]=time.time()
-                    elif self.path=='/calls/end':call.update(state='ended',reason='Call ended',ended_at=time.time(),offer=None,answer=None)
+                    elif self.path=='/calls/connected':
+                        if call['state']!='active':raise PermissionError('Call not active')
+                        if not call.get('connected'):
+                            call['connected']=time.time()
+                            with self.server.db() as db:db.execute("UPDATE call_history SET connected=?,outcome='connected' WHERE id=?",(call['connected'],call['id']))
+                    elif self.path=='/calls/end':self.server.finish_call(call,'Call ended','completed' if call.get('connected') else 'declined' if uid==call['recipient'] else 'cancelled')
                     else:self.reply(404,{'error':'Not found'});return
                     self.reply(200,self.server.call_view(call,uid));return
             if self.path=='/password':
@@ -321,7 +342,7 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--host',default='0.0.0.0');p.add_argument('--port',type=int,default=8765);p.add_argument('--data',default=str(Path(__file__).parent/'data'));p.add_argument('--cert');p.add_argument('--key');a=p.parse_args();
     if bool(a.cert)!=bool(a.key):p.error('Supply both --cert and --key')
-    s=ChatServer((a.host,a.port),a.data)
+    s=ChatServer((a.host,a.port),a.data,reset_call_history=bool(a.cert))
     if a.cert:
         context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.minimum_version=ssl.TLSVersion.TLSv1_2;context.load_cert_chain(a.cert,a.key);s.socket=context.wrap_socket(s.socket,server_side=True)
     print(f'GuardianChat LAN server on port {a.port}. Invitation code is in {s.data / "invite.txt"}. Use test content only.',flush=True)

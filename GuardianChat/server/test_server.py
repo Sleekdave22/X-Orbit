@@ -33,6 +33,22 @@ class ChatTest(unittest.TestCase):
   a=self.register('Caller');b=self.register('Recipient');call=self.call('/calls/start',{'peer':b['id'],'offer':{'type':'offer','sdp':'offer'}},a['token'])
   with self.server.call_lock:self.server.calls[call['id']]['created']-=46
   ended=self.call('/calls',token=a['token'])['calls'][0];self.assertEqual(ended['state'],'ended');self.assertIsNone(ended['offer'])
+ def test_call_history_is_account_scoped_and_keeps_connected_duration(self):
+  a=self.register('Caller');b=self.register('Recipient');c=self.call('/register',{'invite':self.server.invite,'name':'Other account'})
+  call=self.call('/calls/start',{'peer':b['id'],'offer':{'type':'offer','sdp':'offer'}},a['token'])
+  self.call('/calls/answer',{'id':call['id'],'answer':{'type':'answer','sdp':'answer'}},b['token'])
+  first=self.call('/calls/connected',{'id':call['id']},a['token'])['connected']
+  self.assertEqual(self.call('/calls/connected',{'id':call['id']},b['token'])['connected'],first)
+  with self.server.db() as db:db.execute('UPDATE call_history SET connected=connected-5 WHERE id=?',(call['id'],))
+  self.call('/calls/end',{'id':call['id']},b['token'])
+  outgoing=self.call('/call-history',token=a['token'])['calls'][0];incoming=self.call('/call-history',token=b['token'])['calls'][0]
+  self.assertEqual(outgoing['peer'],b['id']);self.assertEqual(outgoing['direction'],'outgoing');self.assertEqual(incoming['direction'],'incoming');self.assertEqual(outgoing['outcome'],'completed');self.assertGreaterEqual(outgoing['duration'],5)
+  self.assertEqual(self.call('/call-history?uid='+a['id'],token=c['token'])['calls'],[])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/calls/connected',{'id':call['id']},c['token'])
+ def test_call_history_survives_server_restart(self):
+  a=self.register('Caller');b=self.register('Recipient');call=self.call('/calls/start',{'peer':b['id'],'offer':{'type':'offer','sdp':'offer'}},a['token']);self.call('/calls/end',{'id':call['id']},a['token'])
+  self.server.shutdown();self.server.server_close();self.server=ChatServer(('127.0.0.1',0),self.tmp.name,reset_call_history=True);self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start();self.base=f'http://127.0.0.1:{self.server.server_port}'
+  history=self.call('/call-history',token=a['token'])['calls'];self.assertEqual(history[0]['id'],call['id']);self.assertEqual(history[0]['outcome'],'cancelled')
  def test_password_change_requires_current_password(self):
   a=self.register('Password account')
   self.call('/password',{'password':'first passphrase 123'},a['token'])
