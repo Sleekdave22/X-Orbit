@@ -58,6 +58,24 @@ class ChatTest(unittest.TestCase):
   self.assertEqual(self.call('/media?peer='+c['id'],token=b['token'])['media'],[])
   for path,token in [('/media',a['token']),('/media?peer='+b['id'],outsider['token'])]:
    with self.assertRaises(urllib.error.HTTPError):self.call(path,token=token)
+ def test_video_call_type_is_preserved_in_history_and_chat(self):
+  a=self.register('A');b=self.register('B');offer={'type':'offer','sdp':'video offer'}
+  with self.assertRaises(urllib.error.HTTPError):self.call('/calls/start',{'peer':b['id'],'kind':'invalid','offer':offer},a['token'])
+  call=self.call('/calls/start',{'peer':b['id'],'kind':'video','offer':offer},a['token']);self.assertEqual(call['kind'],'video');self.assertEqual(self.call('/calls',token=b['token'])['calls'][0]['kind'],'video')
+  self.call('/calls/end',{'id':call['id']},a['token']);event=self.call('/messages?peer='+a['id'],token=b['token'])['messages'][0]['call'];self.assertEqual(event['kind'],'video');self.assertEqual(event['label'],'Missed video call');self.assertEqual(self.call('/call-history',token=a['token'])['calls'][0]['kind'],'video')
+ def test_forward_delete_and_reply_are_scoped_and_view_once_is_protected(self):
+  a=self.register('A');b=self.register('B');c=self.register('C')
+  m=self.call('/messages',{'peer':b['id'],'text':'Photo caption','client_id':'original','filename':'picture.png','mime':'image/png','data':base64.b64encode(b'picture').decode()},a['token'])['id']
+  once=self.call('/messages',{'peer':b['id'],'text':'private','client_id':'once','view_once':True},a['token'])['id']
+  for sender,mid in [(c,m),(b,once)]:
+   with self.assertRaises(urllib.error.HTTPError):self.call('/messages/forward',{'message_id':mid,'peer':a['id'],'client_id':'denied'},sender['token'])
+  forwarded=self.call('/messages/forward',{'message_id':m,'peer':c['id'],'client_id':'forward'},b['token'])['id'];self.assertEqual(self.call('/messages/forward',{'message_id':m,'peer':c['id'],'client_id':'forward'},b['token'])['id'],forwarded)
+  copy=self.call('/media?peer='+b['id'],token=c['token'])['media'][0];self.assertEqual(self.call('/files/'+copy['fileid'],token=c['token']),b'picture')
+  with self.assertRaises(urllib.error.HTTPError):self.call('/messages',{'peer':c['id'],'text':'wrong reply','client_id':'badreply','reply_to':m},a['token'])
+  self.call('/messages',{'peer':b['id'],'text':'reply','client_id':'reply','reply_to':once},a['token']);quoted=self.call('/messages?peer='+a['id'],token=b['token'])['messages'][-1]['reply'];self.assertEqual(quoted['text'],'View-once content');self.assertNotIn('private',json.dumps(quoted))
+  self.call('/messages/delete',{'message_id':m},b['token']);self.assertNotIn(m,[x['id'] for x in self.call('/messages?peer='+a['id'],token=b['token'])['messages']]);self.assertIn(m,[x['id'] for x in self.call('/messages?peer='+b['id'],token=a['token'])['messages']]);self.assertEqual(self.call('/media?peer='+a['id'],token=b['token'])['media'],[])
+  self.call('/chats/delete',{'peer':a['id']},b['token']);self.assertNotIn(a['id'],[x['id'] for x in self.call('/users',token=b['token'])['users']]);self.assertEqual(self.call('/messages?peer='+a['id'],token=b['token'])['messages'],[])
+  self.call('/messages',{'peer':b['id'],'text':'new','client_id':'new'},a['token']);self.assertIn(a['id'],[x['id'] for x in self.call('/users',token=b['token'])['users']])
  def test_chat_list_uses_latest_activity_time_in_both_directions(self):
   owner=self.register('Owner');a=self.register('Alpha');z=self.register('Zebra');quiet=self.register('Quiet')
   first=self.call('/messages',{'peer':a['id'],'text':'Incoming','client_id':'incoming'},owner['token'])['id']

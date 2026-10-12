@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Private LAN testing only. No E2EE. Do not expose this HTTP server publicly."""
+import shutil
 import argparse, base64, hashlib, hmac, json, os, re, mimetypes, secrets, sqlite3, time, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -35,13 +36,14 @@ class ChatServer(ThreadingHTTPServer):
             db.execute('UPDATE users SET nickname=id WHERE nickname IS NULL')
             db.execute('CREATE UNIQUE INDEX IF NOT EXISTS unique_nickname ON users(nickname COLLATE NOCASE)')
             columns={r[1] for r in db.execute('PRAGMA table_info(messages)')}
-            for name,kind in [('delivered_at','INTEGER DEFAULT 0'),('read_at','INTEGER DEFAULT 0'),('view_once','INTEGER DEFAULT 0'),('opened','INTEGER DEFAULT 0'),('lease_hash','TEXT'),('lease_until','INTEGER'),('kind',"TEXT DEFAULT 'message'"),('call_id','TEXT')]:
+            for name,kind in [('delivered_at','INTEGER DEFAULT 0'),('read_at','INTEGER DEFAULT 0'),('view_once','INTEGER DEFAULT 0'),('opened','INTEGER DEFAULT 0'),('lease_hash','TEXT'),('lease_until','INTEGER'),('kind',"TEXT DEFAULT 'message'"),('call_id','TEXT'),('reply_to','INTEGER')]:
                 if name not in columns:
                     db.execute(f'ALTER TABLE messages ADD COLUMN {name} {kind}')
                     if name=='read_at':db.execute('UPDATE messages SET read_at=?',(int(time.time()),))
         with self.db() as db:db.execute('CREATE TABLE IF NOT EXISTS contacts(owner TEXT NOT NULL,peer TEXT NOT NULL,PRIMARY KEY(owner,peer))')
         with self.db() as db:
             db.execute('CREATE TABLE IF NOT EXISTS call_history(id TEXT PRIMARY KEY,caller TEXT NOT NULL,recipient TEXT NOT NULL,started REAL NOT NULL,connected REAL,ended REAL,outcome TEXT NOT NULL)')
+            if 'kind' not in {r[1] for r in db.execute('PRAGMA table_info(call_history)')}:db.execute("ALTER TABLE call_history ADD COLUMN kind TEXT DEFAULT 'audio'")
             if reset_call_history:db.execute("UPDATE call_history SET ended=?,outcome='interrupted' WHERE ended IS NULL",(time.time(),))
             db.execute('CREATE UNIQUE INDEX IF NOT EXISTS unique_message_call ON messages(call_id) WHERE call_id IS NOT NULL')
             db.execute("INSERT OR IGNORE INTO messages(sender,recipient,text,time,client_id,kind,call_id,read_at,delivered_at) SELECT caller,recipient,'',CAST(ended*1000 AS INTEGER),'call-'||id,'call',id,?,? FROM call_history WHERE ended IS NOT NULL",(int(time.time()),int(time.time())))
@@ -52,6 +54,9 @@ class ChatServer(ThreadingHTTPServer):
             db.execute('CREATE INDEX IF NOT EXISTS messages_participants_id ON messages(sender,recipient,id)')
             db.execute('CREATE INDEX IF NOT EXISTS messages_unread ON messages(recipient,read_at,sender)')
             db.execute('CREATE INDEX IF NOT EXISTS messages_undelivered ON messages(recipient,delivered_at,id)')
+        with self.db() as db:
+            db.execute('CREATE TABLE IF NOT EXISTS message_hidden(user_id TEXT NOT NULL,message_id INTEGER NOT NULL,PRIMARY KEY(user_id,message_id))')
+            db.execute('CREATE TABLE IF NOT EXISTS chat_hidden(owner TEXT NOT NULL,peer TEXT NOT NULL,through_id INTEGER NOT NULL,PRIMARY KEY(owner,peer))')
         self.calls={};self.call_lock=threading.RLock()
         self.login_attempts={}
         self.migrate_files()
@@ -72,18 +77,18 @@ class ChatServer(ThreadingHTTPServer):
             db.execute("INSERT OR IGNORE INTO messages(sender,recipient,text,time,client_id,kind,call_id,read_at,delivered_at) VALUES(?,?,'',?,?,'call',?,?,?)",(call['caller'],call['recipient'],int(now*1000),'call-'+call['id'],call['id'],int(now) if call.get('connected') or outcome=='declined' else 0,int(now)))
     def call_event(self,row,uid):
         r=dict(row);outgoing=r['caller']==uid;missed=not outgoing and r['outcome'] in ('missed','cancelled');duration=max(0,int((r['ended'] or time.time())-r['connected'])) if r['connected'] else 0
-        label=('Outgoing' if outgoing else 'Incoming')+' audio call'
-        if missed:label='Missed audio call'
-        elif r['outcome']=='missed':label='Unanswered outgoing audio call'
-        elif r['outcome']=='cancelled':label='Cancelled outgoing audio call'
+        kind='video' if r.get('kind')=='video' else 'audio';label=('Outgoing' if outgoing else 'Incoming')+' '+kind+' call'
+        if missed:label='Missed '+kind+' call'
+        elif r['outcome']=='missed':label='Unanswered outgoing '+kind+' call'
+        elif r['outcome']=='cancelled':label='Cancelled outgoing '+kind+' call'
         elif r['outcome']=='declined':label+=' · Declined'
         elif r['connected']:label+=f' · {duration//60:02d}:{duration%60:02d}'
         elif r['outcome'] not in ('ringing','active'):label+=' · '+r['outcome'].capitalize()
-        return {'direction':'outgoing' if outgoing else 'incoming','kind':'audio','missed':missed,'label':label,'duration':duration,'outcome':r['outcome']}
+        return {'direction':'outgoing' if outgoing else 'incoming','kind':kind,'missed':missed,'label':label,'duration':duration,'outcome':r['outcome']}
     def call_view(self,call,uid):
         peer=call['recipient'] if uid==call['caller'] else call['caller']
         with self.db() as db:row=db.execute('SELECT name FROM users WHERE id=?',(peer,)).fetchone()
-        return {k:call.get(k) for k in ('id','caller','recipient','state','offer','answer','reason','connected')}|{'peer':peer,'peer_name':row['name'] if row else 'Contact'}
+        return {k:call.get(k) for k in ('id','caller','recipient','state','offer','answer','reason','connected','kind')}|{'peer':peer,'peer_name':row['name'] if row else 'Contact'}
     def db(self):
         db=sqlite3.connect(self.data/'chat.sqlite',timeout=15);db.row_factory=sqlite3.Row;db.execute('PRAGMA secure_delete=ON');return db
     def delete_view(self, db, row):
@@ -157,7 +162,7 @@ class Handler(BaseHTTPRequestHandler):
                     peer=parse_qs(parsed.query).get('peer',[''])[0]
                     if not peer:self.reply(400,{'error':'Choose a conversation'});return
                     if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():self.reply(403,{'error':'Conversation unavailable'});return
-                    rows=db.execute('SELECT m.*,u.name AS peer_name FROM messages m JOIN users u ON u.id=CASE WHEN m.sender=? THEN m.recipient ELSE m.sender END WHERE ((m.sender=? AND m.recipient=?) OR (m.sender=? AND m.recipient=?)) AND m.view_once=0 AND m.fileid IS NOT NULL ORDER BY m.time DESC,m.id DESC',(uid,uid,peer,peer,uid))
+                    rows=db.execute('SELECT m.*,u.name AS peer_name FROM messages m JOIN users u ON u.id=CASE WHEN m.sender=? THEN m.recipient ELSE m.sender END WHERE ((m.sender=? AND m.recipient=?) OR (m.sender=? AND m.recipient=?)) AND m.view_once=0 AND m.fileid IS NOT NULL AND m.id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?) ORDER BY m.time DESC,m.id DESC',(uid,uid,peer,peer,uid,uid))
                     items=[]
                     for row in rows:
                         item=dict(row);item.pop('lease_hash',None);item.pop('lease_until',None);items.append(item)
@@ -173,12 +178,14 @@ class Handler(BaseHTTPRequestHandler):
                 if parsed.path=='/users':
                     items=[dict(r) for r in db.execute('SELECT u.id,u.name,u.nickname,u.profile_version,(SELECT COUNT(*) FROM messages m WHERE m.sender=u.id AND m.recipient=c.owner AND m.read_at=0) unread,(SELECT COALESCE(MAX(id),0) FROM messages m WHERE m.sender=u.id AND m.recipient=c.owner) latest FROM users u JOIN contacts c ON c.peer=u.id WHERE c.owner=? ORDER BY u.name',(uid,))]
                     for item in items:
-                        last=db.execute('SELECT * FROM messages WHERE (sender=? AND recipient=?) OR (sender=? AND recipient=?) ORDER BY time DESC,id DESC LIMIT 1',(uid,item['id'],item['id'],uid)).fetchone()
+                        last=db.execute('SELECT * FROM messages WHERE ((sender=? AND recipient=?) OR (sender=? AND recipient=?)) AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?) ORDER BY time DESC,id DESC LIMIT 1',(uid,item['id'],item['id'],uid,uid)).fetchone()
                         item['last_activity']=last['time'] if last else 0
                         if last:
                             if last['kind']=='call':
                                 history=db.execute('SELECT * FROM call_history WHERE id=?',(last['call_id'],)).fetchone();item['preview']=self.server.call_event(history,uid)['label'] if history else 'Audio call'
                             else:item['preview']='View-once content' if last['view_once'] else (last['text'] or last['filename'] or '')[:120]
+                    if parse_qs(parsed.query).get('all',['0'])[0]!='1':
+                        items=[item for item in items if not db.execute('SELECT 1 FROM chat_hidden WHERE owner=? AND peer=? AND through_id>=(SELECT COALESCE(MAX(id),0) FROM messages WHERE (sender=? AND recipient=?) OR (sender=? AND recipient=?))',(uid,item['id'],uid,item['id'],item['id'],uid)).fetchone()]
                     items.sort(key=lambda item:(-item['last_activity'],item['name'].casefold(),item['id']))
                     self.reply(200,{'users':items});return
                 if parsed.path=='/inbox':
@@ -188,10 +195,13 @@ class Handler(BaseHTTPRequestHandler):
                     self.reply(200,{'receipts':[dict(r) for r in db.execute('SELECT id,client_id,delivered_at,read_at FROM messages WHERE sender=? AND recipient=? ORDER BY id DESC LIMIT 1000',(uid,peer))]});return
                 if parsed.path=='/messages':
                     q=parse_qs(parsed.query);peer=q.get('peer',[''])[0];after=int(q.get('after',['0'])[0])
-                    rows=db.execute('SELECT * FROM messages WHERE id>? AND ((sender=? AND recipient=?) OR (sender=? AND recipient=?)) ORDER BY id LIMIT 100',(after,uid,peer,peer,uid))
+                    rows=db.execute('SELECT * FROM messages WHERE id>? AND ((sender=? AND recipient=?) OR (sender=? AND recipient=?)) AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?) ORDER BY id LIMIT 100',(after,uid,peer,peer,uid,uid))
                     items=[]
                     for r in rows:
                         item=dict(r);item.pop('lease_hash',None);item.pop('lease_until',None)
+                        if item.get('reply_to'):
+                            original=db.execute('SELECT m.*,u.name AS sender_name FROM messages m JOIN users u ON u.id=m.sender WHERE m.id=? AND ((m.sender=? AND m.recipient=?) OR (m.sender=? AND m.recipient=?)) AND m.id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?)',(item['reply_to'],uid,peer,peer,uid,uid)).fetchone()
+                            item['reply']={'id':item['reply_to'],'name':original['sender_name'] if original else '', 'text':('View-once content' if original['view_once'] else (original['text'] or original['filename'] or 'Message')[:140]) if original else 'Message unavailable'}
                         if item['view_once']:item.update(text='',filename='View-once content',mime='',fileid=None,size=0)
                         if item.get('kind')=='call':
                             history=db.execute('SELECT * FROM call_history WHERE id=?',(item['call_id'],)).fetchone()
@@ -201,7 +211,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.reply(200,{'messages':items,'unread_count':unread});return
                 if parsed.path.startswith('/files/'):
                     fid=parsed.path.split('/')[-1]
-                    row=db.execute('SELECT * FROM messages WHERE fileid=? AND (sender=? OR recipient=?)',(fid,uid,uid)).fetchone()
+                    row=db.execute('SELECT * FROM messages WHERE fileid=? AND (sender=? OR recipient=?) AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?)',(fid,uid,uid,uid)).fetchone()
                     if not row: self.reply(404,{'error':'File not available'});return
                     if row['view_once']:
                         lease=self.headers.get('X-View-Token','')
@@ -255,13 +265,14 @@ class Handler(BaseHTTPRequestHandler):
                 with self.server.call_lock:
                     self.server.expire_calls()
                     if self.path=='/calls/start':
-                        peer=str(body.get('peer',''));offer=body.get('offer',{})
+                        peer=str(body.get('peer',''));offer=body.get('offer',{});kind=body.get('kind','audio')
+                        if kind not in ('audio','video'):raise ValueError('Invalid call type')
                         if not isinstance(offer,dict) or offer.get('type')!='offer' or not isinstance(offer.get('sdp'),str) or not 1<=len(offer['sdp'])<=65536:raise ValueError('Invalid offer')
                         with self.server.db() as db:
                             if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():raise PermissionError('Add this contact first')
                         if any(c['state']!='ended' and (uid in (c['caller'],c['recipient']) or peer in (c['caller'],c['recipient'])) for c in self.server.calls.values()):self.reply(409,{'error':'You or this contact are already in a call'});return
-                        key=uuid.uuid4().hex;now=time.time();call={'id':key,'caller':uid,'recipient':peer,'state':'ringing','offer':offer,'answer':None,'created':now,'seen':{uid:now,peer:now}};self.server.calls[key]=call;
-                        with self.server.db() as db:db.execute('INSERT INTO call_history(id,caller,recipient,started,outcome) VALUES(?,?,?,?,?)',(key,uid,peer,now,'ringing'))
+                        key=uuid.uuid4().hex;now=time.time();call={'id':key,'kind':kind,'caller':uid,'recipient':peer,'state':'ringing','offer':offer,'answer':None,'created':now,'seen':{uid:now,peer:now}};self.server.calls[key]=call;
+                        with self.server.db() as db:db.execute('INSERT INTO call_history(id,caller,recipient,started,outcome,kind) VALUES(?,?,?,?,?,?)',(key,uid,peer,now,'ringing',kind))
                         self.reply(201,self.server.call_view(call,uid));return
                     call=self.server.calls.get(str(body.get('id','')))
                     if not call or uid not in (call['caller'],call['recipient']):raise PermissionError('Call unavailable')
@@ -320,12 +331,47 @@ class Handler(BaseHTTPRequestHandler):
             if self.path=='/read':
                 with self.server.db() as db:db.execute('UPDATE messages SET read_at=?,delivered_at=CASE WHEN delivered_at=0 THEN ? ELSE delivered_at END WHERE recipient=? AND sender=? AND id<=?',(int(time.time()),int(time.time()),uid,str(body['peer']),int(body['through'])))
                 self.reply(200,{'read':True});return
+            if self.path=='/chats/delete':
+                peer=str(body['peer'])
+                with self.server.db() as db:
+                    if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():self.reply(404,{'error':'Conversation unavailable'});return
+                    through=db.execute('SELECT COALESCE(MAX(id),0) FROM messages WHERE (sender=? AND recipient=?) OR (sender=? AND recipient=?)',(uid,peer,peer,uid)).fetchone()[0]
+                    db.execute('INSERT OR IGNORE INTO message_hidden SELECT ?,id FROM messages WHERE ((sender=? AND recipient=?) OR (sender=? AND recipient=?)) AND id<=?',(uid,uid,peer,peer,uid,through))
+                    db.execute('UPDATE messages SET read_at=?,delivered_at=? WHERE sender=? AND recipient=? AND id<=?',(int(time.time()),int(time.time()),peer,uid,through))
+                    db.execute('INSERT OR REPLACE INTO chat_hidden VALUES(?,?,?)',(uid,peer,through))
+                self.reply(200,{'deleted':True});return
+            if self.path in ('/messages/forward','/messages/delete'):
+                with self.server.db() as db:
+                    row=db.execute('SELECT * FROM messages WHERE id=? AND (sender=? OR recipient=?) AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?)',(int(body['message_id']),uid,uid,uid)).fetchone()
+                    if not row:self.reply(404,{'error':'Message unavailable'});return
+                    if self.path=='/messages/delete':
+                        db.execute('INSERT OR IGNORE INTO message_hidden VALUES(?,?)',(uid,row['id']))
+                        if row['recipient']==uid:db.execute('UPDATE messages SET read_at=?,delivered_at=? WHERE id=?',(int(time.time()),int(time.time()),row['id']))
+                        self.reply(200,{'deleted':True});return
+                    if row['view_once'] or row['kind']=='call':self.reply(403,{'error':'This content cannot be forwarded'});return
+                    peer=str(body['peer']);client=str(body['client_id'])
+                    if not 1<=len(client)<=80:raise ValueError()
+                    if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():self.reply(403,{'error':'Add this contact first'});return
+                    existing=db.execute('SELECT id FROM messages WHERE sender=? AND client_id=?',(uid,client)).fetchone()
+                    if existing:self.reply(200,{'id':existing['id']});return
+                    fid=None
+                    if row['fileid']:
+                        original=self.server.file_path(row['fileid'],row['filename'],row['mime'])
+                        if not original.is_file():self.reply(404,{'error':'File unavailable'});return
+                        fid=uuid.uuid4().hex;shutil.copyfile(original,self.server.file_path(fid,row['filename'],row['mime']))
+                    try:
+                        result=db.execute('INSERT INTO messages(sender,recipient,text,filename,mime,fileid,size,time,client_id,view_once) VALUES(?,?,?,?,?,?,?,?,?,0)',(uid,peer,row['text'],row['filename'],row['mime'],fid,row['size'],int(time.time()*1000),client))
+                    except Exception:
+                        if fid:self.server.file_path(fid,row['filename'],row['mime']).unlink(missing_ok=True)
+                        raise
+                    self.reply(201,{'id':result.lastrowid});return
             if self.path=='/contacts':
                 code=str(body.get('code','')).strip().lower().replace('-','');lookup=code.lstrip('@')
                 with self.server.db() as db:
                     other=db.execute('SELECT id,name FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(code,lookup)).fetchone()
                     if not other or other['id']==uid:self.reply(400,{'error':'Enter another person’s valid contact code'});return
                     code=other['id']
+                    db.execute('DELETE FROM chat_hidden WHERE owner=? AND peer=?',(uid,code))
                     db.execute('INSERT OR IGNORE INTO contacts VALUES(?,?)',(uid,code))
                     db.execute('INSERT OR IGNORE INTO contacts VALUES(?,?)',(code,uid))
                 self.reply(200,{'contact':dict(other)});return
@@ -350,6 +396,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():self.reply(403,{'error':'Add this person using their contact code first'});return
                 existing=db.execute('SELECT id FROM messages WHERE sender=? AND client_id=?',(uid,client)).fetchone()
                 if existing:self.reply(200,{'id':existing['id']});return
+                reply=body.get('reply_to')
+                if reply is not None:
+                    reply=int(reply)
+                    if not db.execute('SELECT 1 FROM messages WHERE id=? AND ((sender=? AND recipient=?) OR (sender=? AND recipient=?)) AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?)',(reply,uid,peer,peer,uid,uid)).fetchone():self.reply(400,{'error':'Reply must belong to this conversation'});return
                 data=None;fid=None;filename=None;mime=None
                 if body.get('data'):
                     data=base64.b64decode(body['data'],validate=True)
@@ -364,7 +414,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.reply(400,{'error':'View once supports messages, images, video, audio, text and PDF previews'});return
                 if data:self.server.file_path(fid,filename,mime).write_bytes(data)
                 try:
-                    cur=db.execute('INSERT INTO messages(sender,recipient,text,filename,mime,fileid,size,time,client_id,view_once) VALUES(?,?,?,?,?,?,?,?,?,?)',(uid,peer,text,filename,mime,fid,len(data) if data else 0,int(time.time()*1000),client,int(once)))
+                    cur=db.execute('INSERT INTO messages(sender,recipient,text,filename,mime,fileid,size,time,client_id,view_once,reply_to) VALUES(?,?,?,?,?,?,?,?,?,?,?)',(uid,peer,text,filename,mime,fid,len(data) if data else 0,int(time.time()*1000),client,int(once),reply))
                     msgid=cur.lastrowid
                 except Exception:
                     if fid:self.server.file_path(fid,filename,mime).unlink(missing_ok=True)
