@@ -57,7 +57,7 @@ class MainActivity:ComponentActivity(){
  private fun root(title:String,back:(()->Unit)?=null):LinearLayout{
   clearPreview();receiptDots.clear();pendingRows.clear();pendingDots.clear();composer=null;emojiPanel=null;startupCover=null;viewerBody=null;extraRegions.clear();region=null;status=null;notice=null;messages=null;scroller=null;draft=null
   val root=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setBackgroundColor(paper)}
-  root.setOnApplyWindowInsetsListener {v,i->val bars=i.getInsets(WindowInsets.Type.systemBars());val ime=i.getInsets(WindowInsets.Type.ime());val bottom=maxOf(bars.bottom,ime.bottom)+dp(12);val changed=v.paddingBottom!=bottom;v.setPadding(dp(8),bars.top+dp(20),dp(8),bottom);if(changed && screen=="chat")scroller?.post {scroller?.fullScroll(View.FOCUS_DOWN)};i}
+  root.setOnApplyWindowInsetsListener {v,i->val bars=i.getInsets(WindowInsets.Type.systemBars());val ime=i.getInsets(WindowInsets.Type.ime());val bottom=maxOf(bars.bottom,ime.bottom)+dp(12);val changed=v.paddingBottom!=bottom;v.setPadding(dp(8),bars.top+dp(20),dp(8),maxOf(bars.bottom,ime.bottom)+dp(4));if(changed && screen=="chat")scroller?.post {scroller?.fullScroll(View.FOCUS_DOWN)};i}
   val header=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL}
   if(back!=null)header.addView(text("‹",32f).apply {gravity=Gravity.CENTER;setPadding(0,0,0,0);setTextColor(Color.rgb(146,27,55));contentDescription="Back";isFocusable=true;setOnClickListener {back()}},LinearLayout.LayoutParams(dp(44),dp(44)))
   header.addView(text(title,25f).apply {typeface=android.graphics.Typeface.create("sans-serif",android.graphics.Typeface.BOLD)},LinearLayout.LayoutParams(0,-2,1f))
@@ -114,7 +114,7 @@ class MainActivity:ComponentActivity(){
   root.addView(text("Chat • camera off",13f));root.addView(scroller,LinearLayout.LayoutParams(-1,0,1f))
   val row=LinearLayout(this).apply {gravity=Gravity.BOTTOM}
   draft=messageField().apply {setSingleLine(false);minLines=1;maxLines=3;textSize=14f;minimumHeight=dp(40);setPadding(dp(10),dp(8),dp(10),dp(8));background=GradientDrawable().apply {setColor(Color.rgb(38,38,38));setStroke(dp(1),Color.DKGRAY);cornerRadius=dp(14).toFloat()}}
-  row.addView(draft,LinearLayout.LayoutParams(0,-2,1f).apply {marginEnd=dp(6)})
+  
   fun compact(label:String,description:String,action:()->Unit)=button(label,action).apply {contentDescription=description;textSize=14f;minWidth=0;minimumWidth=0;minHeight=0;minimumHeight=0;setPadding(0,0,0,0)}
   val controls=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};val top=LinearLayout(this);val bottom=LinearLayout(this)
   fun addControl(target:LinearLayout,view:View){target.addView(view,LinearLayout.LayoutParams(dp(40),dp(36)).apply {marginStart=dp(2)})}
@@ -122,7 +122,7 @@ class MainActivity:ComponentActivity(){
   addControl(bottom,compact("＋","Attach media or file"){if(!sending){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply {type="*/*";addCategory(Intent.CATEGORY_OPENABLE)};startActivityForResult(intent,20)}})
   recordButton=compact("●","Record voice note"){if(recorder!=null)finishRecording() else if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)startRecording() else requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),11)};addControl(bottom,recordButton!!)
   sendButton=compact("Send","Send message"){if(pendingSend!=null){pendingSend?.invoke()}else{val content=draft?.text.toString().trim();if(content.isNotEmpty())send(content)}}.apply {textSize=11f};addControl(bottom,sendButton!!)
-  controls.addView(top);controls.addView(bottom);row.addView(controls);composer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;addView(row,LinearLayout.LayoutParams(-1,-2))};root.addView(composer,LinearLayout.LayoutParams(-1,-2))
+  controls.orientation=LinearLayout.HORIZONTAL;controls.addView(top);controls.addView(bottom);row.gravity=Gravity.END;row.addView(controls);composer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;addView(row,LinearLayout.LayoutParams(-1,-2));addView(draft,LinearLayout.LayoutParams(-1,-2))};root.addView(composer,LinearLayout.LayoutParams(-1,-2))
   setContentView(root)
   fetchMessages()
  }
