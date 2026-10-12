@@ -1,6 +1,6 @@
 # Same-Wi-Fi voice calling: first test version
 
-Open a contact chat and tap the telephone icon. Both participants must use the same Wi-Fi and keep GuardianChat open. The browser requires trusted HTTPS. Android uses a dedicated WebView call screen with microphone-only permission and the shared browser WebRTC engine. On Android, open an incoming call and then press Accept on the call screen; acceptance is explicit. Mute, enable audio and end controls are available. Android has a built-in speaker/earpiece toggle. The browser offers audio-output selection only when supported; it does not claim to control a mobile browser earpiece. Dedicated Bluetooth routing is not implemented.
+Open a contact chat and tap the telephone icon. Both participants must use the same Wi-Fi and keep GuardianChat open. The browser requires trusted HTTPS. Android uses a dedicated WebView call screen with microphone-only permission and the shared browser WebRTC engine. Incoming calls open the call screen. Press the green Accept button to answer; the microphone is not requested until explicit acceptance. Mute, enable audio and end controls are available. Android has a built-in speaker/earpiece toggle. The browser offers audio-output selection only when supported; it does not claim to control a mobile browser earpiece. Dedicated Bluetooth routing is not implemented.
 
 Voice calls never request the camera. Microphone tracks and the connection stop on hang-up, background transitions or failure. Opening a voice call closes view-once content. Calls are not recorded or saved as media.
 
