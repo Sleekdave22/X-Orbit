@@ -72,7 +72,8 @@ class ChatServer(ThreadingHTTPServer):
         def deliver():
             for device in devices:
                 try:self.push.send(device['token'],{'event':event,'call_id':call['id'],'recipient':device['user_id'],'expires_at':str(expires)})
-                except Exception:pass
+                except Exception as error:print('Call push failed: '+type(error).__name__,flush=True)
+                else:print('Call push accepted: '+event,flush=True)
         threading.Thread(target=deliver,daemon=True).start()
     def expire_calls(self):
         now=time.time()
