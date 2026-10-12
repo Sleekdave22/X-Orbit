@@ -36,7 +36,7 @@ class ChatServer(ThreadingHTTPServer):
             db.execute('UPDATE users SET nickname=id WHERE nickname IS NULL')
             db.execute('CREATE UNIQUE INDEX IF NOT EXISTS unique_nickname ON users(nickname COLLATE NOCASE)')
             columns={r[1] for r in db.execute('PRAGMA table_info(messages)')}
-            for name,kind in [('delivered_at','INTEGER DEFAULT 0'),('read_at','INTEGER DEFAULT 0'),('view_once','INTEGER DEFAULT 0'),('opened','INTEGER DEFAULT 0'),('lease_hash','TEXT'),('lease_until','INTEGER'),('kind',"TEXT DEFAULT 'message'"),('call_id','TEXT'),('reply_to','INTEGER')]:
+            for name,kind in [('delivered_at','INTEGER DEFAULT 0'),('read_at','INTEGER DEFAULT 0'),('view_once','INTEGER DEFAULT 0'),('opened','INTEGER DEFAULT 0'),('lease_hash','TEXT'),('lease_until','INTEGER'),('kind',"TEXT DEFAULT 'message'"),('call_id','TEXT'),('reply_to','INTEGER'),('deleted_all','INTEGER DEFAULT 0')]:
                 if name not in columns:
                     db.execute(f'ALTER TABLE messages ADD COLUMN {name} {kind}')
                     if name=='read_at':db.execute('UPDATE messages SET read_at=?',(int(time.time()),))
@@ -158,6 +158,10 @@ class Handler(BaseHTTPRequestHandler):
                     for row in rows:
                         r=dict(row);r['peer']=r['recipient'] if r['caller']==uid else r['caller'];r['direction']='outgoing' if r['caller']==uid else 'incoming';r['duration']=max(0,int((r['ended'] or time.time())-r['connected'])) if r['connected'] else 0;r.update(self.server.call_event(row,uid));items.append(r)
                     self.reply(200,{'calls':items});return
+                if parsed.path=='/message-status':
+                    mid=int(parse_qs(parsed.query).get('id',['0'])[0]);row=db.execute('SELECT deleted_all FROM messages WHERE id=? AND (sender=? OR recipient=?)',(mid,uid,uid)).fetchone()
+                    if not row:self.reply(404,{'error':'Message unavailable'});return
+                    self.reply(200,{'deleted':bool(row['deleted_all'])});return
                 if parsed.path=='/media':
                     peer=parse_qs(parsed.query).get('peer',[''])[0]
                     if not peer:self.reply(400,{'error':'Choose a conversation'});return
@@ -208,7 +212,8 @@ class Handler(BaseHTTPRequestHandler):
                             if history:item['call']=self.server.call_event(history,uid)
                         items.append(item)
                     unread=db.execute('SELECT COUNT(*) FROM messages WHERE sender=? AND recipient=? AND read_at=0',(peer,uid)).fetchone()[0]
-                    self.reply(200,{'messages':items,'unread_count':unread});return
+                    deleted=[r['id'] for r in db.execute('SELECT id FROM messages WHERE deleted_all=1 AND ((sender=? AND recipient=?) OR (sender=? AND recipient=?))',(uid,peer,peer,uid))]
+                    self.reply(200,{'messages':items,'unread_count':unread,'deleted_ids':deleted});return
                 if parsed.path.startswith('/files/'):
                     fid=parsed.path.split('/')[-1]
                     row=db.execute('SELECT * FROM messages WHERE fileid=? AND (sender=? OR recipient=?) AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?)',(fid,uid,uid,uid)).fetchone()
@@ -345,10 +350,17 @@ class Handler(BaseHTTPRequestHandler):
                     row=db.execute('SELECT * FROM messages WHERE id=? AND (sender=? OR recipient=?) AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?)',(int(body['message_id']),uid,uid,uid)).fetchone()
                     if not row:self.reply(404,{'error':'Message unavailable'});return
                     if self.path=='/messages/delete':
+                        scope=body.get('scope','me')
+                        if scope not in ('me','everyone'):raise ValueError()
+                        if scope=='everyone':
+                            if row['sender']!=uid or row['kind']=='call':self.reply(403,{'error':'Only the sender can delete this message for everyone'});return
+                            if row['fileid']:self.server.file_path(row['fileid'],row['filename'],row['mime']).unlink(missing_ok=True)
+                            db.execute("UPDATE messages SET text='This message was deleted',filename=NULL,mime=NULL,fileid=NULL,size=0,view_once=0,opened=0,lease_hash=NULL,lease_until=NULL,reply_to=NULL,deleted_all=1,read_at=?,delivered_at=? WHERE id=?",(int(time.time()),int(time.time()),row['id']))
+                            self.reply(200,{'deleted':True,'scope':'everyone'});return
                         db.execute('INSERT OR IGNORE INTO message_hidden VALUES(?,?)',(uid,row['id']))
                         if row['recipient']==uid:db.execute('UPDATE messages SET read_at=?,delivered_at=? WHERE id=?',(int(time.time()),int(time.time()),row['id']))
                         self.reply(200,{'deleted':True});return
-                    if row['view_once'] or row['kind']=='call':self.reply(403,{'error':'This content cannot be forwarded'});return
+                    if row['view_once'] or row['deleted_all'] or row['kind']=='call':self.reply(403,{'error':'This content cannot be forwarded'});return
                     peer=str(body['peer']);client=str(body['client_id'])
                     if not 1<=len(client)<=80:raise ValueError()
                     if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():self.reply(403,{'error':'Add this contact first'});return

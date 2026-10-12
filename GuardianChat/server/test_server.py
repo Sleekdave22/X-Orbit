@@ -58,6 +58,20 @@ class ChatTest(unittest.TestCase):
   self.assertEqual(self.call('/media?peer='+c['id'],token=b['token'])['media'],[])
   for path,token in [('/media',a['token']),('/media?peer='+b['id'],outsider['token'])]:
    with self.assertRaises(urllib.error.HTTPError):self.call(path,token=token)
+ def test_delete_everyone_is_sender_only_and_revokes_file_access(self):
+  a=self.register('Sender');b=self.register('Recipient');c=self.register('Other')
+  mid=self.call('/messages',{'peer':b['id'],'text':'original secret','client_id':'everyone','filename':'photo.png','mime':'image/png','data':base64.b64encode(b'photo data').decode()},a['token'])['id']
+  fid=self.call('/media?peer='+a['id'],token=b['token'])['media'][0]['fileid']
+  with self.assertRaises(urllib.error.HTTPError):self.call('/messages/delete',{'message_id':mid,'scope':'everyone'},b['token'])
+  self.call('/messages/delete',{'message_id':mid,'scope':'everyone'},a['token'])
+  for owner,peer in [(a,b),(b,a)]:
+   result=self.call('/messages?peer='+peer['id']+'&after='+str(mid),token=owner['token']);self.assertIn(mid,result['deleted_ids'])
+   placeholder=self.call('/messages?peer='+peer['id'],token=owner['token'])['messages'][0];self.assertEqual(placeholder['deleted_all'],1);self.assertNotIn('original secret',json.dumps(placeholder));self.assertIsNone(placeholder['fileid'])
+   with self.assertRaises(urllib.error.HTTPError):self.call('/files/'+fid,token=owner['token'])
+  self.assertTrue(self.call('/message-status?id='+str(mid),token=b['token'])['deleted'])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/message-status?id='+str(mid),token=c['token'])
+  self.assertEqual(self.call('/media?peer='+a['id'],token=b['token'])['media'],[])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/messages/forward',{'message_id':mid,'peer':c['id'],'client_id':'revoked'},a['token'])
  def test_video_call_type_is_preserved_in_history_and_chat(self):
   a=self.register('A');b=self.register('B');offer={'type':'offer','sdp':'video offer'}
   with self.assertRaises(urllib.error.HTTPError):self.call('/calls/start',{'peer':b['id'],'kind':'invalid','offer':offer},a['token'])
