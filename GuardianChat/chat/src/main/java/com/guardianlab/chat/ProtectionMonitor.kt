@@ -75,7 +75,7 @@ class ProtectionMonitor(private val host:ComponentActivity,private val changed:(
           Tasks.await(task,1500,TimeUnit.MILLISECONDS).size>=2
          } else false
          val completed=SystemClock.elapsedRealtime()
-         if(host.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0)android.util.Log.d("GuardianChatLatency","phone_ms=${phoneFinished-arrived} total_ms=${completed-arrived} phone=$found faces=$extra usable=${quality.usable} threshold=${qualification.confidenceThreshold} boxes=${boxes.size} max_score=${boxes.maxOfOrNull {it.confidence}?:0f}")
+         if(host.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0)android.util.Log.d("X ORBITLatency","phone_ms=${phoneFinished-arrived} total_ms=${completed-arrived} phone=$found faces=$extra usable=${quality.usable} threshold=${qualification.confidenceThreshold} boxes=${boxes.size} max_score=${boxes.maxOfOrNull {it.confidence}?:0f}")
          main.post {if(active && gen==generation){
           lastReason=if(extra && found)"Phone and additional faces detected" else if(extra)"Additional faces detected" else if(found)"Phone detected" else "Monitoring active"
           val stale=SystemClock.elapsedRealtime()-arrived>=1500
