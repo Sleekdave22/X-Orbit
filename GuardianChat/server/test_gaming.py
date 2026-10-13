@@ -89,4 +89,14 @@ class GamingTest(unittest.TestCase):
   self.assertEqual(next(r for r in self.view(l,us[0])['table'] if r['uid']==us[0]['id'])['avatar'],avatar)
   self.call('/gaming/sponsor',{'league':l,'sponsor':'GuardianLab','week':'2026-W42','art':avatar},us[0]['token'])
   league=self.view(l,us[0])['league'];self.assertEqual(league['sponsor_week'],'2026-W42');self.assertTrue(league['sponsor_art'].startswith('data:image/png;base64,'))
+ def test_admin_scoping_and_comment_audit(self):
+  us,l=self.league();f=self.view(l,us[0])['fixtures'][0]
+  self.assertEqual(self.call('/gaming/admin',token=us[1]['token'])['competitions'],[])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/admin?league='+l,token=us[1]['token'])
+  self.call('/gaming/comment',{'league':l,'fixture':f['id'],'text':'Test moderation'},us[1]['token'])
+  admin=self.call('/gaming/admin?league='+l,token=us[8]['token']);cid=admin['comments'][0]['id']
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/hide_comment',{'league':l,'comment':cid,'reason':'Test reason'},us[1]['token'])
+  self.call('/gaming/hide_comment',{'league':l,'comment':cid,'reason':'Test reason'},us[8]['token'])
+  self.assertEqual(self.call('/gaming/room?fixture='+f['id'],token=us[1]['token'])['comments'],[])
+  audit=self.call('/gaming/admin?league='+l,token=us[0]['token']);self.assertTrue(audit['comments'][0]['hidden']);self.assertIn('comment_hidden',[r['action'] for r in audit['audit']])
 if __name__=='__main__':unittest.main()

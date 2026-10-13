@@ -15,6 +15,7 @@ def init(server):
  ''')
  with server.db() as d:
   if 'game_id' not in {r[1] for r in d.execute('PRAGMA table_info(league_members)')}:d.execute("ALTER TABLE league_members ADD COLUMN game_id TEXT NOT NULL DEFAULT ''")
+  if 'hidden' not in {r[1] for r in d.execute('PRAGMA table_info(game_comments)')}:d.execute('ALTER TABLE game_comments ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0')
   if 'format' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute("ALTER TABLE leagues ADD COLUMN format TEXT NOT NULL DEFAULT 'league'")
   for name in ('sponsor_art','sponsor_week'):
    if name not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN '+name+" TEXT NOT NULL DEFAULT ''")
@@ -102,12 +103,25 @@ def post(server,uid,action,b):
    if d.execute('SELECT 1 FROM league_members WHERE league=? AND game_id=? COLLATE NOCASE AND uid!=?',(l['id'],gid,uid)).fetchone():raise ValueError('That game account is already registered in this division')
    slot=d.execute('SELECT COALESCE(MAX(slot),0)+1 FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]
    d.execute('INSERT INTO league_members(league,uid,game_id,slot) VALUES(?,?,?,?)',(l['id'],uid,gid,slot));return {'ok':True,'slot':slot}
-  if action in ('start','sponsor','moderator','finals'):
+  if action=='hide_comment':
+   if not mod(d,l,uid):raise PermissionError('Only assigned moderators may manage comments')
+   c=row(d,'SELECT c.id,c.fixture FROM game_comments c JOIN fixtures f ON f.id=c.fixture WHERE c.id=? AND f.league=?',(b.get('comment'),l['id']))
+   reason=str(b.get('reason','')).strip()
+   if not c or not 5<=len(reason)<=500:raise ValueError('Select a comment and explain the moderation decision')
+   d.execute('UPDATE game_comments SET hidden=1 WHERE id=?',(c['id'],));audit(d,c['fixture'],uid,'comment_hidden',str(c['id'])+': '+reason);return {'ok':True}
+  if action=='rename':
+   if uid!=l['owner']:raise PermissionError('Only the organiser may rename this competition')
+   name=str(b.get('name','')).strip()
+   if l['state']!='enrolling' or not 3<=len(name)<=60:raise ValueError('Names can change only before the competition starts')
+   d.execute('UPDATE leagues SET name=? WHERE id=?',(name,l['id']));audit(d,l['id'],uid,'competition_renamed',name);return {'ok':True}
+  if action in ('start','sponsor','moderator','remove_moderator','finals'):
    if uid!=l['owner']:raise PermissionError('Only the league organiser can do this')
-   if action=='moderator':
+   if action in ('moderator','remove_moderator'):
     target=row(d,'SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
     if not target:raise ValueError('Moderator account not found')
-    d.execute('INSERT OR IGNORE INTO game_moderators VALUES(?,?)',(l['id'],target['id']));return {'ok':True}
+    if action=='moderator':d.execute('INSERT OR IGNORE INTO game_moderators VALUES(?,?)',(l['id'],target['id']))
+    else:d.execute('DELETE FROM game_moderators WHERE league=? AND uid=?',(l['id'],target['id']))
+    audit(d,l['id'],uid,action,target['id']);return {'ok':True}
    if action=='sponsor':
     sponsor=str(b.get('sponsor','')).strip();url=str(b.get('url','')).strip()
     if len(sponsor)>60 or len(url)>300 or url and not re.fullmatch(r'https://[^\s]+',url):raise ValueError('Sponsor link must start with https://')
@@ -125,7 +139,7 @@ def post(server,uid,action,b):
       if logo.width*logo.height>4000000:raise ValueError('Sponsor logo is too large')
       logo.verify()
      art='data:'+mime+';base64,'+base64.b64encode(raw).decode()
-    d.execute('UPDATE leagues SET sponsor=?,sponsor_url=?,reward=?,sponsor_art=?,sponsor_week=? WHERE id=?',(sponsor,url,reward,art,week,l['id']));return {'ok':True}
+    d.execute('UPDATE leagues SET sponsor=?,sponsor_url=?,reward=?,sponsor_art=?,sponsor_week=? WHERE id=?',(sponsor,url,reward,art,week,l['id']));audit(d,l['id'],uid,'sponsor_updated',json.dumps({'sponsor':sponsor,'week':week,'reward':reward}));return {'ok':True}
    if action=='start':
     if l['state']!='enrolling':raise ValueError('League has already started')
     ids=[r[0] for r in d.execute('SELECT uid FROM league_members WHERE league=? ORDER BY slot',(l['id'],))]
@@ -185,7 +199,7 @@ def post(server,uid,action,b):
    reason=str(b.get('reason','')).strip();a=b.get('score_a');z=b.get('score_b')
    if len(reason)<5 or len(reason)>500 or type(a)!=int or type(z)!=int or not 0<=a<=99 or not 0<=z<=99 or f['stage']!='league' and a==z:raise ValueError('Enter the reviewed score and decision reason')
    if not d.execute('SELECT 1 FROM game_reports WHERE fixture=? AND image IS NOT NULL',(f['id'],)).fetchone():raise ValueError('Screenshot evidence is required')
-   d.execute("UPDATE fixtures SET state='confirmed',score_a=?,score_b=? WHERE id=?",(a,z,f['id']));audit(d,f['id'],uid,'moderator_approved',reason);advance(d,l);return {'ok':True}
+   d.execute("UPDATE fixtures SET state='confirmed',score_a=?,score_b=? WHERE id=?",(a,z,f['id']));audit(d,f['id'],uid,'moderator_approved',json.dumps({'reason':reason,'approved_score':[a,z],'original_reports':[dict(r) for r in d.execute('SELECT uid,score_a,score_b,ocr FROM game_reports WHERE fixture=?',(f['id'],))]}));advance(d,l);return {'ok':True}
   raise ValueError('Unknown gaming action')
 def advance(d,l):
  quarters=[dict(r) for r in d.execute("SELECT * FROM fixtures WHERE league=? AND stage='quarter' ORDER BY rowid",(l['id'],))]
@@ -209,5 +223,17 @@ def room(server,uid,fid):
  with server.db() as d:
   f=row(d,'SELECT f.*,a.tag name_a,b.tag name_b FROM fixtures f JOIN game_profiles a ON a.uid=f.a JOIN game_profiles b ON b.uid=f.b WHERE f.id=?',(fid,))
   if not f:raise ValueError('Match not found')
-  comments=[dict(r) for r in d.execute('SELECT c.id,c.uid,c.text,c.time,COALESCE(p.tag,u.nickname) tag FROM game_comments c JOIN users u ON u.id=c.uid LEFT JOIN game_profiles p ON p.uid=c.uid WHERE fixture=? ORDER BY c.id DESC LIMIT 100',(fid,))]
+  comments=[dict(r) for r in d.execute('SELECT c.id,c.uid,c.text,c.time,COALESCE(p.tag,u.nickname) tag FROM game_comments c JOIN users u ON u.id=c.uid LEFT JOIN game_profiles p ON p.uid=c.uid WHERE fixture=? AND c.hidden=0 ORDER BY c.id DESC LIMIT 100',(fid,))]
   return {'fixture':f,'comments':list(reversed(comments)),'player':uid in (f['a'],f['b']),'active':f['state'] not in ('confirmed','void') and time.time()>=f['opens']}
+
+def administration(server,uid,lid=None):
+ with server.db() as d:
+  allowed=[dict(r) for r in d.execute('SELECT l.* FROM leagues l WHERE owner=? OR EXISTS(SELECT 1 FROM game_moderators m WHERE m.league=l.id AND m.uid=?) ORDER BY created DESC',(uid,uid))]
+  result={'competitions':allowed,'controls':['Competition name before start','Sponsor artwork and placement','Funded rewards before start','Moderator assignment','Evidence review','Comment moderation'],'protected':['Submitted screenshots and game IDs','Confirmed scores and champions','Messages, protected media and passwords','Audit history','Security and GuardianLab detection settings']}
+  if lid:
+   l=next((l for l in allowed if l['id']==lid),None)
+   if not l:raise PermissionError('You are not assigned to administer this competition')
+   result['moderators']=[dict(r) for r in d.execute('SELECT p.uid,p.tag FROM game_moderators m LEFT JOIN game_profiles p ON p.uid=m.uid WHERE m.league=?',(lid,))]
+   result['audit']=[dict(r) for r in d.execute('SELECT a.*,COALESCE(p.tag,u.nickname) actor_name FROM game_audit a LEFT JOIN users u ON u.id=a.actor LEFT JOIN game_profiles p ON p.uid=a.actor WHERE a.fixture=? OR a.fixture IN (SELECT id FROM fixtures WHERE league=?) ORDER BY a.id DESC LIMIT 200',(lid,lid))]
+   result['comments']=[dict(r) for r in d.execute('SELECT c.*,COALESCE(p.tag,u.nickname) tag FROM game_comments c JOIN fixtures f ON f.id=c.fixture JOIN users u ON u.id=c.uid LEFT JOIN game_profiles p ON p.uid=c.uid WHERE f.league=? ORDER BY c.id DESC LIMIT 100',(lid,))]
+  return result
