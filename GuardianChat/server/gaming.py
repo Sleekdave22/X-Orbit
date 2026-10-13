@@ -100,6 +100,7 @@ def image(body):
  return raw,mime
 
 def post(server,uid,action,b):
+ import gamebox_core
  if action=='scan':
   raw,mime=image(b);return scan(server,raw,mime)
  with server.db() as d:
@@ -109,7 +110,7 @@ def post(server,uid,action,b):
    other=row(d,'SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
    if not other or other['id']==uid:raise ValueError('Choose a different test account')
    if d.execute('SELECT COUNT(*) FROM game_stream_rooms WHERE a=? AND created>?',(uid,int(time.time())-7200)).fetchone()[0]>=3:raise ValueError('Use an existing test room; rooms expire after two hours')
-   rid=uuid.uuid4().hex;d.execute('INSERT INTO game_stream_rooms VALUES(?,?,?,?)',(rid,uid,other['id'],int(time.time())));return {'id':rid}
+   rid=uuid.uuid4().hex;d.execute('INSERT INTO game_stream_rooms VALUES(?,?,?,?)',(rid,uid,other['id'],int(time.time())));gamebox_core.notice(d,other['id'],'You have been invited to a private streaming test. Open Gamebox → Streaming test.');return {'id':rid}
   if action=='stream_signal':
    room=row(d,'SELECT * FROM game_stream_rooms WHERE id=?',(b.get('room'),))
    if not room or uid not in (room['a'],room['b']) or room['created']<time.time()-7200:raise PermissionError('This stream test room is unavailable')

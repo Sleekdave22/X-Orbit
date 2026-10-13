@@ -118,6 +118,8 @@ def post(server,uid,action,b):
   raw,mime=gaming.image(b);reading=gaming.scan(server,raw,mime);b=dict(b,reading=reading.get('text',''))
  with server.db() as d:
   d.execute('BEGIN IMMEDIATE')
+  if action=='notification_test':
+   authorised(d,uid);notice(d,uid,'Test match reminder: your fixture is ready. This is a notification test only.');return {'ok':True}
   if action.startswith('studio_'):
    authorised(d,uid);version=current(d)
    if action=='studio_save':
@@ -247,6 +249,7 @@ def post(server,uid,action,b):
      changes=1 if new['scheduled'] and new['scheduled']!=new['proposed'] else 0
      if new['reschedules']+changes>rules['reschedules']:raise ValueError('Reschedule allowance exceeded')
      d.execute('UPDATE gb_schedule SET scheduled=proposed,proposed=NULL,reschedules=reschedules+?,ready_a=0,ready_b=0,reminded=0 WHERE fixture=?',(changes,f['id']))
+     for player in (f['a'],f['b']):notice(d,player,'Match time agreed. Open Schedule to see kickoff and check in.')
     event(d,f['id'],uid,'schedule_confirmed',old=schedule,new=new)
    else:
     if not schedule or not schedule['scheduled'] or not schedule['scheduled']-rules['checkin_seconds']<=time.time()<=schedule['scheduled']+rules['checkin_seconds']:raise ValueError('Check in near the mutually scheduled time')
