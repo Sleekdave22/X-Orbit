@@ -207,6 +207,19 @@ def post(server,uid,action,b):
    if prior and prior['game_id']!=gid and d.execute("SELECT 1 FROM gb_matches WHERE game=? AND (a=? OR b=?) AND state NOT IN ('verified','cancelled')",(game,uid,uid)).fetchone():raise ValueError('Finish your active match before changing the game ID')
    if d.execute('SELECT 1 FROM gb_game_ids WHERE game=? AND game_id=? COLLATE NOCASE AND uid!=?',(game,gid,uid)).fetchone():raise ValueError('This official game ID is registered to another account')
    existing=row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(uid,game));d.execute('INSERT INTO gb_game_ids VALUES(?,?,?,?,?,?,?) ON CONFLICT(uid,game) DO UPDATE SET game_id=excluded.game_id,region=excluded.region,tz=excluded.tz,availability=excluded.availability,reminders=excluded.reminders',(uid,game,gid,region,tz,json.dumps(slots),int(b.get('reminders',True) is True)));event(d,'identity',uid,'game_identity_saved',old=existing,new={'game':game,'game_id':gid});return {'ok':True}
+  if action=='invite':
+   game=b.get('game');other=row(d,'SELECT id,name FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
+   if not other or other['id']==uid:raise ValueError('Choose another registered player')
+   a=eligible(d,uid,game);z=eligible(d,other['id'],game)
+   if not a or not z:raise ValueError('Both players must register an official ID for this game')
+   if a['game_id'].casefold()==z['game_id'].casefold():raise ValueError('Players need different official game IDs')
+   if a['region']!=z['region']:raise ValueError('Choose a player in the same game region')
+   if d.execute("SELECT 1 FROM gb_matches WHERE (a IN (?,?) OR b IN (?,?)) AND state NOT IN ('verified','cancelled')",(uid,other['id'],uid,other['id'])).fetchone():raise ValueError('A player already has an active invitation or match')
+   version=current(d);rules=json.loads(version['config']);now=int(time.time())
+   if d.execute('SELECT COUNT(*) FROM gb_events WHERE actor=? AND action=? AND created>?',(uid,'game_invited',now-3600)).fetchone()[0]>=10:raise ValueError('Invitation limit reached. Try again later')
+   if d.execute("SELECT COUNT(*) FROM gb_matches WHERE game=? AND state='verified' AND created>? AND ((a=? AND b=?) OR (a=? AND b=?))",(game,now-86400,uid,other['id'],other['id'],uid)).fetchone()[0]>=rules['max_pair_daily']:raise ValueError('Daily rated matches against this opponent reached')
+   mid=uuid.uuid4().hex;d.execute('INSERT INTO gb_matches(id,game,a,b,gid_a,gid_b,state,created,deadline,version,rules,accepted_a) VALUES(?,?,?,?,?,?,?,?,?,?,?,1)',(mid,game,uid,other['id'],a['game_id'],z['game_id'],'proposed',now,now+rules['accept_seconds'],version['id'],json.dumps(rules)))
+   d.execute('DELETE FROM gb_queue WHERE uid IN (?,?)',(uid,other['id']));name=row(d,'SELECT name FROM users WHERE id=?',(uid,))['name'];notice(d,other['id'],name+' invited you to '+__import__('gaming').GAMES[game]+'. Open Gamebox → Find a match to accept or decline.');event(d,mid,uid,'game_invited',new={'recipient':other['id'],'game':game});return {'match':mid}
   if action=='queue':
    game=b.get('game');identity=eligible(d,uid,game)
    if not identity:raise ValueError('Register your official ID for this game first')
@@ -259,7 +272,9 @@ def post(server,uid,action,b):
   if action=='accept':
    if m['state']!='proposed' or time.time()>m['deadline']:raise ValueError('The acceptance window is closed')
    d.execute('UPDATE gb_matches SET accepted_'+side+'=1 WHERE id=?',(m['id'],));updated=row(d,'SELECT * FROM gb_matches WHERE id=?',(m['id'],))
-   if updated['accepted_a'] and updated['accepted_b']:d.execute("UPDATE gb_matches SET state='awaiting_checkin',deadline=? WHERE id=?",(int(time.time())+rules['checkin_seconds'],m['id']))
+   if updated['accepted_a'] and updated['accepted_b']:
+    d.execute("UPDATE gb_matches SET state='awaiting_checkin',deadline=? WHERE id=?",(int(time.time())+rules['checkin_seconds'],m['id']))
+    for player in (m['a'],m['b']):notice(d,player,'Game invitation accepted. Open Find a match and check in when ready.')
   elif action=='checkin':
    if m['state']!='awaiting_checkin' or time.time()>m['deadline']:raise ValueError('Check-in is closed')
    d.execute('UPDATE gb_matches SET ready_'+side+'=1 WHERE id=?',(m['id'],));updated=row(d,'SELECT * FROM gb_matches WHERE id=?',(m['id'],))
@@ -294,6 +309,7 @@ def post(server,uid,action,b):
   elif action=='cancel':
    if m['state'] not in ('proposed','awaiting_checkin'):raise ValueError('Active matches cannot be silently cancelled')
    d.execute("UPDATE gb_matches SET state='cancelled' WHERE id=?",(m['id'],))
+   notice(d,m['b'] if side=='a' else m['a'],'Game invitation declined or cancelled. No score or rating changed.')
   else:raise ValueError('Unknown match action')
   event(d,m['id'],uid,action,old={'state':m['state']},new={k:v for k,v in b.items() if k not in ('image','reading')});return {'ok':True}
 

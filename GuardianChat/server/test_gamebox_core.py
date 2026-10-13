@@ -123,4 +123,15 @@ class CoreTest(unittest.TestCase):
    standings=gamebox_core.weekly(d,'efootball',week,rules);self.assertEqual(standings[0]['uid'],us[1]['id']);self.assertEqual(standings[0]['points'],3)
    self.assertEqual(gamebox_core.weekly(d,'fc_mobile',week,rules),[])
   with self.assertRaises(urllib.error.HTTPError):self.call('/gamebox/qualified_cup',{'name':'No fake qualifiers','game':'efootball'},us[0]['token'])
+ def test_direct_game_invite_and_response(self):
+  a,b,c=self.players()
+  mid=self.call('/gamebox/invite',{'game':'efootball','identity':b['id']},a['token'])['match']
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gamebox/accept',{'match':mid},c['token'])
+  notices=self.call('/gamebox/summary',token=b['token'])['notices'];self.assertTrue(any('invited you' in n['text'] for n in notices))
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gamebox/invite',{'game':'efootball','identity':b['id']},a['token'])
+  self.call('/gamebox/accept',{'match':mid},b['token'])
+  summary=self.call('/gamebox/summary',token=a['token']);self.assertEqual(summary['matches'][0]['state'],'awaiting_checkin')
+  self.assertTrue(any('invitation accepted' in n['text'] for n in summary['notices']))
+  self.call('/gamebox/cancel',{'match':mid},b['token'])
+  self.assertTrue(any('declined or cancelled' in n['text'] for n in self.call('/gamebox/summary',token=a['token'])['notices']))
 if __name__=='__main__':unittest.main()
