@@ -16,6 +16,8 @@ def init(server):
  with server.db() as d:
   if 'game_id' not in {r[1] for r in d.execute('PRAGMA table_info(league_members)')}:d.execute("ALTER TABLE league_members ADD COLUMN game_id TEXT NOT NULL DEFAULT ''")
   if 'format' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute("ALTER TABLE leagues ADD COLUMN format TEXT NOT NULL DEFAULT 'league'")
+  for name in ('sponsor_art','sponsor_week'):
+   if name not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN '+name+" TEXT NOT NULL DEFAULT ''")
   if 'slot' not in {r[1] for r in d.execute('PRAGMA table_info(league_members)')}:
    d.execute('ALTER TABLE league_members ADD COLUMN slot INTEGER')
    for league in d.execute('SELECT id FROM leagues').fetchall():
@@ -49,7 +51,12 @@ def summary(server,uid,lid=None):
     reports=[dict(r) for r in d.execute('SELECT uid,score_a,score_b,mime,ocr FROM game_reports WHERE fixture=?',(f['id'],))] if uid in (f['a'],f['b']) or mod(d,l,uid) else []
     f['reports']=reports;f['game_ids']={r['uid']:r['game_id'] for r in d.execute('SELECT uid,game_id FROM league_members WHERE league=? AND uid IN (?,?)',(lid,f['a'],f['b']))} if uid in (f['a'],f['b']) or mod(d,l,uid) else {};f['can_review']=mod(d,l,uid) and uid not in (f['a'],f['b']);f['audit']=[dict(r) for r in d.execute('SELECT action,details,time FROM game_audit WHERE fixture=? ORDER BY id',(f['id'],))] if f['can_review'] else []
    result['slots']=[dict(r) for r in d.execute('SELECT m.slot,m.uid,p.tag FROM league_members m JOIN game_profiles p ON p.uid=m.uid WHERE m.league=? ORDER BY m.slot',(lid,))]
-   result.update(league=l,table=standings(d,lid),fixtures=fixtures,organiser=mod(d,l,uid),owner=uid==l['owner'],joined=bool(d.execute('SELECT 1 FROM league_members WHERE league=? AND uid=?',(lid,uid)).fetchone()))
+   table=standings(d,lid)
+   for player in table:
+    avatar=row(d,'SELECT avatar,avatar_mime FROM users WHERE id=?',(player['uid'],))
+    player['avatar']=avatar['avatar'] if avatar and (player['feature'] or player['uid']==uid) else ''
+    player['avatar_mime']=avatar['avatar_mime'] if player['avatar'] else ''
+   result.update(league=l,table=table,fixtures=fixtures,organiser=mod(d,l,uid),owner=uid==l['owner'],joined=bool(d.execute('SELECT 1 FROM league_members WHERE league=? AND uid=?',(lid,uid)).fetchone()))
   return result
 
 def scan(server,image,mime):
@@ -107,7 +114,18 @@ def post(server,uid,action,b):
     reward=str(b.get('reward',l['reward'])).strip()
     if not 1<=len(reward)<=250:raise ValueError('Describe the confirmed reward in 250 characters or fewer')
     if reward!=l['reward'] and (l['state']!='enrolling' or b.get('funded') is not True):raise ValueError('Only secured rewards may be announced before the division starts')
-    d.execute('UPDATE leagues SET sponsor=?,sponsor_url=?,reward=? WHERE id=?',(sponsor,url,reward,l['id']));return {'ok':True}
+    art=l['sponsor_art'];week=str(b.get('week',l['sponsor_week'])).strip()
+    if week and not re.fullmatch(r'\d{4}-W(0[1-9]|[1-4]\d|5[0-3])',week):raise ValueError('Choose a valid sponsor week')
+    if b.get('art'):
+     raw,mime=image({'image':b['art']})
+     if len(raw)>1024*1024:raise ValueError('Sponsor logo must be under 1 MB')
+     from PIL import Image
+     import io
+     with Image.open(io.BytesIO(raw)) as logo:
+      if logo.width*logo.height>4000000:raise ValueError('Sponsor logo is too large')
+      logo.verify()
+     art='data:'+mime+';base64,'+base64.b64encode(raw).decode()
+    d.execute('UPDATE leagues SET sponsor=?,sponsor_url=?,reward=?,sponsor_art=?,sponsor_week=? WHERE id=?',(sponsor,url,reward,art,week,l['id']));return {'ok':True}
    if action=='start':
     if l['state']!='enrolling':raise ValueError('League has already started')
     ids=[r[0] for r in d.execute('SELECT uid FROM league_members WHERE league=? ORDER BY slot',(l['id'],))]

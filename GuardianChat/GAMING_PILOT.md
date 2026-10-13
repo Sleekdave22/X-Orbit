@@ -28,3 +28,8 @@ Competition organisers choose league plus Finals or an eight-player knockout cup
 Players lists registered gaming nicknames and slots. Ongoing lists open, unresolved match windows, not proof that the players are playing at that moment. Authenticated spectators and players can join fixture-specific comment rooms. Rooms become read-only when the result closes; comments are stored on the shared server. Gameplay video streaming is not yet implemented. This local pilot currently has basic length/rate limits, not production moderation.
 
 The explicit Dark/Light selector persists GuardianChat's shared browser appearance preference. Both the Android embedded Gaming page and browser fetch these same assets and use the same account-authenticated backend. Re-enter Gaming or refresh to load the update.
+
+## Sponsor rank cards
+Rank cards use the GuardianChat profile picture, gaming nickname and opted-in social handle. Other participants' photos remain hidden when winner-feature permission is disabled; a player can still preview their own photo. First place in a league and confirmed competition champions get a crown. Cup contenders do not receive a misleading league ranking before a winner exists. The shared PNG includes the portrait, crown and social handle.
+
+Organisers can upload a PNG/JPEG sponsor logo under 1 MB and select a sponsor week. The current artwork remains until replaced; automatic sponsor rotation and historical campaign storage are not implemented. Without a supplied logo, the card uses a generated GuardianLab shield illustration marked as a demo sponsor, not a claimed commercial sponsorship.

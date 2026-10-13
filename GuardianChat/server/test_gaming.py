@@ -80,4 +80,13 @@ class GamingTest(unittest.TestCase):
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/room?fixture='+f['id'])
   self.result(f,us,l)
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/comment',{'league':l,'fixture':f['id'],'text':'Late comment'},us[8]['token'])
+ def test_weekly_sponsor_art_and_profile_picture_consent(self):
+  us,l=self.league();avatar=account_qr('rank-picture')
+  self.call('/profile',{'name':us[0]['name'],'nickname':'player0','avatar':avatar,'avatar_mime':'image/png'},us[0]['token'])
+  table=self.view(l,us[1])['table'];self.assertEqual(next(r for r in table if r['uid']==us[0]['id'])['avatar'],avatar)
+  self.call('/gaming/profile',{'tag':us[0]['name'],'game_id':'player-'+us[0]['id'],'adult':True,'feature':False},us[0]['token'])
+  self.assertEqual(next(r for r in self.view(l,us[1])['table'] if r['uid']==us[0]['id'])['avatar'],'')
+  self.assertEqual(next(r for r in self.view(l,us[0])['table'] if r['uid']==us[0]['id'])['avatar'],avatar)
+  self.call('/gaming/sponsor',{'league':l,'sponsor':'GuardianLab','week':'2026-W42','art':avatar},us[0]['token'])
+  league=self.view(l,us[0])['league'];self.assertEqual(league['sponsor_week'],'2026-W42');self.assertTrue(league['sponsor_art'].startswith('data:image/png;base64,'))
 if __name__=='__main__':unittest.main()
