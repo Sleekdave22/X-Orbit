@@ -1,4 +1,4 @@
-# Clutch Naija — private pilot
+# Gamebox — private pilot
 
 Gaming is part of GuardianChat, sharing the existing account and server. Browser: `/gaming.html`. Android: Gaming button from the chat list, or drag from the left edge to the right. The welcome lasts up to five seconds and can be skipped. GuardianLab camera monitoring is stopped on entry; existing protected media behavior is preserved.
 

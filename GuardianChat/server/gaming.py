@@ -1,4 +1,4 @@
-"""Clutch Naija pilot: account-bound competitions and auditable match results."""
+"""Gamebox pilot: account-bound competitions and auditable match results."""
 import base64,hashlib,json,re,time,uuid,subprocess
 from pathlib import Path
 GAMES={'efootball':'eFootball','fc_mobile':'EA FC Mobile','codm':'CODM 1v1'}

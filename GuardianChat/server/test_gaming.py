@@ -54,7 +54,7 @@ class GamingTest(unittest.TestCase):
   us,l=self.league();f=next(f for f in self.view(l,us[0])['fixtures'][:4] if us[0]['id'] in (f['a'],f['b']));users={u['id']:u for u in us};self.call('/gaming/report',{'league':l,'fixture':f['id'],'score_a':2,'score_b':1,'image':account_qr(f['id'])},users[f['a']]['token'])
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/review',{'league':l,'fixture':f['id'],'score_a':2,'score_b':1,'reason':'I approve myself'},us[0]['token'])
  def test_static_gaming_page_does_not_require_bearer(self):
-  page=self.call('/gaming.html');self.assertIn(b'Clutch Naija',page)
+  page=self.call('/gaming.html');self.assertIn(b'Gamebox',page)
  def test_snapshot_game_ids_survive_profile_changes(self):
   us,l=self.league();u=us[1];original='player-'+u['id'];self.call('/gaming/profile',{'tag':'Changed','game_id':'new-id','adult':True},u['token']);f=next(f for f in self.view(l,u)['fixtures'] if u['id'] in (f['a'],f['b']));self.assertEqual(f['game_ids'][u['id']],original)
 
