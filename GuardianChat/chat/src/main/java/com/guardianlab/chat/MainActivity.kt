@@ -62,7 +62,7 @@ background=android.graphics.drawable.StateListDrawable().apply {addState(intArra
  }
  private fun showBrandIntro(){
   val host=window.decorView as? android.view.ViewGroup ?: return
-  val intro=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setBackgroundColor(paper);addView(text("X ORBIT",36f).apply {setTextColor(accent);gravity=Gravity.CENTER});addView(text("Your world your connection",17f).apply {setTextColor(muted);gravity=Gravity.CENTER;setPadding(0,dp(12),0,0)})}
+  val intro=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setBackgroundColor(paper);addView(text("X ORBIT",36f).apply {setTextColor(accent);gravity=Gravity.CENTER});addView(text("Your world your connection",17f).apply {setTextColor(muted);gravity=Gravity.CENTER;setPadding(0,dp(12),0,0)});addView(text("Protected by GuardianLab",12f).apply {setTextColor(muted);gravity=Gravity.CENTER;setPadding(0,dp(32),0,0)})}
   host.addView(intro,android.view.ViewGroup.LayoutParams(-1,-1));intro.setOnClickListener {host.removeView(intro)}
   main.postDelayed({if(intro.parent==host)intro.animate().alpha(0f).setDuration(180).withEndAction {host.removeView(intro)}.start()},1200)
  }
