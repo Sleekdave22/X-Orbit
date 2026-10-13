@@ -87,3 +87,15 @@ async function streamRoom(room){streamCleanup?.();tab='stream';const v=$('view')
  const timer=setInterval(poll,1000);await poll();streamCleanup=()=>{closed=true;clearInterval(timer);end(true);streamCleanup=null};window.addEventListener('pagehide',()=>streamCleanup?.(),{once:true});}
 
 setInterval(()=>{if(tab==='open'&&!document.hidden&&!$('view').querySelector('[data-engine-identity][data-dirty="1"]')&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))load()},4000);
+
+// Chat notifications continue while the browser is in Gamebox.
+if(!native){
+ let audio=null,busy=false,primed=false,latest={};
+ try{const saved=stored('orbit-alert-watermark-'+account?.id);if(saved){latest=JSON.parse(saved);primed=true}}catch(_){}
+ const unlock=()=>{try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();if(audio.state!=='running')audio.resume()}catch(_){}};
+ document.addEventListener('pointerdown',unlock,{capture:true});document.addEventListener('keydown',unlock,{capture:true});
+ const sound=()=>{try{if(audio?.state!=='running')return;const g=audio.createGain(),o=audio.createOscillator();g.connect(audio.destination);g.gain.setValueAtTime(.18,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.5);o.frequency.setValueAtTime(880,audio.currentTime);o.frequency.setValueAtTime(660,audio.currentTime+.18);o.connect(g);o.start();o.stop(audio.currentTime+.5);o.onended=()=>{o.disconnect();g.disconnect()}}catch(_){}};
+ const banner=node('button','','gamebox-chat-alert');banner.hidden=true;banner.setAttribute('aria-label','Open new chat messages');banner.onclick=()=>location.assign('/');document.body.append(banner);let hideTimer;
+ async function check(){if(!account||busy)return;busy=true;try{const inbox=await api('/inbox');if(inbox.ids.length)await api('/delivered',{ids:inbox.ids});const users=(await api('/users')).users;for(const u of users){if(primed&&u.unread&&u.latest>(latest[u.id]||0)){banner.textContent='New message from '+u.name;banner.hidden=false;clearTimeout(hideTimer);hideTimer=setTimeout(()=>banner.hidden=true,5000);sound();if('Notification'in window&&Notification.permission==='granted'){const n=new Notification('X ORBIT',{body:'New message from '+u.name,tag:'orbit-chat-'+u.id});n.onclick=()=>{window.focus();location.assign('/');n.close()}}}latest[u.id]=Math.max(latest[u.id]||0,u.latest||0)}primed=true;remember('orbit-alert-watermark-'+account.id,JSON.stringify(latest))}catch(_){}finally{busy=false}}
+ check();setInterval(check,2000);
+}
