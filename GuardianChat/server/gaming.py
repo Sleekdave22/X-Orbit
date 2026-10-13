@@ -10,10 +10,16 @@ def init(server):
  CREATE TABLE IF NOT EXISTS game_moderators(league TEXT,uid TEXT,PRIMARY KEY(league,uid));
  CREATE TABLE IF NOT EXISTS fixtures(id TEXT PRIMARY KEY,league TEXT,round INTEGER,a TEXT,b TEXT,opens INTEGER,due INTEGER,state TEXT DEFAULT 'scheduled',score_a INTEGER,score_b INTEGER,stage TEXT DEFAULT 'league');
  CREATE TABLE IF NOT EXISTS game_reports(fixture TEXT,uid TEXT,score_a INTEGER,score_b INTEGER,image BLOB,mime TEXT,digest TEXT UNIQUE,ocr TEXT,PRIMARY KEY(fixture,uid));
+ CREATE TABLE IF NOT EXISTS game_comments(id INTEGER PRIMARY KEY,fixture TEXT,uid TEXT,text TEXT,time INTEGER);
  CREATE TABLE IF NOT EXISTS game_audit(id INTEGER PRIMARY KEY,fixture TEXT,actor TEXT,action TEXT,details TEXT,time INTEGER);
  ''')
  with server.db() as d:
   if 'game_id' not in {r[1] for r in d.execute('PRAGMA table_info(league_members)')}:d.execute("ALTER TABLE league_members ADD COLUMN game_id TEXT NOT NULL DEFAULT ''")
+  if 'format' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute("ALTER TABLE leagues ADD COLUMN format TEXT NOT NULL DEFAULT 'league'")
+  if 'slot' not in {r[1] for r in d.execute('PRAGMA table_info(league_members)')}:
+   d.execute('ALTER TABLE league_members ADD COLUMN slot INTEGER')
+   for league in d.execute('SELECT id FROM leagues').fetchall():
+    for slot,member in enumerate(d.execute('SELECT uid FROM league_members WHERE league=? ORDER BY rowid',(league[0],)).fetchall(),1):d.execute('UPDATE league_members SET slot=? WHERE league=? AND uid=?',(slot,league[0],member[0]))
   d.execute("CREATE UNIQUE INDEX IF NOT EXISTS league_game_identity ON league_members(league,game_id COLLATE NOCASE) WHERE game_id!=''")
 def row(d,sql,args=()):
  r=d.execute(sql,args).fetchone();return dict(r) if r else None
@@ -42,6 +48,7 @@ def summary(server,uid,lid=None):
     f['can_report']=uid in (f['a'],f['b']) and f['state'] not in ('confirmed','void')
     reports=[dict(r) for r in d.execute('SELECT uid,score_a,score_b,mime,ocr FROM game_reports WHERE fixture=?',(f['id'],))] if uid in (f['a'],f['b']) or mod(d,l,uid) else []
     f['reports']=reports;f['game_ids']={r['uid']:r['game_id'] for r in d.execute('SELECT uid,game_id FROM league_members WHERE league=? AND uid IN (?,?)',(lid,f['a'],f['b']))} if uid in (f['a'],f['b']) or mod(d,l,uid) else {};f['can_review']=mod(d,l,uid) and uid not in (f['a'],f['b']);f['audit']=[dict(r) for r in d.execute('SELECT action,details,time FROM game_audit WHERE fixture=? ORDER BY id',(f['id'],))] if f['can_review'] else []
+   result['slots']=[dict(r) for r in d.execute('SELECT m.slot,m.uid,p.tag FROM league_members m JOIN game_profiles p ON p.uid=m.uid WHERE m.league=? ORDER BY m.slot',(lid,))]
    result.update(league=l,table=standings(d,lid),fixtures=fixtures,organiser=mod(d,l,uid),owner=uid==l['owner'],joined=bool(d.execute('SELECT 1 FROM league_members WHERE league=? AND uid=?',(lid,uid)).fetchone()))
   return result
 
@@ -73,16 +80,21 @@ def post(server,uid,action,b):
    name=str(b.get('name','')).strip();game=b.get('game')
    if not 3<=len(name)<=60 or game not in GAMES:raise ValueError('Enter a league name and supported game')
    if d.execute("SELECT COUNT(*) FROM leagues WHERE owner=? AND state!='finished'",(uid,)).fetchone()[0]>=3:raise ValueError('Finish an existing league before creating another')
-   lid=uuid.uuid4().hex;d.execute('INSERT INTO leagues(id,name,game,owner,created) VALUES(?,?,?,?,?)',(lid,name,game,uid,int(time.time())));return {'id':lid}
+   fmt=b.get('format','league')
+   if fmt not in ('league','cup'):raise ValueError('Choose league or cup')
+   lid=uuid.uuid4().hex;d.execute('INSERT INTO leagues(id,name,game,owner,created,format) VALUES(?,?,?,?,?,?)',(lid,name,game,uid,int(time.time()),fmt));return {'id':lid}
   l=row(d,'SELECT * FROM leagues WHERE id=?',(b.get('league'),))
   if not l:raise ValueError('League not found')
   if action=='join':
+   existing=row(d,'SELECT slot FROM league_members WHERE league=? AND uid=?',(l['id'],uid))
+   if existing:return {'ok':True,'slot':existing['slot']}
    if l['state']!='enrolling':raise ValueError('Enrolment is closed')
    if not row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,)):raise ValueError('Set up your gaming profile first')
    if d.execute('SELECT COUNT(*) FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]>=8:raise ValueError('This division is full')
    gid=row(d,'SELECT game_id FROM game_profiles WHERE uid=?',(uid,))['game_id']
    if d.execute('SELECT 1 FROM league_members WHERE league=? AND game_id=? COLLATE NOCASE AND uid!=?',(l['id'],gid,uid)).fetchone():raise ValueError('That game account is already registered in this division')
-   d.execute('INSERT OR IGNORE INTO league_members(league,uid,game_id) VALUES(?,?,?)',(l['id'],uid,gid));return {'ok':True}
+   slot=d.execute('SELECT COALESCE(MAX(slot),0)+1 FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]
+   d.execute('INSERT INTO league_members(league,uid,game_id,slot) VALUES(?,?,?,?)',(l['id'],uid,gid,slot));return {'ok':True,'slot':slot}
   if action in ('start','sponsor','moderator','finals'):
    if uid!=l['owner']:raise PermissionError('Only the league organiser can do this')
    if action=='moderator':
@@ -98,9 +110,12 @@ def post(server,uid,action,b):
     d.execute('UPDATE leagues SET sponsor=?,sponsor_url=?,reward=? WHERE id=?',(sponsor,url,reward,l['id']));return {'ok':True}
    if action=='start':
     if l['state']!='enrolling':raise ValueError('League has already started')
-    ids=[r[0] for r in d.execute('SELECT uid FROM league_members WHERE league=? ORDER BY uid',(l['id'],))]
+    ids=[r[0] for r in d.execute('SELECT uid FROM league_members WHERE league=? ORDER BY slot',(l['id'],))]
     if len(ids)!=8:raise ValueError('Eight players are required')
     now=int(time.time())
+    if l['format']=='cup':
+     for i in range(0,8,2):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'quarter')",(uuid.uuid4().hex,l['id'],1,ids[i],ids[i+1],now,now+4*86400))
+     d.execute("UPDATE leagues SET state='finals' WHERE id=?",(l['id'],));return {'ok':True}
     for n in range(7):
      for i in range(4):d.execute('INSERT INTO fixtures(id,league,round,a,b,opens,due) VALUES(?,?,?,?,?,?,?)',(uuid.uuid4().hex,l['id'],n+1,ids[i],ids[7-i],now+n*4*86400,now+(n+1)*4*86400))
      ids=[ids[0],ids[-1],*ids[1:-1]]
@@ -112,6 +127,13 @@ def post(server,uid,action,b):
     d.execute("UPDATE leagues SET state='finals' WHERE id=?",(l['id'],));return {'ok':True}
   f=row(d,'SELECT * FROM fixtures WHERE id=? AND league=?',(b.get('fixture'),l['id']))
   if not f:raise ValueError('Fixture not found')
+  if action=='comment':
+   if f['state'] in ('confirmed','void') or time.time()<f['opens']:raise ValueError('This match room is not active')
+   text=str(b.get('text','')).strip()
+   if not 1<=len(text)<=1000:raise ValueError('Write a comment under 1000 characters')
+   last=d.execute('SELECT MAX(time) FROM game_comments WHERE uid=?',(uid,)).fetchone()[0]
+   if last and time.time()-last<1:raise ValueError('Please wait a moment before commenting again')
+   d.execute('INSERT INTO game_comments(fixture,uid,text,time) VALUES(?,?,?,?)',(f['id'],uid,text,int(time.time())));return {'ok':True}
   if action in ('report','confirm','dispute'):
    if uid not in (f['a'],f['b']):raise PermissionError('Only the scheduled players may submit this result')
    if f['state'] in ('confirmed','void'):raise ValueError('Result is already closed')
@@ -148,7 +170,11 @@ def post(server,uid,action,b):
    d.execute("UPDATE fixtures SET state='confirmed',score_a=?,score_b=? WHERE id=?",(a,z,f['id']));audit(d,f['id'],uid,'moderator_approved',reason);advance(d,l);return {'ok':True}
   raise ValueError('Unknown gaming action')
 def advance(d,l):
- semis=[dict(r) for r in d.execute("SELECT * FROM fixtures WHERE league=? AND stage='semi'",(l['id'],))]
+ quarters=[dict(r) for r in d.execute("SELECT * FROM fixtures WHERE league=? AND stage='quarter' ORDER BY rowid",(l['id'],))]
+ if len(quarters)==4 and all(f['state']=='confirmed' for f in quarters) and not d.execute("SELECT 1 FROM fixtures WHERE league=? AND stage='semi'",(l['id'],)).fetchone():
+  winners=[f['a'] if f['score_a']>f['score_b'] else f['b'] for f in quarters];now=int(time.time())
+  for i in (0,2):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'semi')",(uuid.uuid4().hex,l['id'],2,winners[i],winners[i+1],now,now+4*86400))
+ semis=[dict(r) for r in d.execute("SELECT * FROM fixtures WHERE league=? AND stage='semi' ORDER BY rowid",(l['id'],))]
  if len(semis)==2 and all(f['state']=='confirmed' for f in semis) and not d.execute("SELECT 1 FROM fixtures WHERE league=? AND stage='final'",(l['id'],)).fetchone():
   winners=[f['a'] if f['score_a']>f['score_b'] else f['b'] for f in semis];now=int(time.time());d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'final')",(uuid.uuid4().hex,l['id'],9,*winners,now,now+3*86400))
  final=row(d,"SELECT * FROM fixtures WHERE league=? AND stage='final' AND state='confirmed'",(l['id'],))
@@ -160,3 +186,10 @@ def evidence(server,uid,fid,player):
   r=row(d,'SELECT image,mime FROM game_reports WHERE fixture=? AND uid=?',(fid,player))
   if not r or not r['image']:raise ValueError('Screenshot unavailable')
   return r['image'],r['mime']
+
+def room(server,uid,fid):
+ with server.db() as d:
+  f=row(d,'SELECT f.*,a.tag name_a,b.tag name_b FROM fixtures f JOIN game_profiles a ON a.uid=f.a JOIN game_profiles b ON b.uid=f.b WHERE f.id=?',(fid,))
+  if not f:raise ValueError('Match not found')
+  comments=[dict(r) for r in d.execute('SELECT c.id,c.uid,c.text,c.time,COALESCE(p.tag,u.nickname) tag FROM game_comments c JOIN users u ON u.id=c.uid LEFT JOIN game_profiles p ON p.uid=c.uid WHERE fixture=? ORDER BY c.id DESC LIMIT 100',(fid,))]
+  return {'fixture':f,'comments':list(reversed(comments)),'player':uid in (f['a'],f['b']),'active':f['state'] not in ('confirmed','void') and time.time()>=f['opens']}

@@ -57,4 +57,27 @@ class GamingTest(unittest.TestCase):
   page=self.call('/gaming.html');self.assertIn(b'Clutch Naija',page)
  def test_snapshot_game_ids_survive_profile_changes(self):
   us,l=self.league();u=us[1];original='player-'+u['id'];self.call('/gaming/profile',{'tag':'Changed','game_id':'new-id','adult':True},u['token']);f=next(f for f in self.view(l,u)['fixtures'] if u['id'] in (f['a'],f['b']));self.assertEqual(f['game_ids'][u['id']],original)
+
+ def test_cup_slots_and_automatic_advancement(self):
+  us=[self.register('Cup'+str(n)) for n in range(8)]
+  for u in us:self.call('/gaming/profile',{'tag':u['name'],'game_id':'cup-'+u['id'],'adult':True},u['token'])
+  l=self.call('/gaming/create',{'name':'Cup test','game':'efootball','format':'cup'},us[0]['token'])['id']
+  for n,u in enumerate(us,1):self.assertEqual(self.call('/gaming/join',{'league':l},u['token'])['slot'],n)
+  self.assertEqual(self.call('/gaming/join',{'league':l},us[0]['token'])['slot'],1)
+  self.assertEqual(len(self.view(l,us[0])['slots']),8)
+  self.call('/gaming/start',{'league':l},us[0]['token'])
+  q=self.view(l,us[0])['fixtures'];self.assertEqual(len(q),4);self.assertEqual((q[0]['a'],q[0]['b']),(us[0]['id'],us[1]['id']))
+  for f in q:self.result(f,us,l)
+  semis=[f for f in self.view(l,us[0])['fixtures'] if f['stage']=='semi'];self.assertEqual(len(semis),2)
+  for f in semis:self.result(f,us,l)
+  final=[f for f in self.view(l,us[0])['fixtures'] if f['stage']=='final'];self.assertEqual(len(final),1);self.result(final[0],us,l)
+  summary=self.view(l,us[0]);self.assertEqual(summary['league']['champion'],us[0]['id']);self.assertEqual(summary['league']['state'],'finished')
+
+ def test_match_room_comments_and_closed_room(self):
+  us,l=self.league();f=self.view(l,us[0])['fixtures'][0]
+  self.call('/gaming/comment',{'league':l,'fixture':f['id'],'text':'Good luck!'},us[8]['token'])
+  r=self.call('/gaming/room?fixture='+f['id'],token=us[0]['token']);self.assertEqual(r['comments'][0]['text'],'Good luck!');self.assertTrue(r['active'])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/room?fixture='+f['id'])
+  self.result(f,us,l)
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/comment',{'league':l,'fixture':f['id'],'text':'Late comment'},us[8]['token'])
 if __name__=='__main__':unittest.main()
