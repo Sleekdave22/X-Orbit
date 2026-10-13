@@ -103,4 +103,24 @@ class CoreTest(unittest.TestCase):
   push=FakePush();self.server.push=push
   with self.server.db() as d:gamebox_core.notice(d,us[0]['id'],'Private final score and gaming ID')
   gamebox_core.dispatch_notices(self.server);self.assertTrue(push.ready.wait(2));self.assertEqual(push.events[0]['event'],'gamebox_notice');self.assertNotIn('Private',str(push.events[0]));self.assertNotIn('score',push.events[0])
+ def test_season_close_generates_groups_once(self):
+  us=self.players()
+  for i in range(17):
+   u=self.register('Season'+str(i));self.call('/gaming/profile',{'tag':u['name'],'game_id':u['id'],'adult':True},u['token']);us.append(u)
+  now=int(time.time())
+  for u in us:self.call('/gamebox/identity',{'game':'efootball','game_id':'game-'+u['id'],'region':'Nigeria','tz':'Africa/Lagos','availability':[{'start':now+100,'end':now+3600}]},u['token'])
+  season=self.call('/gamebox/season_create',{'name':'Season grouping test','game':'efootball','tier':0,'opens':now,'closes':now+120},us[0]['token'])['id']
+  for u in us:self.call('/gamebox/season_register',{'season':season},u['token'])
+  gamebox_core.tick(self.server,now+121);gamebox_core.tick(self.server,now+122)
+  state=self.call('/gamebox/summary',token=us[0]['token']);self.assertEqual(state['seasons'][0]['state'],'active');self.assertEqual(len(state['seasons'][0]['groups']),2)
+  with self.server.db() as d:self.assertEqual(d.execute('SELECT COUNT(*) FROM fixtures').fetchone()[0],90);self.assertEqual(d.execute('SELECT COUNT(*) FROM league_members').fetchone()[0],20)
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gamebox/season_register',{'season':season},us[0]['token'])
+ def test_weekly_open_qualification_is_derived_from_verified_outcomes(self):
+  us=self.players()
+  with self.server.db() as d:
+   rules=dict(gamebox_core.DEFAULT,weekly_min_matches=1,weekly_min_opponents=1);week=int(time.time())-100
+   d.execute("INSERT INTO gb_matches(id,game,a,b,gid_a,gid_b,state,created,deadline,version,rules,verified,score_a,score_b) VALUES('q','efootball',?,?,?,?,'verified',?,?,1,?,?,2,1)",(us[1]['id'],us[2]['id'],'one','two',week,week,json.dumps(rules),int(time.time())))
+   standings=gamebox_core.weekly(d,'efootball',week,rules);self.assertEqual(standings[0]['uid'],us[1]['id']);self.assertEqual(standings[0]['points'],3)
+   self.assertEqual(gamebox_core.weekly(d,'fc_mobile',week,rules),[])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gamebox/qualified_cup',{'name':'No fake qualifiers','game':'efootball'},us[0]['token'])
 if __name__=='__main__':unittest.main()

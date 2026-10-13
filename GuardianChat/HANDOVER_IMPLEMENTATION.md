@@ -20,17 +20,19 @@ Missing or limited: open matchmaking, independent typed score workflow without r
 - Persistent per-game Elo skill rating (K=24), separate activity points, and idempotent rated-result processing. New played competition results also update rating; old competitions are not retroactively rated.
 - Match-linked communication cards/rooms with a single authoritative record.
 - Private, original disputed evidence; server-side screenshot-reading aid; independent admin decisions with original reports and corrections in the audit. Ordinary new verified evidence has configurable expiry. This is application-level deletion, not a forensic secure-erasure guarantee.
+- Opt-in season registration windows, eligible gamer notices, balanced groups generated at close, snapshot IDs, skill ordering within qualified divisions, controlled registration extensions and conflict/insufficient-entry review.
+- Weekly-open qualification derived from verified wins, opponents and participation; major cup slots configurable between league performance and weekly opens. No fabricated qualifier slots.
 - League groups configurable from 6–16 players, including 10-player/nine-round schedules. Odd groups have byes. Cups remain eight-player knockout. Old competitions retain original capacity, timings and verification mode.
 - Both league opponents propose/confirm a time within overlapping registered availability. One mutual reschedule by default, with a cutoff. Both check in before reporting in new competitions.
 - Documented league no-show review: only the player who actually checked in may receive a walkover; double no-shows yield no points. Neither changes skill rating. No silent opponent replacement in league fixtures.
-- Server-driven expiry and reminder events independent of mobile screens remaining open.
+- Server-driven expiry and reminder events independent of mobile screens remaining open. Generic Android notice push, bounded retries, session-scoped recipients and a separate alert preference are implemented; real-device delivery still needs verification.
 - Administrator-only competition size/schedule simulator. It calculates estimated balanced-group counts, fixtures, rounds and duration; it is not a load test or a promise that availability will fit.
 - Open played outcomes are included in genuine player performance records and aggregate counters.
 
 ## Remaining specification work (not claimed complete)
 
-1. Season-level registration windows, eligible-player announcements, bulk automatic grouping by skill/availability and registration-close execution. This build creates bounded groups individually.
-2. Weekly opens feeding configurable major-cup qualification slots and multi-stage cup seeding.
+1. More sophisticated availability/latency optimisation during automatic grouping. Groups currently use qualified division and rating order; availability overlap is enforced when scheduling fixtures.
+2. More cup formats and configurable tournament templates beyond the implemented eight-player knockout and qualification-only major cup.
 3. Full appeal cases, evidence-response deadlines and review decisions that fairly handle an appeal against an already verified result. Verified scores remain immutable in the current UI.
 4. Production anomaly/collusion analysis, reliability flags and richer eligibility administration. Current safeguards are game-ID uniqueness, session checks, repeat-opponent caps, immutable evidence and audit trails.
 5. End-to-end device testing of new match-notice push delivery and registration announcements. Generic Android Gamebox push handling is implemented; real delivery still needs verification on the S21.

@@ -14,6 +14,7 @@ const fieldValues=f=>Object.fromEntries(new FormData(f));
 function form(title,build,submit){const c=node('div','', 'card');c.append(node('h3',title));const f=node('form');build(f);const b=node('button','Save');b.type='submit';f.append(b);f.onsubmit=async e=>{e.preventDefault();b.disabled=true;try{await submit(f)}finally{b.disabled=false}};c.append(f);return c}
 function render(){requestAnimationFrame(()=>studioLayout($('view')));if(!data){note('Still connecting. Please wait a moment.');load();return}const view=$('view');view.replaceChildren();document.querySelector('[data-tab=admin]').hidden=!data.can_admin;document.querySelector('[data-tab=studio]').hidden=!data.can_admin;if(['admin','studio'].includes(tab)&&!data.can_admin){view.append(node('p','Administration is restricted to the authorised account.'));return}document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b.dataset.tab===tab));const sponsor=$('sponsor');sponsor.replaceChildren();sponsor.hidden=!data.league?.sponsor;if(!sponsor.hidden){sponsor.append(node('span','Supported by '+data.league.sponsor));if(data.league.sponsor_url){const a=node('a',' · Visit sponsor');a.href=data.league.sponsor_url;a.target='_blank';a.rel='noopener noreferrer sponsored';sponsor.append(a)}}
  if(tab==='admin'){administration(view);return}
+ if(tab==='seasons'){seasonView(view);return}
  if(tab==='studio'){studioView(view);return}
  if(tab==='open'){openMatches(view);return}
  if(tab==='streams'){streamTests(view);return}

@@ -58,3 +58,8 @@ In Admin Studio, save a draft, preview its supported theme, publish with a reaso
 New leagues can have 6–16 players; the default Studio target is 10. Create a separate group rather than a giant table. Old leagues retain their rules. For a new league fixture, both players must register overlapping availability, agree its proposed time and check in near that time. Routine matching independent scores need no screenshot; disputes still require original evidence.
 
 The server generates match notices and reminders even if phones are closed. Android push delivery is integrated; actual Gamebox alerts still need real-device verification. Keep the Mac/server awake. See HANDOVER_IMPLEMENTATION.md for the remaining handover work; the full specification is not claimed complete.
+
+## Seasons and qualified major cups
+Use Seasons to create a registration window. Eligible gamers are notified, but each registers themselves. They must first save an official game ID and availability in Find a match. When registration closes, the server creates balanced groups using the configured group target and skill order within the qualified division. Too few entrants, an eligibility change or a conflicting active league sends the registration to review. No player is silently substituted. The administrator can extend an unstarted registration window with a logged reason.
+
+Admin Studio can allocate eight major-cup slots between recent completed league performance and the current Nigerian-calendar week's verified open results. Minimum weekly matches and distinct opponents are configurable. The cup is created only when there are enough distinct qualified players; those players must still opt in. Cups currently remain eight-player knockout.

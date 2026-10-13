@@ -1,13 +1,18 @@
 """Versioned Gamebox Studio and open-match workflows. Does not edit chat/media security."""
 import json,time,uuid,re,math,hashlib,base64
-DEFAULT={'accept_seconds':300,'checkin_seconds':600,'result_seconds':3600,'evidence_seconds':86400,'retention_seconds':259200,'reminder_seconds':900,'reschedules':1,'group_size':10,'round_days':3,'max_pair_daily':2,'rating_gap':400,'theme':{'accent':'#921b37','surface':'#252525','paper':'#101010','ink':'#f4f4f4','radius':8,'tab_padding':12,'font_size':14,'font_family':'system-ui'},'layout':['stats','competitions','players','matches'],'announcement':'','show_stats':True}
-LIMITS={'accept_seconds':(60,1800),'checkin_seconds':(120,3600),'result_seconds':(1800,7200),'evidence_seconds':(3600,259200),'retention_seconds':(3600,2592000),'reminder_seconds':(60,3600),'reschedules':(0,1),'group_size':(6,16),'round_days':(1,14),'max_pair_daily':(1,3),'rating_gap':(100,800)}
+DEFAULT={'accept_seconds':300,'checkin_seconds':600,'result_seconds':3600,'evidence_seconds':86400,'retention_seconds':259200,'reminder_seconds':900,'reschedules':1,'group_size':10,'round_days':3,'max_pair_daily':2,'rating_gap':400,'league_cup_slots':4,'open_cup_slots':4,'weekly_min_matches':5,'weekly_min_opponents':3,'theme':{'accent':'#921b37','surface':'#252525','paper':'#101010','ink':'#f4f4f4','radius':8,'tab_padding':12,'font_size':14,'font_family':'system-ui'},'layout':['stats','competitions','players','matches'],'announcement':'','show_stats':True}
+LIMITS={'accept_seconds':(60,1800),'checkin_seconds':(120,3600),'result_seconds':(1800,7200),'evidence_seconds':(3600,259200),'retention_seconds':(3600,2592000),'reminder_seconds':(60,3600),'reschedules':(0,1),'group_size':(6,16),'round_days':(1,14),'max_pair_daily':(1,3),'rating_gap':(100,800),'league_cup_slots':(0,8),'open_cup_slots':(0,8),'weekly_min_matches':(1,20),'weekly_min_opponents':(1,10)}
 def init(server):
  with server.db() as d:
   d.executescript('''
   CREATE TABLE IF NOT EXISTS gb_comp_retention(fixture TEXT PRIMARY KEY,expires INTEGER);
   CREATE TABLE IF NOT EXISTS gb_walkovers(fixture TEXT PRIMARY KEY,winner TEXT,reason TEXT,actor TEXT,created INTEGER);
   CREATE TABLE IF NOT EXISTS gb_schedule(fixture TEXT PRIMARY KEY,proposer TEXT,proposed INTEGER,scheduled INTEGER,confirmed_a INTEGER DEFAULT 0,confirmed_b INTEGER DEFAULT 0,reschedules INTEGER DEFAULT 0,ready_a INTEGER DEFAULT 0,ready_b INTEGER DEFAULT 0,reminded INTEGER DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS gb_cup_eligibility(league TEXT,uid TEXT,source TEXT,PRIMARY KEY(league,uid));
+  CREATE TABLE IF NOT EXISTS gb_qualified_cups(league TEXT PRIMARY KEY,version INTEGER,week INTEGER);
+  CREATE TABLE IF NOT EXISTS gb_seasons(id TEXT PRIMARY KEY,name TEXT,game TEXT,tier INTEGER,opens INTEGER,closes INTEGER,state TEXT,owner TEXT,version INTEGER,rules TEXT);
+  CREATE TABLE IF NOT EXISTS gb_season_entries(season TEXT,uid TEXT,game_id TEXT,availability TEXT,registered INTEGER,PRIMARY KEY(season,uid));
+  CREATE TABLE IF NOT EXISTS gb_season_groups(season TEXT,league TEXT,number INTEGER,PRIMARY KEY(season,league));
   CREATE TABLE IF NOT EXISTS gb_versions(id INTEGER PRIMARY KEY,config TEXT,actor TEXT,reason TEXT,created INTEGER);
   CREATE TABLE IF NOT EXISTS gb_draft(id INTEGER PRIMARY KEY CHECK(id=1),base INTEGER,config TEXT);
   CREATE TABLE IF NOT EXISTS gb_game_ids(uid TEXT,game TEXT,game_id TEXT,region TEXT,tz TEXT,availability TEXT,reminders INTEGER DEFAULT 1,PRIMARY KEY(uid,game));
@@ -47,6 +52,7 @@ def validate(c):
   if not re.fullmatch(r'#[0-9a-fA-F]{6}',str(t[k])):raise ValueError('Use six-digit colour values')
  for k,lo,hi in [('radius',0,24),('tab_padding',8,24),('font_size',12,20)]:
   if type(t[k])!=int or not lo<=t[k]<=hi:raise ValueError('Invalid theme sizing')
+ if c['league_cup_slots']+c['open_cup_slots']!=8:raise ValueError('League and open qualification slots must total eight')
  if type(c['layout'])!=list or sorted(c['layout'])!=sorted(DEFAULT['layout']):raise ValueError('Reorder existing components only')
  if t['font_family'] not in ('system-ui','sans-serif','serif','monospace'):raise ValueError('Choose a supported built-in font')
  if type(c['show_stats'])!=bool:raise ValueError('Choose whether statistics should be displayed')
@@ -70,11 +76,16 @@ def summary(server,uid):
   for m in matches:
    m.pop('rules',None);m['reports']=[dict(r) for r in d.execute('SELECT * FROM gb_reports WHERE match=?',(m['id'],))]
    if m['state']=='awaiting_results' and not any(r['uid']==uid for r in m['reports']):m['reports']=[{'uid':r['uid'],'submitted':True} for r in m['reports']]
-  return {'version':version['id'],'config':config,'ids':[dict(r) for r in d.execute('SELECT * FROM gb_game_ids WHERE uid=?',(uid,))],'ratings':[dict(r) for r in d.execute('SELECT * FROM gb_ratings WHERE uid=?',(uid,))],'queue':row(d,'SELECT * FROM gb_queue WHERE uid=?',(uid,)),'matches':matches,'notices':[dict(r) for r in d.execute('SELECT * FROM gb_notices WHERE uid=? AND seen=0 ORDER BY id DESC LIMIT 30',(uid,))]}
+  return {'seasons':[dict(r)|{'registered':d.execute('SELECT COUNT(*) FROM gb_season_entries WHERE season=?',(r['id'],)).fetchone()[0],'joined':bool(d.execute('SELECT 1 FROM gb_season_entries WHERE season=? AND uid=?',(r['id'],uid)).fetchone()),'groups':[x[0] for x in d.execute('SELECT league FROM gb_season_groups WHERE season=? ORDER BY number',(r['id'],))]} for r in d.execute('SELECT id,name,game,tier,opens,closes,state FROM gb_seasons ORDER BY closes DESC LIMIT 30')],'version':version['id'],'config':config,'ids':[dict(r) for r in d.execute('SELECT * FROM gb_game_ids WHERE uid=?',(uid,))],'ratings':[dict(r) for r in d.execute('SELECT * FROM gb_ratings WHERE uid=?',(uid,))],'queue':row(d,'SELECT * FROM gb_queue WHERE uid=?',(uid,)),'matches':matches,'notices':[dict(r) for r in d.execute('SELECT * FROM gb_notices WHERE uid=? AND seen=0 ORDER BY id DESC LIMIT 30',(uid,))]}
 def studio(server,uid):
  with server.db() as d:
   authorised(d,uid)
-  return {'published':current(d),'draft':row(d,'SELECT * FROM gb_draft WHERE id=1'),'versions':[dict(r) for r in d.execute('SELECT id,actor,reason,created FROM gb_versions ORDER BY id DESC LIMIT 20')],'limits':LIMITS,'events':[dict(r) for r in d.execute('SELECT * FROM gb_events ORDER BY id DESC LIMIT 100')],'disputes':[dict(r) for r in d.execute("SELECT * FROM gb_matches WHERE state IN ('disputed','review') ORDER BY created")],'sanctions':[dict(r) for r in d.execute('SELECT * FROM gb_sanctions')]}
+  disputes=[dict(r) for r in d.execute("SELECT * FROM gb_matches WHERE state IN ('disputed','review') ORDER BY created")]
+  for m in disputes:
+   m['evidence']=[dict(r) for r in d.execute('SELECT uid,mime,reading FROM gb_evidence WHERE match=?',(m['id'],))]
+   for e in m['evidence']:
+    normal=re.sub(r'[^a-z0-9]','',e['reading'].lower());e['ids_read']=all(re.sub(r'[^a-z0-9]','',m[key].lower()) in normal for key in ('gid_a','gid_b'))
+  return {'published':current(d),'draft':row(d,'SELECT * FROM gb_draft WHERE id=1'),'versions':[dict(r) for r in d.execute('SELECT id,actor,reason,created FROM gb_versions ORDER BY id DESC LIMIT 20')],'limits':LIMITS,'events':[dict(r) for r in d.execute('SELECT * FROM gb_events ORDER BY id DESC LIMIT 100')],'disputes':disputes,'sanctions':[dict(r) for r in d.execute('SELECT * FROM gb_sanctions')]}
 
 def pair(d,game,region):
  candidates=[dict(r) for r in d.execute('SELECT q.*,i.game_id,COALESCE(r.rating,1500) rating FROM gb_queue q JOIN gb_game_ids i ON i.uid=q.uid AND i.game=q.game LEFT JOIN gb_ratings r ON r.uid=q.uid AND r.game=q.game WHERE q.game=? AND q.region=? ORDER BY priority DESC,q.created',(game,region))];version=current(d);rules=json.loads(version['config'])
@@ -125,6 +136,49 @@ def post(server,uid,action,b):
     config=previous['config']
    else:raise ValueError('Unknown Studio action')
    d.execute('INSERT INTO gb_versions(config,actor,reason,created) VALUES(?,?,?,?)',(config,uid,reason,int(time.time())));d.execute('DELETE FROM gb_draft');event(d,'studio',uid,action,old=json.loads(version['config']),new=json.loads(config),reason=reason);return {'ok':True}
+  if action=='qualified_cup':
+   authorised(d,uid);name=str(b.get('name','')).strip();game=b.get('game');version=current(d);rules=json.loads(version['config'])
+   if not 3<=len(name)<=60 or game not in __import__('gaming').GAMES:raise ValueError('Enter a cup name and supported game')
+   from datetime import datetime,timedelta
+   from zoneinfo import ZoneInfo
+   local=datetime.now(ZoneInfo('Africa/Lagos'));week=int((local-timedelta(days=local.weekday(),hours=local.hour,minutes=local.minute,seconds=local.second,microseconds=local.microsecond)).timestamp())
+   opens=weekly(d,game,week,rules);league_candidates=[]
+   for l in d.execute("SELECT id FROM leagues WHERE game=? AND format='league' AND state='finished' AND created>? ORDER BY created DESC",(game,int(time.time())-60*86400)):
+    league_candidates.extend(__import__('gaming').standings(d,l['id'])[:4])
+   selected=[];seen=set()
+   for candidates,slots,source in [(league_candidates,rules['league_cup_slots'],'league'),(opens,rules['open_cup_slots'],'weekly_open')]:
+    chosen=0
+    for player in candidates:
+     if chosen>=slots:break
+     if player['uid'] in seen:continue
+     seen.add(player['uid']);selected.append((player['uid'],source));chosen+=1
+    if chosen<slots:raise ValueError('Not enough distinct qualified '+source+' players yet. No unqualified placeholders will be added.')
+   lid=uuid.uuid4().hex;now=int(time.time());d.execute("INSERT INTO leagues(id,name,game,owner,created,format,tier,capacity,round_days,verification,policy_snapshot) VALUES(?,?,?,?,?,'cup',0,8,3,'typed',?)",(lid,name,game,uid,now,version['config']))
+   d.execute('INSERT INTO gb_qualified_cups VALUES(?,?,?)',(lid,version['id'],week))
+   for player,source in selected:d.execute('INSERT INTO gb_cup_eligibility VALUES(?,?,?)',(lid,player,source));notice(d,player,'You qualified for '+name+'. Registration is optional; open the cup to join.')
+   event(d,lid,uid,'qualified_cup_created',new={'slots':selected,'version':version['id'],'week':week});return {'id':lid}
+  if action=='season_create':
+   authorised(d,uid);name=str(b.get('name','')).strip();game=b.get('game');tier=b.get('tier',0);opens=b.get('opens');closes=b.get('closes');version=current(d)
+   if not 3<=len(name)<=60 or game not in __import__('gaming').GAMES or type(tier)!=int or not 0<=tier<4 or any(type(v)!=int for v in (opens,closes)) or not time.time()-60<=opens<closes<=time.time()+30*86400:raise ValueError('Enter name, game, division and a future registration window of up to 30 days')
+   if d.execute("SELECT COUNT(*) FROM gb_seasons WHERE state IN ('enrolling','review')").fetchone()[0]>=3:raise ValueError('Close an existing registration window first')
+   sid=uuid.uuid4().hex;d.execute('INSERT INTO gb_seasons VALUES(?,?,?,?,?,?,?,?,?,?)',(sid,name,game,tier,opens,closes,'enrolling',uid,version['id'],version['config']));event(d,sid,uid,'season_created',new={'name':name,'opens':opens,'closes':closes,'tier':tier})
+   for player in d.execute('SELECT uid FROM game_profiles WHERE adult=1'):
+    if __import__('gaming').qualification(d,player['uid'],game)==tier:notice(d,player['uid'],'Registration opens for '+name+'. Opt in and register your availability before the deadline.')
+   return {'id':sid}
+  if action=='season_extend':
+   authorised(d,uid);season=row(d,'SELECT * FROM gb_seasons WHERE id=?',(b.get('season'),));closes=b.get('closes');reason=str(b.get('reason','')).strip()
+   if not season or season['state'] not in ('enrolling','review') or type(closes)!=int or not time.time()+60<closes<time.time()+30*86400 or len(reason)<10:raise ValueError('Only an unstarted registration window may be extended, with a reason')
+   d.execute("UPDATE gb_seasons SET closes=?,state='enrolling' WHERE id=?",(closes,season['id']));event(d,season['id'],uid,'registration_extended',old={'closes':season['closes']},new={'closes':closes},reason=reason)
+   for entry in d.execute('SELECT uid FROM gb_season_entries WHERE season=?',(season['id'],)):notice(d,entry['uid'],'Registration deadline changed for '+season['name']+'. '+reason)
+   return {'ok':True}
+  if action in ('season_register','season_leave'):
+   season=row(d,'SELECT * FROM gb_seasons WHERE id=?',(b.get('season'),))
+   if not season or season['state']!='enrolling' or not season['opens']<=time.time()<season['closes']:raise ValueError('The season registration window is closed')
+   if action=='season_leave':d.execute('DELETE FROM gb_season_entries WHERE season=? AND uid=?',(season['id'],uid));event(d,season['id'],uid,'season_left');return {'ok':True}
+   identity=eligible(d,uid,season['game'])
+   if not identity or not json.loads(identity['availability']):raise ValueError('Register the official game ID and availability before joining a season')
+   if __import__('gaming').qualification(d,uid,season['game'])!=season['tier']:raise ValueError('This season is for a different qualified division')
+   old=row(d,'SELECT * FROM gb_season_entries WHERE season=? AND uid=?',(season['id'],uid));d.execute('INSERT INTO gb_season_entries VALUES(?,?,?,?,?) ON CONFLICT(season,uid) DO UPDATE SET game_id=excluded.game_id,availability=excluded.availability',(season['id'],uid,identity['game_id'],identity['availability'],int(time.time())));event(d,season['id'],uid,'season_registered',old=old,new={'game_id':identity['game_id']});return {'ok':True}
   if action=='simulate':
    authorised(d,uid);entrants=b.get('entrants');size=b.get('group_size');days=b.get('round_days')
    if any(type(v)!=int for v in (entrants,size,days)) or not 6<=entrants<=100000 or not 6<=size<=16 or not 1<=days<=14:raise ValueError('Simulate 6–100,000 entrants, groups of 6–16, and 1–14 days per round')
@@ -244,6 +298,29 @@ def tick(server,now=None):
  now=int(time.time()) if now is None else now
  with server.db() as d:
   d.execute('BEGIN IMMEDIATE')
+  d.execute('DELETE FROM game_stream_signals WHERE room IN (SELECT id FROM game_stream_rooms WHERE created<?)',(now-7200,));d.execute('DELETE FROM game_stream_rooms WHERE created<?',(now-7200,))
+  for finished in d.execute("SELECT s.id FROM gb_seasons s WHERE s.state='active' AND EXISTS(SELECT 1 FROM gb_season_groups g WHERE g.season=s.id) AND NOT EXISTS(SELECT 1 FROM gb_season_groups g JOIN leagues l ON l.id=g.league WHERE g.season=s.id AND l.state!='finished')").fetchall():d.execute("UPDATE gb_seasons SET state='finished' WHERE id=?",(finished['id'],));event(d,finished['id'],'system','season_completed')
+  for season in [dict(r) for r in d.execute("SELECT * FROM gb_seasons WHERE state='enrolling' AND closes<=?",(now,))]:
+   entries=[dict(r) for r in d.execute('SELECT e.*,COALESCE(r.rating,1500) rating FROM gb_season_entries e LEFT JOIN gb_ratings r ON r.uid=e.uid AND r.game=? WHERE season=? ORDER BY rating DESC,e.registered,e.uid',(season['game'],season['id']))]
+   rules=json.loads(season['rules']);size=rules['group_size'];groups=math.ceil(len(entries)/size) if entries else 0
+   conflict=any(d.execute('SELECT 1 FROM gb_sanctions WHERE uid=? AND game=? AND until>?',(e['uid'],season['game'],now)).fetchone() or d.execute("SELECT 1 FROM league_members m JOIN leagues l ON l.id=m.league WHERE m.uid=? AND l.game=? AND l.state IN ('active','finals') AND l.format='league'",(e['uid'],season['game'])).fetchone() or __import__('gaming').qualification(d,e['uid'],season['game'])!=season['tier'] for e in entries)
+   if not groups or len(entries)//groups<6 or conflict:
+    d.execute("UPDATE gb_seasons SET state='review' WHERE id=?",(season['id'],));event(d,season['id'],'system','registration_needs_review',new={'entrants':len(entries),'active_conflict':conflict},reason='Too few eligible entrants or an active league conflict; no opponents substituted')
+    notice(d,season['owner'],'Season registration needs review: '+season['name']);continue
+   small=len(entries)//groups;extra=len(entries)%groups;offset=0
+   for group in range(groups):
+    members=entries[offset:offset+small+(1 if group<extra else 0)];offset+=len(members);lid=uuid.uuid4().hex
+    d.execute("INSERT INTO leagues(id,name,game,owner,created,format,tier,capacity,round_days,verification,policy_snapshot,state) VALUES(?,?,?,?,?,'league',?,?,?,'typed',?,'active')",(lid,season['name']+' · Group '+str(group+1),season['game'],season['owner'],now,season['tier'],len(members),rules['round_days'],season['rules']))
+    d.execute('INSERT INTO gb_season_groups VALUES(?,?,?)',(season['id'],lid,group+1))
+    ids=[]
+    for slot,member in enumerate(members,1):d.execute('INSERT INTO league_members(league,uid,game_id,slot) VALUES(?,?,?,?)',(lid,member['uid'],member['game_id'],slot));ids.append(member['uid']);notice(d,member['uid'],'Season group and fixtures are ready: '+season['name']+' · Group '+str(group+1))
+    if len(ids)%2:ids.append(None)
+    for round_index in range(len(ids)-1):
+     for pair_index in range(len(ids)//2):
+      a,b=ids[pair_index],ids[-1-pair_index]
+      if a and b:d.execute('INSERT INTO fixtures(id,league,round,a,b,opens,due) VALUES(?,?,?,?,?,?,?)',(uuid.uuid4().hex,lid,round_index+1,a,b,now+round_index*rules['round_days']*86400,now+(round_index+1)*rules['round_days']*86400))
+     ids=[ids[0],ids[-1],*ids[1:-1]]
+   d.execute("UPDATE gb_seasons SET state='active' WHERE id=?",(season['id'],));event(d,season['id'],'system','season_groups_generated',new={'entrants':len(entries),'groups':groups})
   for m in [dict(r) for r in d.execute("SELECT * FROM gb_matches WHERE deadline<? AND state IN ('proposed','awaiting_checkin','in_progress','awaiting_results')",(now,))]:
    if m['state'] in ('in_progress','awaiting_results'):
     d.execute("UPDATE gb_matches SET state='review',deadline=? WHERE id=?",(now+json.loads(m['rules'])['evidence_seconds'],m['id']))
@@ -305,3 +382,11 @@ def dispatch_notices(server):
     with server.db() as d:d.execute('UPDATE gb_notice_delivery SET delivered=1 WHERE id=?',(n['id'],))
  import threading
  threading.Thread(target=send,daemon=True).start()
+
+def weekly(d,game,week,rules):
+ players={}
+ for match in d.execute("SELECT * FROM gb_matches WHERE game=? AND state='verified' AND verified>=?",(game,week)):
+  for uid,opponent,own,other in [(match['a'],match['b'],match['score_a'],match['score_b']),(match['b'],match['a'],match['score_b'],match['score_a'])]:
+   if uid not in players:players[uid]={'uid':uid,'matches':0,'wins':0,'points':0,'opponents':set()}
+   player=players[uid];player['matches']+=1;player['wins']+=own>other;player['points']+=3 if own>other else 1 if own==other else 0;player['opponents'].add(opponent)
+ return sorted([p|{'opponents':len(p['opponents'])} for p in players.values() if p['matches']>=rules['weekly_min_matches'] and len(p['opponents'])>=rules['weekly_min_opponents']],key=lambda p:(-p['points'],-p['wins'],p['uid']))
