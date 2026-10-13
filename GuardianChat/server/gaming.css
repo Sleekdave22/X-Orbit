@@ -16,3 +16,8 @@ header>#theme{width:auto;margin-left:auto;font-size:12px;padding:6px 9px;margin-
 
 .stream-video{display:block;width:100%;max-height:65vh;background:#000;min-height:220px;border-radius:12px;margin:12px 0}
 nav{flex-wrap:wrap;gap:8px;overflow:visible;padding:12px 0 18px}nav button{flex:0 0 auto;min-width:104px;min-height:44px;padding:11px 17px;font-size:14px;font-weight:600;border-radius:8px;border-width:1px;white-space:normal;text-align:center;line-height:1.25}@media(max-width:480px){nav button{flex:1 1 calc(33.333% - 8px);min-width:90px;padding:10px 8px}}
+nav button{border-radius:var(--studio-radius,8px);padding-block:var(--studio-padding,12px);font-size:var(--studio-font,14px)}.audit-line{font-size:12px;border-bottom:1px solid var(--line);padding:8px 0;overflow-wrap:anywhere}
+
+.studio-layout{display:flex;flex-direction:column;min-width:0}.studio-layout>*{flex-shrink:0}
+
+body{font-family:var(--studio-family,system-ui),sans-serif}

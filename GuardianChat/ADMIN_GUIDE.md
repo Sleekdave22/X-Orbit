@@ -48,3 +48,13 @@ The latest active promotion policy is top three up and bottom three down. It ove
 Open Gamebox → Streaming test as the administrator, enter the second account's nickname or unique ID and create the room. Sign into that second account on the S21 or another browser, open Streaming test and enter the same room. On the broadcasting desktop browser, click Share game screen and choose the game window in the browser's picker. The viewer may need to press Play.
 
 This first test uses peer-to-peer WebRTC on the same Wi-Fi, video only (no game audio), with one broadcaster and one viewer. Rooms expire after two hours and admit only their two accounts. Screen capture always requires the browser picker. Android's embedded page can receive video; broadcasting the Android game screen is not implemented yet. It requires Android MediaProjection integration. More spectators and a cloud relay are also separate work. No gameplay recording is saved, and test streams do not affect scores or ranking. End-to-end screen sharing still needs testing on your actual two devices.
+
+## Handover update: Admin Studio and open matches
+
+Gamebox now has **Find a match** and **Admin Studio**. Register each official game ID and future availability in Find a match. Queueing declares that you are ready for an open opponent now. Both players accept, check in and submit scores in the displayed fixed order. Neither player can replace the opponent or award a result by silence.
+
+In Admin Studio, save a draft, preview its supported theme, publish with a reason, or roll back to an earlier published version. Settings remain on the server across deployments. Each open match keeps its original policy version. Theme edits apply to Gamebox, not GuardianLab protection or native GuardianChat security settings.
+
+New leagues can have 6–16 players; the default Studio target is 10. Create a separate group rather than a giant table. Old leagues retain their rules. For a new league fixture, both players must register overlapping availability, agree its proposed time and check in near that time. Routine matching independent scores need no screenshot; disputes still require original evidence.
+
+The server generates match notices and reminders even if phones are closed. Android push delivery is integrated; actual Gamebox alerts still need real-device verification. Keep the Mac/server awake. See HANDOVER_IMPLEMENTATION.md for the remaining handover work; the full specification is not claimed complete.

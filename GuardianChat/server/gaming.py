@@ -26,6 +26,10 @@ def init(server):
    target=admin_file.read_text().strip()
    if not d.execute('SELECT 1 FROM users WHERE id=?',(target,)).fetchone():raise ValueError('Configured administrator account does not exist')
    d.execute('DELETE FROM game_admin');d.execute('INSERT INTO game_admin VALUES(?)',(target,))
+  if 'policy_snapshot' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute("ALTER TABLE leagues ADD COLUMN policy_snapshot TEXT NOT NULL DEFAULT ''")
+  if 'verification' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute("ALTER TABLE leagues ADD COLUMN verification TEXT NOT NULL DEFAULT 'legacy'")
+  if 'capacity' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN capacity INTEGER NOT NULL DEFAULT 8')
+  if 'round_days' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN round_days INTEGER NOT NULL DEFAULT 4')
   if 'tier' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN tier INTEGER NOT NULL DEFAULT 0')
   if 'hidden' not in {r[1] for r in d.execute('PRAGMA table_info(game_comments)')}:d.execute('ALTER TABLE game_comments ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0')
   if 'format' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute("ALTER TABLE leagues ADD COLUMN format TEXT NOT NULL DEFAULT 'league'")
@@ -36,6 +40,9 @@ def init(server):
    for league in d.execute('SELECT id FROM leagues').fetchall():
     for slot,member in enumerate(d.execute('SELECT uid FROM league_members WHERE league=? ORDER BY rowid',(league[0],)).fetchall(),1):d.execute('UPDATE league_members SET slot=? WHERE league=? AND uid=?',(slot,league[0],member[0]))
   d.execute("CREATE UNIQUE INDEX IF NOT EXISTS league_game_identity ON league_members(league,game_id COLLATE NOCASE) WHERE game_id!=''")
+ import gamebox_core
+ gamebox_core.init(server)
+
 def row(d,sql,args=()):
  r=d.execute(sql,args).fetchone();return dict(r) if r else None
 def admin(d,uid):return bool(d.execute('SELECT 1 FROM game_admin WHERE uid=?',(uid,)).fetchone())
@@ -45,7 +52,9 @@ def standings(d,l):
  people=[dict(r)|{'played':0,'wins':0,'draws':0,'losses':0,'gf':0,'ga':0,'points':0} for r in d.execute('SELECT p.uid,p.tag,p.handle,p.feature FROM game_profiles p JOIN league_members m ON m.uid=p.uid WHERE m.league=?',(l,))];lookup={r['uid']:r for r in people}
  for r in people:
   if not r['feature']:r['handle']=''
- for f in d.execute("SELECT * FROM fixtures WHERE league=? AND state='confirmed' AND stage='league'",(l,)):
+ for f in d.execute("SELECT * FROM fixtures WHERE league=? AND state IN ('confirmed','walkover') AND stage='league'",(l,)):
+  if f['state']=='walkover':
+   winner=row(d,'SELECT winner FROM gb_walkovers WHERE fixture=?',(f['id'],))['winner'];lookup[winner]['points']+=3;lookup[winner]['wins']+=1;continue
   for uid,own,other in ((f['a'],f['score_a'],f['score_b']),(f['b'],f['score_b'],f['score_a'])):
    r=lookup[uid];r['played']+=1;r['gf']+=own;r['ga']+=other;r['wins']+=own>other;r['draws']+=own==other;r['losses']+=own<other;r['points']+=3 if own>other else 1 if own==other else 0
  return sorted(people,key=lambda r:(-r['points'],-(r['gf']-r['ga']),-r['gf'],-r['wins'],r['tag'].lower(),r['uid']))
@@ -61,8 +70,10 @@ def summary(server,uid,lid=None):
    if not l:raise ValueError('League not found')
    fixtures=[dict(r) for r in d.execute('SELECT f.*,pa.tag name_a,pb.tag name_b FROM fixtures f JOIN game_profiles pa ON pa.uid=f.a JOIN game_profiles pb ON pb.uid=f.b WHERE league=? ORDER BY opens,round',(lid,))]
    for f in fixtures:
-    f['can_report']=uid in (f['a'],f['b']) and f['state'] not in ('confirmed','void')
+    f['schedule']=row(d,'SELECT * FROM gb_schedule WHERE fixture=?',(f['id'],))
+    f['can_report']=uid in (f['a'],f['b']) and f['state'] not in ('confirmed','void','walkover')
     reports=[dict(r) for r in d.execute('SELECT uid,score_a,score_b,mime,ocr FROM game_reports WHERE fixture=?',(f['id'],))] if uid in (f['a'],f['b']) or mod(d,l,uid) else []
+    if l['verification']=='typed' and f['state'] not in ('confirmed','disputed','void','walkover') and uid in (f['a'],f['b']) and not any(r['uid']==uid for r in reports):reports=[{'uid':r['uid'],'submitted':True,'mime':None,'ocr':''} for r in reports]
     f['reports']=reports;f['game_ids']={r['uid']:r['game_id'] for r in d.execute('SELECT uid,game_id FROM league_members WHERE league=? AND uid IN (?,?)',(lid,f['a'],f['b']))} if uid in (f['a'],f['b']) or mod(d,l,uid) else {};f['can_review']=mod(d,l,uid) and uid not in (f['a'],f['b']);f['audit']=[dict(r) for r in d.execute('SELECT action,details,time FROM game_audit WHERE fixture=? ORDER BY id',(f['id'],))] if f['can_review'] else []
    result['slots']=[dict(r) for r in d.execute('SELECT m.slot,m.uid,p.tag FROM league_members m JOIN game_profiles p ON p.uid=m.uid WHERE m.league=? ORDER BY m.slot',(lid,))]
    table=standings(d,lid)
@@ -120,7 +131,9 @@ def post(server,uid,action,b):
    if fmt not in ('league','cup'):raise ValueError('Choose league or cup')
    tier=b.get('tier',0)
    if type(tier)!=int or not 0<=tier<len(TIERS):raise ValueError('Choose a valid division')
-   lid=uuid.uuid4().hex;d.execute('INSERT INTO leagues(id,name,game,owner,created,format,tier) VALUES(?,?,?,?,?,?,?)',(lid,name,game,uid,int(time.time()),fmt,tier));return {'id':lid}
+   capacity=b.get('capacity',8);round_days=b.get('round_days',4)
+   if type(capacity)!=int or not 6<=capacity<=16 or fmt=='cup' and capacity!=8 or type(round_days)!=int or not 1<=round_days<=14:raise ValueError('Choose 6–16 league players, or 8 cup players, and 1–14 days per round')
+   lid=uuid.uuid4().hex;d.execute('INSERT INTO leagues(id,name,game,owner,created,format,tier,capacity,round_days,verification,policy_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?)',(lid,name,game,uid,int(time.time()),fmt,tier,capacity,round_days,'typed',d.execute('SELECT config FROM gb_versions ORDER BY id DESC LIMIT 1').fetchone()[0]));return {'id':lid}
   l=row(d,'SELECT * FROM leagues WHERE id=?',(b.get('league'),))
   if not l:raise ValueError('League not found')
   if action=='join':
@@ -128,10 +141,11 @@ def post(server,uid,action,b):
    if existing:return {'ok':True,'slot':existing['slot']}
    if l['state']!='enrolling':raise ValueError('Enrolment is closed')
    if not row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,)):raise ValueError('Set up your gaming profile first')
-   if d.execute('SELECT COUNT(*) FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]>=8:raise ValueError('This division is full')
+   if d.execute('SELECT COUNT(*) FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]>=l['capacity']:raise ValueError('This division is full')
    if l['format']=='league' and qualification(d,uid,l['game'])!=l['tier']:raise ValueError('Your qualified division is '+TIERS[qualification(d,uid,l['game'])])
    if l['format']=='league' and d.execute("SELECT 1 FROM league_members m JOIN leagues other ON other.id=m.league WHERE m.uid=? AND other.game=? AND other.format='league' AND other.state IN ('active','finals') AND other.id!=?",(uid,l['game'],l['id'])).fetchone():raise ValueError('Finish your active league for this game first')
-   gid=row(d,'SELECT game_id FROM game_profiles WHERE uid=?',(uid,))['game_id']
+   identity=row(d,'SELECT game_id FROM gb_game_ids WHERE uid=? AND game=?',(uid,l['game']))
+   gid=identity['game_id'] if identity else row(d,'SELECT game_id FROM game_profiles WHERE uid=?',(uid,))['game_id']
    if d.execute('SELECT 1 FROM league_members WHERE league=? AND game_id=? COLLATE NOCASE AND uid!=?',(l['id'],gid,uid)).fetchone():raise ValueError('That game account is already registered in this division')
    slot=d.execute('SELECT COALESCE(MAX(slot),0)+1 FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]
    d.execute('INSERT INTO league_members(league,uid,game_id,slot) VALUES(?,?,?,?)',(l['id'],uid,gid,slot));return {'ok':True,'slot':slot}
@@ -175,7 +189,7 @@ def post(server,uid,action,b):
    if action=='start':
     if l['state']!='enrolling':raise ValueError('League has already started')
     ids=[r[0] for r in d.execute('SELECT uid FROM league_members WHERE league=? ORDER BY slot',(l['id'],))]
-    if len(ids)!=8:raise ValueError('Eight players are required')
+    if len(ids)!=l['capacity']:raise ValueError(str(l['capacity'])+' players are required')
     if l['format']=='league' and any(qualification(d,u,l['game'])!=l['tier'] for u in ids):raise ValueError('A player qualification changed; contact the organiser before starting')
     if l['format']=='league':
      for player in ids:
@@ -184,19 +198,22 @@ def post(server,uid,action,b):
     if l['format']=='cup':
      for i in range(0,8,2):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'quarter')",(uuid.uuid4().hex,l['id'],1,ids[i],ids[i+1],now,now+4*86400))
      d.execute("UPDATE leagues SET state='finals' WHERE id=?",(l['id'],));return {'ok':True}
-    for n in range(7):
-     for i in range(4):d.execute('INSERT INTO fixtures(id,league,round,a,b,opens,due) VALUES(?,?,?,?,?,?,?)',(uuid.uuid4().hex,l['id'],n+1,ids[i],ids[7-i],now+n*4*86400,now+(n+1)*4*86400))
+    if len(ids)%2:ids.append(None)
+    rounds=len(ids)-1;days=l['round_days']
+    for n in range(rounds):
+     for i in range(len(ids)//2):
+      if ids[i] is not None and ids[-1-i] is not None:d.execute('INSERT INTO fixtures(id,league,round,a,b,opens,due) VALUES(?,?,?,?,?,?,?)',(uuid.uuid4().hex,l['id'],n+1,ids[i],ids[-1-i],now+n*days*86400,now+(n+1)*days*86400))
      ids=[ids[0],ids[-1],*ids[1:-1]]
     d.execute("UPDATE leagues SET state='active' WHERE id=?",(l['id'],));return {'ok':True}
    if action=='finals':
-    if l['state']!='active' or d.execute("SELECT COUNT(*) FROM fixtures WHERE league=? AND stage='league' AND state!='confirmed'",(l['id'],)).fetchone()[0]:raise ValueError('Confirm every league fixture before seeding finals')
+    if l['state']!='active' or d.execute("SELECT COUNT(*) FROM fixtures WHERE league=? AND stage='league' AND state NOT IN ('confirmed','walkover','void')",(l['id'],)).fetchone()[0]:raise ValueError('Confirm every league fixture before seeding finals')
     top=standings(d,l['id'])[:4];now=int(time.time())
     for a,z in ((0,3),(1,2)):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'semi')",(uuid.uuid4().hex,l['id'],8,top[a]['uid'],top[z]['uid'],now,now+3*86400))
     d.execute("UPDATE leagues SET state='finals' WHERE id=?",(l['id'],));return {'ok':True}
   f=row(d,'SELECT * FROM fixtures WHERE id=? AND league=?',(b.get('fixture'),l['id']))
   if not f:raise ValueError('Fixture not found')
   if action=='comment':
-   if f['state'] in ('confirmed','void') or time.time()<f['opens']:raise ValueError('This match room is not active')
+   if f['state'] in ('confirmed','void','walkover') or time.time()<f['opens']:raise ValueError('This match room is not active')
    text=str(b.get('text','')).strip()
    if not 1<=len(text)<=1000:raise ValueError('Write a comment under 1000 characters')
    last=d.execute('SELECT MAX(time) FROM game_comments WHERE uid=?',(uid,)).fetchone()[0]
@@ -204,13 +221,19 @@ def post(server,uid,action,b):
    d.execute('INSERT INTO game_comments(fixture,uid,text,time) VALUES(?,?,?,?)',(f['id'],uid,text,int(time.time())));return {'ok':True}
   if action in ('report','confirm','dispute'):
    if uid not in (f['a'],f['b']):raise PermissionError('Only the scheduled players may submit this result')
-   if f['state'] in ('confirmed','void'):raise ValueError('Result is already closed')
+   if f['state'] in ('confirmed','void','walkover'):raise ValueError('Result is already closed')
    if time.time()<f['opens']:raise ValueError('This match window has not opened')
+   if l['verification']=='typed' and action in ('report','confirm'):
+    scheduled=row(d,'SELECT * FROM gb_schedule WHERE fixture=?',(f['id'],))
+    if not scheduled or not scheduled['ready_a'] or not scheduled['ready_b']:raise ValueError('Both players must agree a time and check in before reporting')
+    policy=json.loads(l['policy_snapshot'] or d.execute('SELECT config FROM gb_versions ORDER BY id DESC LIMIT 1').fetchone()[0]);first=d.execute("SELECT MIN(time) FROM game_audit WHERE fixture=? AND action='submitted'",(f['id'],)).fetchone()[0]
+    if first and time.time()>first+policy['result_seconds']:raise ValueError('The result submission window expired. Ask for evidence review.')
    if action=='dispute':
     reason=str(b.get('reason','')).strip()
     if len(reason)<5 or len(reason)>500:raise ValueError('Describe the disagreement')
     d.execute("UPDATE fixtures SET state='disputed' WHERE id=?",(f['id'],));audit(d,f['id'],uid,'disputed',reason);return {'ok':True}
    if action=='confirm':
+    if l['verification']=='typed':raise ValueError('Submit your own independent score in the fixed player order')
     r=row(d,'SELECT * FROM game_reports WHERE fixture=? AND uid!=?',(f['id'],uid))
     if not r:raise ValueError('The opponent must submit first')
     if f['state']=='disputed':raise ValueError('A moderator must settle the dispute')
@@ -219,7 +242,13 @@ def post(server,uid,action,b):
     a=b.get('score_a');z=b.get('score_b')
     if type(a)!=int or type(z)!=int or not 0<=a<=99 or not 0<=z<=99:raise ValueError('Scores must be whole numbers from 0 to 99')
     if f['stage']!='league' and a==z:raise ValueError('Knockout matches need a winner after the agreed tie-break')
-    raw,mime=image(b);digest=hashlib.sha256(raw).hexdigest()
+    existing_report=row(d,'SELECT * FROM game_reports WHERE fixture=? AND uid=?',(f['id'],uid))
+    if l['verification']=='typed' and existing_report:
+     if existing_report['image'] is not None or not b.get('image'):raise ValueError('Your independent score is already submitted')
+     if (a,z)!=(existing_report['score_a'],existing_report['score_b']):raise ValueError('Attach evidence without changing your original score')
+    raw=mime=digest=None
+    if b.get('image'):raw,mime=image(b);digest=hashlib.sha256(raw).hexdigest()
+    elif l['verification']=='legacy' or f['state']=='disputed':raise ValueError('Original screenshot evidence is required for this disputed or legacy match')
     previous=row(d,'SELECT fixture,uid FROM game_reports WHERE digest=?',(digest,))
     if previous and (previous['fixture']!=f['id'] or previous['uid']!=uid):raise ValueError('This screenshot was already submitted. Use your original evidence.')
     d.execute('INSERT INTO game_reports VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(fixture,uid) DO UPDATE SET score_a=excluded.score_a,score_b=excluded.score_b,image=excluded.image,mime=excluded.mime,digest=excluded.digest,ocr=excluded.ocr',(f['id'],uid,a,z,raw,mime,digest,str(b.get('ocr',''))[:6000]));audit(d,f['id'],uid,'submitted')
@@ -238,6 +267,9 @@ def post(server,uid,action,b):
    d.execute("UPDATE fixtures SET state='confirmed',score_a=?,score_b=? WHERE id=?",(a,z,f['id']));audit(d,f['id'],uid,'moderator_approved',json.dumps({'reason':reason,'approved_score':[a,z],'original_reports':[dict(r) for r in d.execute('SELECT uid,score_a,score_b,ocr FROM game_reports WHERE fixture=?',(f['id'],))]}));advance(d,l);return {'ok':True}
   raise ValueError('Unknown gaming action')
 def advance(d,l):
+ if l['verification']=='typed':
+  import gamebox_core
+  gamebox_core.rate_competition_results(d,l)
  quarters=[dict(r) for r in d.execute("SELECT * FROM fixtures WHERE league=? AND stage='quarter' ORDER BY rowid",(l['id'],))]
  if len(quarters)==4 and all(f['state']=='confirmed' for f in quarters) and not d.execute("SELECT 1 FROM fixtures WHERE league=? AND stage='semi'",(l['id'],)).fetchone():
   winners=[f['a'] if f['score_a']>f['score_b'] else f['b'] for f in quarters];now=int(time.time())
@@ -268,7 +300,7 @@ def room(server,uid,fid):
   f=row(d,'SELECT f.*,a.tag name_a,b.tag name_b FROM fixtures f JOIN game_profiles a ON a.uid=f.a JOIN game_profiles b ON b.uid=f.b WHERE f.id=?',(fid,))
   if not f:raise ValueError('Match not found')
   comments=[dict(r) for r in d.execute('SELECT c.id,c.uid,c.text,c.time,COALESCE(p.tag,u.nickname) tag FROM game_comments c JOIN users u ON u.id=c.uid LEFT JOIN game_profiles p ON p.uid=c.uid WHERE fixture=? AND c.hidden=0 ORDER BY c.id DESC LIMIT 100',(fid,))]
-  return {'fixture':f,'comments':list(reversed(comments)),'player':uid in (f['a'],f['b']),'active':f['state'] not in ('confirmed','void') and time.time()>=f['opens']}
+  return {'fixture':f,'comments':list(reversed(comments)),'player':uid in (f['a'],f['b']),'active':f['state'] not in ('confirmed','void','walkover') and time.time()>=f['opens']}
 
 def administration(server,uid,lid=None):
  with server.db() as d:
@@ -288,13 +320,16 @@ def qualification(d,uid,game):
 
 def counters(d):
  count=lambda sql:d.execute(sql).fetchone()[0]
- return {'guardianchat_users':count('SELECT COUNT(*) FROM users'),'gamers':count('SELECT COUNT(*) FROM game_profiles'),'registered_players':count('SELECT COUNT(DISTINCT uid) FROM league_members'),'registrations':count('SELECT COUNT(*) FROM league_members'),'competitions':count('SELECT COUNT(*) FROM leagues'),'active_competitions':count("SELECT COUNT(*) FROM leagues WHERE state IN ('active','finals')"),'completed_competitions':count("SELECT COUNT(*) FROM leagues WHERE state='finished'"),'league_winners':count("SELECT COUNT(*) FROM leagues WHERE champion IS NOT NULL AND format='league'"),'cup_winners':count("SELECT COUNT(*) FROM leagues WHERE champion IS NOT NULL AND format='cup'"),'unique_winners':count('SELECT COUNT(DISTINCT champion) FROM leagues'),'scheduled_matches':count('SELECT COUNT(*) FROM fixtures'),'confirmed_matches':count("SELECT COUNT(*) FROM fixtures WHERE state='confirmed'"),'disputes':count("SELECT COUNT(*) FROM fixtures WHERE state='disputed'"),'pending_results':count("SELECT COUNT(*) FROM fixtures WHERE state='pending'"),'proof_uploads':count('SELECT COUNT(*) FROM game_reports WHERE image IS NOT NULL'),'promotions':count('SELECT COUNT(*) FROM game_promotions WHERE new_tier>old_tier'),'relegations':count('SELECT COUNT(*) FROM game_promotions WHERE new_tier<old_tier'),'moderators':count('SELECT COUNT(DISTINCT uid) FROM game_moderators'),'room_comments':count('SELECT COUNT(*) FROM game_comments')}
+ return {'guardianchat_users':count('SELECT COUNT(*) FROM users'),'gamers':count('SELECT COUNT(*) FROM game_profiles'),'registered_players':count('SELECT COUNT(DISTINCT uid) FROM league_members'),'registrations':count('SELECT COUNT(*) FROM league_members'),'competitions':count('SELECT COUNT(*) FROM leagues'),'active_competitions':count("SELECT COUNT(*) FROM leagues WHERE state IN ('active','finals')"),'completed_competitions':count("SELECT COUNT(*) FROM leagues WHERE state='finished'"),'league_winners':count("SELECT COUNT(*) FROM leagues WHERE champion IS NOT NULL AND format='league'"),'cup_winners':count("SELECT COUNT(*) FROM leagues WHERE champion IS NOT NULL AND format='cup'"),'unique_winners':count('SELECT COUNT(DISTINCT champion) FROM leagues'),'scheduled_matches':count('SELECT COUNT(*) FROM fixtures')+count('SELECT COUNT(*) FROM gb_matches'),'confirmed_matches':count("SELECT COUNT(*) FROM fixtures WHERE state='confirmed'")+count("SELECT COUNT(*) FROM gb_matches WHERE state='verified'"),'disputes':count("SELECT COUNT(*) FROM fixtures WHERE state='disputed'")+count("SELECT COUNT(*) FROM gb_matches WHERE state IN ('disputed','review')"),'pending_results':count("SELECT COUNT(*) FROM fixtures WHERE state='pending'"),'proof_uploads':count('SELECT COUNT(*) FROM game_reports WHERE image IS NOT NULL'),'promotions':count('SELECT COUNT(*) FROM game_promotions WHERE new_tier>old_tier'),'relegations':count('SELECT COUNT(*) FROM game_promotions WHERE new_tier<old_tier'),'moderators':count('SELECT COUNT(DISTINCT uid) FROM game_moderators'),'room_comments':count('SELECT COUNT(*) FROM game_comments')}
 
 def playerstats(d,uid,game=None):
- params=[uid,uid];sql="SELECT f.*,l.game,l.name competition FROM fixtures f JOIN leagues l ON l.id=f.league WHERE f.state='confirmed' AND (f.a=? OR f.b=?)"
+ params=[uid,uid];sql="SELECT f.*,l.game,l.name competition,(SELECT COALESCE(MAX(time),0) FROM game_audit WHERE fixture=f.id AND action IN ('result_counted','moderator_approved')) verified_time FROM fixtures f JOIN leagues l ON l.id=f.league WHERE f.state='confirmed' AND (f.a=? OR f.b=?)"
  if game:sql+=' AND l.game=?';params.append(game)
  sql+=" ORDER BY (SELECT COALESCE(MAX(time),0) FROM game_audit WHERE fixture=f.id AND action IN ('result_counted','moderator_approved')) DESC,f.rowid DESC"
- matches=[dict(r) for r in d.execute(sql,params)];results=[]
+ matches=[dict(r) for r in d.execute(sql,params)]
+ open_sql="SELECT *,game,'Open match' competition,verified verified_time FROM gb_matches WHERE state='verified' AND (a=? OR b=?)";open_params=[uid,uid]
+ if game:open_sql+=' AND game=?';open_params.append(game)
+ matches.extend(dict(r) for r in d.execute(open_sql,open_params));matches.sort(key=lambda r:(r['verified_time'] or 0,r['id']),reverse=True);results=[]
  for f in matches:
   own=f['score_a'] if f['a']==uid else f['score_b'];other=f['score_b'] if f['a']==uid else f['score_a'];results.append('W' if own>other else 'L' if own<other else 'D')
  recent=results[:5]

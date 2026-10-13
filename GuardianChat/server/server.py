@@ -10,6 +10,7 @@ sys.path.insert(0,str(Path(__file__).parent/"vendor"))
 import qrcode
 from push import PushGateway
 import gaming
+import gamebox_core
 from functools import lru_cache
 @lru_cache(maxsize=1024)
 def account_qr(uid):
@@ -67,6 +68,11 @@ class ChatServer(ThreadingHTTPServer):
         self.migrate_files()
         self.expire_views()
         super().__init__(address,Handler)
+    def service_actions(self):
+        if time.monotonic()<getattr(self,'next_gamebox_tick',0):return
+        self.next_gamebox_tick=time.monotonic()+30
+        try:gamebox_core.tick(self);gamebox_core.dispatch_notices(self)
+        except Exception as error:print('Gamebox background task failed: '+type(error).__name__,flush=True)
     def push_call(self,call,event):
         if not self.push.enabled:return
         targets=[call['recipient']] if event=='call_ringing' else [call['caller'],call['recipient']]
@@ -149,7 +155,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             parsed=urlparse(self.path)
-            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css'):
+            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js'):
                 data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/guardianchat-ca.crt':
                 data=(Path(__file__).parent.parent/'chat/src/main/res/raw/guardianchat_local_ca.crt').read_bytes();self.send_response(200);self.send_header('Content-Type','application/x-x509-ca-cert');self.send_header('Content-Disposition','attachment; filename=guardianchat-ca.crt');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
@@ -160,6 +166,23 @@ class Handler(BaseHTTPRequestHandler):
                 data=(Path(__file__).parent/'index.html').read_bytes()
                 self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(data);return
             uid=self.user()
+            if parsed.path=='/gamebox/summary':
+                self.reply(200,gamebox_core.summary(self.server,uid));return
+            if parsed.path=='/gamebox/studio':
+                self.reply(200,gamebox_core.studio(self.server,uid));return
+            if parsed.path=='/gamebox/room':
+                q=parse_qs(parsed.query)
+                with self.server.db() as db:
+                    m=gamebox_core.participant(db,uid,q.get('match',[''])[0]);comments=[dict(r) for r in db.execute('SELECT r.*,p.tag FROM gb_room_messages r JOIN game_profiles p ON p.uid=r.uid WHERE match=? ORDER BY id DESC LIMIT 100',(m['id'],))]
+                self.reply(200,{'comments':list(reversed(comments))});return
+            if parsed.path=='/gamebox/evidence':
+                q=parse_qs(parsed.query)
+                with self.server.db() as db:
+                    mid=q.get('match',[''])[0]
+                    if not gaming.admin(db,uid):gamebox_core.participant(db,uid,mid)
+                    evidence=gamebox_core.row(db,'SELECT image,mime FROM gb_evidence WHERE match=? AND uid=?',(mid,q.get('player',[''])[0]))
+                    if not evidence or not evidence['image']:self.reply(404,{'error':'Evidence unavailable'});return
+                self.send_response(200);self.send_header('Content-Type',evidence['mime']);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(evidence['image'])));self.end_headers();self.wfile.write(evidence['image']);return
             if parsed.path=='/gaming/summary':
                 self.reply(200,gaming.summary(self.server,uid,parse_qs(parsed.query).get('league',[None])[0]));return
             if parsed.path=='/gaming/stream-signals':
@@ -297,6 +320,8 @@ class Handler(BaseHTTPRequestHandler):
                 with self.server.db() as db:db.execute('INSERT INTO sessions VALUES(?,?)',(hashlib.sha256(token.encode()).hexdigest(),uid))
                 self.reply(201,{'id':uid,'token':token,'name':name,'nickname':nickname});return
             uid=self.user()
+            if self.path.startswith('/gamebox/'):
+                self.reply(200,gamebox_core.post(self.server,uid,self.path.split('/')[-1],body));return
             if self.path.startswith('/gaming/'):
                 try:self.reply(200,gaming.post(self.server,uid,self.path.split('/')[-1],body))
                 except ValueError as e:self.reply(400,{'error':str(e)})

@@ -14,6 +14,7 @@ class GamingTest(unittest.TestCase):
   with self.server.db() as d:d.execute('DELETE FROM game_admin');d.execute('INSERT INTO game_admin VALUES(?)',(us[0]['id'],))
   for u in us:self.call('/gaming/profile',{'tag':u['name'],'game_id':'player-'+u['id'],'adult':True,'feature':True,'handle':'@'+u['name']},u['token'])
   l=self.call('/gaming/create',{'name':'Test division','game':'efootball'},us[0]['token'])['id']
+  with self.server.db() as d:d.execute("UPDATE leagues SET verification='legacy' WHERE id=?",(l,))
   for u in us[:8]:self.call('/gaming/join',{'league':l},u['token'])
   self.call('/gaming/moderator',{'league':l,'identity':us[8]['id']},us[0]['token']);self.call('/gaming/start',{'league':l},us[0]['token']);return us,l
  def view(self,l,u):return self.call('/gaming/summary?league='+l,token=u['token'])
@@ -71,6 +72,7 @@ class GamingTest(unittest.TestCase):
   for n,u in enumerate(us,1):self.assertEqual(self.call('/gaming/join',{'league':l},u['token'])['slot'],n)
   self.assertEqual(self.call('/gaming/join',{'league':l},us[0]['token'])['slot'],1)
   self.assertEqual(len(self.view(l,us[0])['slots']),8)
+  with self.server.db() as d:d.execute("UPDATE leagues SET verification='legacy' WHERE id=?",(l,))
   self.call('/gaming/start',{'league':l},us[0]['token'])
   q=self.view(l,us[0])['fixtures'];self.assertEqual(len(q),4);self.assertEqual((q[0]['a'],q[0]['b']),(us[0]['id'],us[1]['id']))
   for f in q:self.result(f,us,l)
