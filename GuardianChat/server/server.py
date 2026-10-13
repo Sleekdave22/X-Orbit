@@ -9,6 +9,7 @@ import sys, zlib, struct, ssl, threading
 sys.path.insert(0,str(Path(__file__).parent/"vendor"))
 import qrcode
 from push import PushGateway
+import gaming
 from functools import lru_cache
 @lru_cache(maxsize=1024)
 def account_qr(uid):
@@ -59,6 +60,7 @@ class ChatServer(ThreadingHTTPServer):
         with self.db() as db:
             db.execute('CREATE TABLE IF NOT EXISTS message_hidden(user_id TEXT NOT NULL,message_id INTEGER NOT NULL,PRIMARY KEY(user_id,message_id))')
             db.execute('CREATE TABLE IF NOT EXISTS chat_hidden(owner TEXT NOT NULL,peer TEXT NOT NULL,through_id INTEGER NOT NULL,PRIMARY KEY(owner,peer))')
+        gaming.init(self)
         self.calls={};self.call_lock=threading.RLock()
         self.login_attempts={}
         self.migrate_files()
@@ -146,7 +148,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             parsed=urlparse(self.path)
-            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css'):
+            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css'):
                 data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/guardianchat-ca.crt':
                 data=(Path(__file__).parent.parent/'chat/src/main/res/raw/guardianchat_local_ca.crt').read_bytes();self.send_response(200);self.send_header('Content-Type','application/x-x509-ca-cert');self.send_header('Content-Disposition','attachment; filename=guardianchat-ca.crt');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
@@ -157,6 +159,10 @@ class Handler(BaseHTTPRequestHandler):
                 data=(Path(__file__).parent/'index.html').read_bytes()
                 self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(data);return
             uid=self.user()
+            if parsed.path=='/gaming/summary':
+                self.reply(200,gaming.summary(self.server,uid,parse_qs(parsed.query).get('league',[None])[0]));return
+            if parsed.path=='/gaming/evidence':
+                q=parse_qs(parsed.query);data,mime=gaming.evidence(self.server,uid,q.get('fixture',[''])[0],q.get('player',[''])[0]);self.send_response(200);self.send_header('Content-Type',mime);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/calls':
                 with self.server.call_lock:
                     self.server.expire_calls();calls=[]
@@ -283,6 +289,10 @@ class Handler(BaseHTTPRequestHandler):
                 with self.server.db() as db:db.execute('INSERT INTO sessions VALUES(?,?)',(hashlib.sha256(token.encode()).hexdigest(),uid))
                 self.reply(201,{'id':uid,'token':token,'name':name,'nickname':nickname});return
             uid=self.user()
+            if self.path.startswith('/gaming/'):
+                try:self.reply(200,gaming.post(self.server,uid,self.path.split('/')[-1],body))
+                except ValueError as e:self.reply(400,{'error':str(e)})
+                return
             if self.path in ('/push/register','/push/unregister'):
                 push_token=str(body.get('push_token',''))
                 if not 20<=len(push_token)<=4096:raise ValueError()
