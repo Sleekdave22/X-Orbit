@@ -162,6 +162,8 @@ class Handler(BaseHTTPRequestHandler):
             uid=self.user()
             if parsed.path=='/gaming/summary':
                 self.reply(200,gaming.summary(self.server,uid,parse_qs(parsed.query).get('league',[None])[0]));return
+            if parsed.path=='/gaming/stream-signals':
+                q=parse_qs(parsed.query);self.reply(200,gaming.stream_signals(self.server,uid,q.get('room',[''])[0],int(q.get('after',['0'])[0])));return
             if parsed.path=='/gaming/admin':
                 self.reply(200,gaming.administration(self.server,uid,parse_qs(parsed.query).get('league',[None])[0]));return
             if parsed.path=='/gaming/room':

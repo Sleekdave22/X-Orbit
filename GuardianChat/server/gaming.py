@@ -5,6 +5,8 @@ TIERS=["Open","Division 2","Division 3","Premier"]
 GAMES={'efootball':'eFootball','fc_mobile':'EA FC Mobile','codm':'CODM 1v1'}
 def init(server):
  with server.db() as d:d.executescript('''
+ CREATE TABLE IF NOT EXISTS game_stream_rooms(id TEXT PRIMARY KEY,a TEXT,b TEXT,created INTEGER);
+ CREATE TABLE IF NOT EXISTS game_stream_signals(id INTEGER PRIMARY KEY,room TEXT,sender TEXT,kind TEXT,payload TEXT,time INTEGER);
  CREATE TABLE IF NOT EXISTS game_admin(uid TEXT PRIMARY KEY);
  CREATE TABLE IF NOT EXISTS game_profiles(uid TEXT PRIMARY KEY,tag TEXT NOT NULL,game_id TEXT NOT NULL,handle TEXT NOT NULL DEFAULT '',feature INTEGER NOT NULL DEFAULT 0,adult INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS leagues(id TEXT PRIMARY KEY,name TEXT NOT NULL,game TEXT NOT NULL,owner TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'enrolling',created INTEGER NOT NULL,sponsor TEXT NOT NULL DEFAULT '',sponsor_url TEXT NOT NULL DEFAULT '',reward TEXT NOT NULL DEFAULT 'Recognition and winner feature; no cash prize',champion TEXT);
@@ -49,7 +51,7 @@ def standings(d,l):
  return sorted(people,key=lambda r:(-r['points'],-(r['gf']-r['ga']),-r['gf'],-r['wins'],r['tag'].lower(),r['uid']))
 def summary(server,uid,lid=None):
  with server.db() as d:
-  profile=row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,));leagues=[dict(r) for r in d.execute('SELECT * FROM leagues ORDER BY created DESC')];result={'can_admin':admin(d,uid),'profile':profile,'leagues':leagues,'games':GAMES,'champions':[],'stats':counters(d),'player_stats':playerstats(d,uid),'tiers':TIERS,'qualification':{game:qualification(d,uid,game) for game in GAMES}}
+  profile=row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,));leagues=[dict(r) for r in d.execute('SELECT * FROM leagues ORDER BY created DESC')];result={'stream_rooms':[dict(r) for r in d.execute('SELECT id,a,b,created FROM game_stream_rooms WHERE (a=? OR b=?) AND created>? ORDER BY created DESC',(uid,uid,int(time.time())-7200))],'can_admin':admin(d,uid),'profile':profile,'leagues':leagues,'games':GAMES,'champions':[],'stats':counters(d),'player_stats':playerstats(d,uid),'tiers':TIERS,'qualification':{game:qualification(d,uid,game) for game in GAMES}}
   for l in leagues:
    if l['champion']:
     p=row(d,'SELECT uid,tag,handle,feature FROM game_profiles WHERE uid=?',(l['champion'],))
@@ -90,6 +92,19 @@ def post(server,uid,action,b):
   raw,mime=image(b);return scan(server,raw,mime)
  with server.db() as d:
   d.execute('BEGIN IMMEDIATE')
+  if action=='stream_create':
+   if not admin(d,uid):raise PermissionError('Only the administrator may create a test stream room')
+   other=row(d,'SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
+   if not other or other['id']==uid:raise ValueError('Choose a different test account')
+   if d.execute('SELECT COUNT(*) FROM game_stream_rooms WHERE a=? AND created>?',(uid,int(time.time())-7200)).fetchone()[0]>=3:raise ValueError('Use an existing test room; rooms expire after two hours')
+   rid=uuid.uuid4().hex;d.execute('INSERT INTO game_stream_rooms VALUES(?,?,?,?)',(rid,uid,other['id'],int(time.time())));return {'id':rid}
+  if action=='stream_signal':
+   room=row(d,'SELECT * FROM game_stream_rooms WHERE id=?',(b.get('room'),))
+   if not room or uid not in (room['a'],room['b']) or room['created']<time.time()-7200:raise PermissionError('This stream test room is unavailable')
+   kind=b.get('kind');payload=b.get('payload');encoded=json.dumps(payload)
+   if kind not in ('offer','answer','ice','end') or len(encoded)>100000:raise ValueError('Invalid stream signal')
+   d.execute('INSERT INTO game_stream_signals(room,sender,kind,payload,time) VALUES(?,?,?,?,?)',(room['id'],uid,kind,encoded,int(time.time())))
+   d.execute('DELETE FROM game_stream_signals WHERE room=? AND id NOT IN (SELECT id FROM game_stream_signals WHERE room=? ORDER BY id DESC LIMIT 200)',(room['id'],room['id']));return {'ok':True}
   if action=='profile':
    if b.get('adult') is not True:raise ValueError('This pilot is for adults aged 18 and over')
    tag=str(b.get('tag','')).strip();gid=str(b.get('game_id','')).strip();handle=str(b.get('handle','')).strip()
@@ -284,3 +299,9 @@ def playerstats(d,uid,game=None):
   own=f['score_a'] if f['a']==uid else f['score_b'];other=f['score_b'] if f['a']==uid else f['score_a'];results.append('W' if own>other else 'L' if own<other else 'D')
  recent=results[:5]
  return {'played':len(results),'wins':results.count('W'),'losses':results.count('L'),'draws':results.count('D'),'last_five':recent,'recent_summary':'Won '+str(recent.count('W'))+' of last '+str(len(recent))+' matches' if recent else 'No confirmed matches yet','titles':d.execute('SELECT COUNT(*) FROM leagues WHERE champion=?'+(' AND game=?' if game else ''),[uid]+([game] if game else [])).fetchone()[0],'divisions':{g:(TIERS[qualification(d,uid,g)] if d.execute('SELECT 1 FROM game_promotions p JOIN leagues l ON l.id=p.league WHERE p.uid=? AND l.game=?',(uid,g)).fetchone() else 'Unranked') for g in GAMES}}
+
+def stream_signals(server,uid,rid,after=0):
+ with server.db() as d:
+  room=row(d,'SELECT * FROM game_stream_rooms WHERE id=?',(rid,))
+  if not room or uid not in (room['a'],room['b']) or room['created']<time.time()-7200:raise PermissionError('This stream test room is unavailable')
+  return {'signals':[dict(r)|{'payload':json.loads(r['payload'])} for r in d.execute('SELECT id,kind,payload FROM game_stream_signals WHERE room=? AND sender!=? AND id>? ORDER BY id LIMIT 200',(rid,uid,after))]}

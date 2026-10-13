@@ -119,4 +119,13 @@ class GamingTest(unittest.TestCase):
    u=next(u for u in us if u['id']==r['uid']);v=self.view(l,u);self.assertEqual(v['qualification']['efootball'],2 if i<3 else 0 if i>=5 else 1);self.assertEqual(len(v['player_stats']['last_five']),5)
   self.assertEqual(state['stats']['confirmed_matches'],31)
   profile=self.call('/profile',token=us[0]['token']);self.assertGreaterEqual(profile['gaming_stats']['played'],7)
+ def test_stream_room_is_private_and_signal_only(self):
+  a=self.register('Admin');b=self.register('Viewer');c=self.register('Stranger')
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/stream_create',{'identity':a['id']},b['token'])
+  rid=self.call('/gaming/stream_create',{'identity':b['id']},a['token'])['id']
+  self.call('/gaming/stream_signal',{'room':rid,'kind':'offer','payload':{'type':'offer','sdp':'test'}},a['token'])
+  self.assertEqual(len(self.call('/gaming/stream-signals?room='+rid,token=b['token'])['signals']),1)
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/stream-signals?room='+rid,token=c['token'])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/stream_signal',{'room':rid,'kind':'end','payload':{}},c['token'])
+  self.assertEqual(self.call('/gaming/summary',token=b['token'])['stats']['confirmed_matches'],0)
 if __name__=='__main__':unittest.main()
