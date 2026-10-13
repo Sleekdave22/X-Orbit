@@ -14,6 +14,7 @@ def init(server):
  ''')
  with server.db() as d:
   if 'game_id' not in {r[1] for r in d.execute('PRAGMA table_info(league_members)')}:d.execute("ALTER TABLE league_members ADD COLUMN game_id TEXT NOT NULL DEFAULT ''")
+  d.execute("CREATE UNIQUE INDEX IF NOT EXISTS league_game_identity ON league_members(league,game_id COLLATE NOCASE) WHERE game_id!=''")
 def row(d,sql,args=()):
  r=d.execute(sql,args).fetchone();return dict(r) if r else None
 def mod(d,l,uid):return uid==l['owner'] or bool(d.execute('SELECT 1 FROM game_moderators WHERE league=? AND uid=?',(l['id'],uid)).fetchone())
@@ -79,7 +80,9 @@ def post(server,uid,action,b):
    if l['state']!='enrolling':raise ValueError('Enrolment is closed')
    if not row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,)):raise ValueError('Set up your gaming profile first')
    if d.execute('SELECT COUNT(*) FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]>=8:raise ValueError('This division is full')
-   d.execute('INSERT OR IGNORE INTO league_members(league,uid,game_id) VALUES(?,?,?)',(l['id'],uid,row(d,'SELECT game_id FROM game_profiles WHERE uid=?',(uid,))['game_id']));return {'ok':True}
+   gid=row(d,'SELECT game_id FROM game_profiles WHERE uid=?',(uid,))['game_id']
+   if d.execute('SELECT 1 FROM league_members WHERE league=? AND game_id=? COLLATE NOCASE AND uid!=?',(l['id'],gid,uid)).fetchone():raise ValueError('That game account is already registered in this division')
+   d.execute('INSERT OR IGNORE INTO league_members(league,uid,game_id) VALUES(?,?,?)',(l['id'],uid,gid));return {'ok':True}
   if action in ('start','sponsor','moderator','finals'):
    if uid!=l['owner']:raise PermissionError('Only the league organiser can do this')
    if action=='moderator':
