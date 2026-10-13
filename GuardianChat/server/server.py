@@ -59,6 +59,7 @@ class ChatServer(ThreadingHTTPServer):
             db.execute('CREATE INDEX IF NOT EXISTS messages_undelivered ON messages(recipient,delivered_at,id)')
         with self.db() as db:
             db.execute('CREATE TABLE IF NOT EXISTS message_hidden(user_id TEXT NOT NULL,message_id INTEGER NOT NULL,PRIMARY KEY(user_id,message_id))')
+            db.execute('CREATE TABLE IF NOT EXISTS chat_pins(owner TEXT NOT NULL,peer TEXT NOT NULL,PRIMARY KEY(owner,peer))')
             db.execute('CREATE TABLE IF NOT EXISTS chat_hidden(owner TEXT NOT NULL,peer TEXT NOT NULL,through_id INTEGER NOT NULL,PRIMARY KEY(owner,peer))')
         gaming.init(self)
         self.calls={};self.call_lock=threading.RLock()
@@ -204,6 +205,7 @@ class Handler(BaseHTTPRequestHandler):
                 if parsed.path=='/users':
                     items=[dict(r) for r in db.execute('SELECT u.id,u.name,u.nickname,u.profile_version,u.last_seen,(SELECT COUNT(*) FROM messages m WHERE m.sender=u.id AND m.recipient=c.owner AND m.read_at=0) unread,(SELECT COALESCE(MAX(id),0) FROM messages m WHERE m.sender=u.id AND m.recipient=c.owner) latest FROM users u JOIN contacts c ON c.peer=u.id WHERE c.owner=? ORDER BY u.name',(uid,))]
                     for item in items:
+                        item['pinned']=bool(db.execute('SELECT 1 FROM chat_pins WHERE owner=? AND peer=?',(uid,item['id'])).fetchone())
                         item['online']=item['last_seen']>int(time.time())-45
                         last=db.execute('SELECT * FROM messages WHERE ((sender=? AND recipient=?) OR (sender=? AND recipient=?)) AND id NOT IN (SELECT message_id FROM message_hidden WHERE user_id=?) ORDER BY time DESC,id DESC LIMIT 1',(uid,item['id'],item['id'],uid,uid)).fetchone()
                         item['last_activity']=last['time'] if last else 0
@@ -213,7 +215,7 @@ class Handler(BaseHTTPRequestHandler):
                             else:item['preview']='Protected media' if last['protected_media'] else 'View-once content' if last['view_once'] else (last['text'] or last['filename'] or '')[:120]
                     if parse_qs(parsed.query).get('all',['0'])[0]!='1':
                         items=[item for item in items if not db.execute('SELECT 1 FROM chat_hidden WHERE owner=? AND peer=? AND through_id>=(SELECT COALESCE(MAX(id),0) FROM messages WHERE (sender=? AND recipient=?) OR (sender=? AND recipient=?))',(uid,item['id'],uid,item['id'],item['id'],uid)).fetchone()]
-                    items.sort(key=lambda item:(-item['last_activity'],item['name'].casefold(),item['id']))
+                    items.sort(key=lambda item:(-int(item['pinned']),-item['last_activity'],item['name'].casefold(),item['id']))
                     self.reply(200,{'users':items});return
                 if parsed.path=='/inbox':
                     self.reply(200,{'ids':[r['id'] for r in db.execute('SELECT id FROM messages WHERE recipient=? AND delivered_at=0 ORDER BY id LIMIT 500',(uid,))]});return
@@ -377,14 +379,23 @@ class Handler(BaseHTTPRequestHandler):
             if self.path=='/read':
                 with self.server.db() as db:db.execute('UPDATE messages SET read_at=?,delivered_at=CASE WHEN delivered_at=0 THEN ? ELSE delivered_at END WHERE recipient=? AND sender=? AND id<=?',(int(time.time()),int(time.time()),uid,str(body['peer']),int(body['through'])))
                 self.reply(200,{'read':True});return
-            if self.path=='/chats/delete':
+            if self.path=='/chats/pin':
+                peer=str(body['peer'])
+                with self.server.db() as db:
+                    if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():self.reply(404,{'error':'Conversation unavailable'});return
+                    if type(body.get('pinned'))!=bool:self.reply(400,{'error':'Choose pin or unpin'});return
+                    if body['pinned']:db.execute('INSERT OR IGNORE INTO chat_pins VALUES(?,?)',(uid,peer))
+                    else:db.execute('DELETE FROM chat_pins WHERE owner=? AND peer=?',(uid,peer))
+                self.reply(200,{'pinned':body['pinned']});return
+            if self.path in ('/chats/delete','/chats/clear'):
                 peer=str(body['peer'])
                 with self.server.db() as db:
                     if not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,peer)).fetchone():self.reply(404,{'error':'Conversation unavailable'});return
                     through=db.execute('SELECT COALESCE(MAX(id),0) FROM messages WHERE (sender=? AND recipient=?) OR (sender=? AND recipient=?)',(uid,peer,peer,uid)).fetchone()[0]
                     db.execute('INSERT OR IGNORE INTO message_hidden SELECT ?,id FROM messages WHERE ((sender=? AND recipient=?) OR (sender=? AND recipient=?)) AND id<=?',(uid,uid,peer,peer,uid,through))
                     db.execute('UPDATE messages SET read_at=?,delivered_at=? WHERE sender=? AND recipient=? AND id<=?',(int(time.time()),int(time.time()),peer,uid,through))
-                    db.execute('INSERT OR REPLACE INTO chat_hidden VALUES(?,?,?)',(uid,peer,through))
+                    if self.path=='/chats/delete':db.execute('INSERT OR REPLACE INTO chat_hidden VALUES(?,?,?)',(uid,peer,through))
+                    else:db.execute('DELETE FROM chat_hidden WHERE owner=? AND peer=?',(uid,peer))
                 self.reply(200,{'deleted':True});return
             if self.path in ('/messages/forward','/messages/delete'):
                 with self.server.db() as db:
