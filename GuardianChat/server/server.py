@@ -201,7 +201,7 @@ class Handler(BaseHTTPRequestHandler):
                     if target!=uid and not db.execute('SELECT 1 FROM contacts WHERE owner=? AND peer=?',(uid,target)).fetchone():self.reply(404,{'error':'Profile unavailable'});return
                     row=db.execute('SELECT id,name,nickname,avatar,avatar_mime,profile_version,last_seen FROM users WHERE id=?',(target,)).fetchone()
                     if not row:self.reply(404,{'error':'Profile unavailable'});return
-                    profile=dict(row);profile['online']=profile['last_seen']>int(time.time())-45;
+                    profile=dict(row);profile['can_admin']=gaming.admin(db,uid) if target==uid else False;profile['gaming_stats']=gaming.playerstats(db,target);profile['online']=profile['last_seen']>int(time.time())-45;
                     if target==uid:profile['has_password']=bool(db.execute('SELECT password_hash FROM users WHERE id=?',(uid,)).fetchone()['password_hash'])
                     profile['qr_png']=account_qr(target);self.reply(200,profile);return
                 if parsed.path=='/users':

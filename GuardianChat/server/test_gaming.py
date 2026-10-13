@@ -3,9 +3,15 @@ from collections import Counter
 import test_server
 from server import account_qr
 class GamingTest(unittest.TestCase):
- setUp=test_server.ChatTest.setUp;tearDown=test_server.ChatTest.tearDown;call=test_server.ChatTest.call;register=test_server.ChatTest.register
+ setUp=test_server.ChatTest.setUp;tearDown=test_server.ChatTest.tearDown;call=test_server.ChatTest.call;registerBase=test_server.ChatTest.register
+ def register(self,name):
+  user=self.registerBase(name)
+  with self.server.db() as d:
+   if not d.execute('SELECT 1 FROM game_admin').fetchone():d.execute('INSERT INTO game_admin VALUES(?)',(user['id'],))
+  return user
  def league(self):
   us=[self.register('Player'+str(n)) for n in range(9)]
+  with self.server.db() as d:d.execute('DELETE FROM game_admin');d.execute('INSERT INTO game_admin VALUES(?)',(us[0]['id'],))
   for u in us:self.call('/gaming/profile',{'tag':u['name'],'game_id':'player-'+u['id'],'adult':True,'feature':True,'handle':'@'+u['name']},u['token'])
   l=self.call('/gaming/create',{'name':'Test division','game':'efootball'},us[0]['token'])['id']
   for u in us[:8]:self.call('/gaming/join',{'league':l},u['token'])
@@ -17,16 +23,16 @@ class GamingTest(unittest.TestCase):
   us,l=self.league();fs=self.view(l,us[0])['fixtures'];self.assertEqual(len(fs),28);self.assertEqual(len({tuple(sorted((f['a'],f['b']))) for f in fs}),28);self.assertEqual(set(Counter(p for f in fs for p in (f['a'],f['b'])).values()),{7})
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/join',{'league':l},us[8]['token'])
  def test_pending_permissions_and_confirmation(self):
-  us,l=self.league();f=self.view(l,us[0])['fixtures'][0];users={u['id']:u for u in us};self.call('/gaming/report',{'league':l,'fixture':f['id'],'score_a':3,'score_b':1,'image':account_qr(f['id'])},users[f['a']]['token']);self.assertTrue(all(r['points']==0 for r in self.view(l,us[0])['table']))
+  us,l=self.league();f=next(f for f in self.view(l,us[0])['fixtures'] if us[0]['id'] not in (f['a'],f['b']));users={u['id']:u for u in us};self.call('/gaming/report',{'league':l,'fixture':f['id'],'score_a':3,'score_b':1,'image':account_qr(f['id'])},users[f['a']]['token']);self.assertTrue(all(r['points']==0 for r in self.view(l,us[0])['table']))
   stranger=next(u for u in us[:8] if u['id'] not in (f['a'],f['b'],us[0]['id']))
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/evidence?fixture='+f['id']+'&player='+f['a'],token=stranger['token'])
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/confirm',{'league':l,'fixture':f['id']},stranger['token'])
   self.call('/gaming/confirm',{'league':l,'fixture':f['id']},users[f['b']]['token']);self.assertEqual(self.view(l,us[0])['table'][0]['points'],3)
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/confirm',{'league':l,'fixture':f['id']},users[f['b']]['token'])
  def test_dispute_review(self):
-  us,l=self.league();f=self.view(l,us[0])['fixtures'][0];users={u['id']:u for u in us};self.call('/gaming/report',{'league':l,'fixture':f['id'],'score_a':3,'score_b':1,'image':account_qr(f['id'])},users[f['a']]['token']);self.call('/gaming/dispute',{'league':l,'fixture':f['id'],'reason':'Wrong score shown'},users[f['b']]['token'])
+  us,l=self.league();f=next(f for f in self.view(l,us[0])['fixtures'] if us[0]['id'] not in (f['a'],f['b']));users={u['id']:u for u in us};self.call('/gaming/report',{'league':l,'fixture':f['id'],'score_a':3,'score_b':1,'image':account_qr(f['id'])},users[f['a']]['token']);self.call('/gaming/dispute',{'league':l,'fixture':f['id'],'reason':'Wrong score shown'},users[f['b']]['token'])
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/confirm',{'league':l,'fixture':f['id']},users[f['b']]['token'])
-  self.call('/gaming/review',{'league':l,'fixture':f['id'],'score_a':2,'score_b':1,'reason':'Checked screenshot and both players'},us[8]['token']);self.assertEqual(self.view(l,us[0])['fixtures'][0]['state'],'confirmed')
+  self.call('/gaming/review',{'league':l,'fixture':f['id'],'score_a':2,'score_b':1,'reason':'Checked screenshot and both players'},us[0]['token']);self.assertEqual(next(x for x in self.view(l,us[0])['fixtures'] if x['id']==f['id'])['state'],'confirmed')
  def test_complete_final_and_consent(self):
   us,l=self.league()
   with self.server.db() as d:d.execute('UPDATE fixtures SET opens=0 WHERE league=?',(l,))
@@ -91,12 +97,26 @@ class GamingTest(unittest.TestCase):
   league=self.view(l,us[0])['league'];self.assertEqual(league['sponsor_week'],'2026-W42');self.assertTrue(league['sponsor_art'].startswith('data:image/png;base64,'))
  def test_admin_scoping_and_comment_audit(self):
   us,l=self.league();f=self.view(l,us[0])['fixtures'][0]
-  self.assertEqual(self.call('/gaming/admin',token=us[1]['token'])['competitions'],[])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/admin',token=us[1]['token'])
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/admin?league='+l,token=us[1]['token'])
   self.call('/gaming/comment',{'league':l,'fixture':f['id'],'text':'Test moderation'},us[1]['token'])
-  admin=self.call('/gaming/admin?league='+l,token=us[8]['token']);cid=admin['comments'][0]['id']
+  admin=self.call('/gaming/admin?league='+l,token=us[0]['token']);cid=admin['comments'][0]['id']
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/hide_comment',{'league':l,'comment':cid,'reason':'Test reason'},us[1]['token'])
-  self.call('/gaming/hide_comment',{'league':l,'comment':cid,'reason':'Test reason'},us[8]['token'])
+  self.call('/gaming/hide_comment',{'league':l,'comment':cid,'reason':'Test reason'},us[0]['token'])
   self.assertEqual(self.call('/gaming/room?fixture='+f['id'],token=us[1]['token'])['comments'],[])
   audit=self.call('/gaming/admin?league='+l,token=us[0]['token']);self.assertTrue(audit['comments'][0]['hidden']);self.assertIn('comment_hidden',[r['action'] for r in audit['audit']])
+ def test_stats_and_three_up_three_down(self):
+  us,l=self.league()
+  with self.server.db() as d:
+   d.execute('UPDATE fixtures SET opens=0 WHERE league=?',(l,));d.execute('UPDATE leagues SET tier=1 WHERE id=?',(l,))
+   for u in us[:8]:d.execute('INSERT INTO game_qualification VALUES(?,?,1)',(u['id'],'efootball'))
+  for f in self.view(l,us[0])['fixtures']:self.result(f,us,l)
+  self.call('/gaming/finals',{'league':l},us[0]['token'])
+  for f in [f for f in self.view(l,us[0])['fixtures'] if f['stage']=='semi']:self.result(f,us,l)
+  final=next(f for f in self.view(l,us[0])['fixtures'] if f['stage']=='final');self.result(final,us,l)
+  state=self.view(l,us[0]);self.assertEqual(state['stats']['promotions'],3);self.assertEqual(state['stats']['relegations'],3)
+  for i,r in enumerate(state['table']):
+   u=next(u for u in us if u['id']==r['uid']);v=self.view(l,u);self.assertEqual(v['qualification']['efootball'],2 if i<3 else 0 if i>=5 else 1);self.assertEqual(len(v['player_stats']['last_five']),5)
+  self.assertEqual(state['stats']['confirmed_matches'],31)
+  profile=self.call('/profile',token=us[0]['token']);self.assertGreaterEqual(profile['gaming_stats']['played'],7)
 if __name__=='__main__':unittest.main()
