@@ -45,3 +45,10 @@ Missing or limited: open matchmaking, independent typed score workflow without r
 Additive SQLite tables/columns; legacy fixtures and chat/media data are preserved. New competitions use typed verification and check-in. Existing competitions retain proof-based legacy rules. Rankings/counts have no arbitrary edit controls. Admin access remains server-side and tied to the configured account. No production GuardianLab model, capture protections, account credentials or encryption policy are changed by Studio.
 
 Tests cover authentication, invalid Studio fields, stale drafts, publish/rollback, restart persistence, dual acceptance/check-in, matching reports, duplicate verification, unanswered reports, private/immutable evidence, independent review, retention events, larger round robins, no-show points without rating and simulator calculations.
+
+## X ORBIT live camera and invitations — 14 October 2026
+- Private camera-and-microphone rooms replace screen sharing in the LAN pilot. Invited members can comment and like once per account; targeted signaling prevents viewers receiving another viewer’s negotiation. Room broadcaster can add up to five viewers. Camera stops on room exit or backgrounding. No media recording is saved; comments and likes are server data.
+- Android WebView capture is allowed only for the configured HTTPS origin after Android camera/microphone permission. Actual multi-device playback and sound still require device testing.
+- Find a match includes direct game invitations with accept/decline, expiry, official identity checks, active-match limits and hourly invite limits. Notices use existing browser alerts and Android Gamebox push delivery. Physical receipt and sound remain to be checked.
+- Removed duplicate native Gamebox toolbar; the web page keeps its own header and back navigation.
+- Validation: 16 gaming tests (including room membership/comment/like/privacy) and 12 match-engine tests (including direct invite acceptance/decline) passed.
