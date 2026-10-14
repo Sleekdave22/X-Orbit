@@ -25,3 +25,5 @@ body{font-family:var(--studio-family,system-ui),sans-serif}
 .gamebox-chat-alert{position:fixed;z-index:10000;top:12px;left:50%;transform:translateX(-50%);width:min(520px,calc(100% - 24px));padding:12px 16px;background:#303030;color:#fff;border:1px solid #666;border-radius:12px;box-shadow:0 4px 16px #0007;animation:orbit-alert-drop .2s ease-out}.gamebox-chat-alert[hidden]{display:none}@keyframes orbit-alert-drop{from{opacity:0;top:-60px}to{opacity:1;top:12px}}
 
 .stream-comments{max-height:240px;overflow:auto;border:1px solid #555;border-radius:10px;padding:8px;margin:10px 0}.stream-comments p{margin:5px 0}.stream-video[hidden]{display:none}
+
+.gaming-profile-identity{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:12px 0}.gaming-profile-identity .rank-avatar{width:72px;height:72px;flex-shrink:0}.gaming-profile-identity h2{margin:0}.gaming-profile-identity p{margin:0}
