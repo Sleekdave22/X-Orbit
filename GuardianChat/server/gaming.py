@@ -2,7 +2,8 @@
 import base64,hashlib,json,re,time,uuid,subprocess
 from pathlib import Path
 TIERS=["Open","Division 2","Division 3","Premier"]
-GAMES={'efootball':'eFootball','fc_mobile':'EA FC Mobile','codm':'CODM 1v1'}
+BUILTIN_GAMES={'efootball':'eFootball','fc_mobile':'EA FC Mobile','codm':'CODM 1v1'}
+GAMES=dict(BUILTIN_GAMES)
 def init(server):
  with server.db() as d:d.executescript('''
  CREATE TABLE IF NOT EXISTS game_stream_responses(room TEXT,uid TEXT,state TEXT,PRIMARY KEY(room,uid));
@@ -65,6 +66,8 @@ def standings(d,l):
  return sorted(people,key=lambda r:(-r['points'],-(r['gf']-r['ga']),-r['gf'],-r['wins'],r['tag'].lower(),r['uid']))
 def summary(server,uid,lid=None):
  with server.db() as d:
+  import gamebox_core
+  gamebox_core.current(d)
   profile=row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,));leagues=[dict(r) for r in d.execute('SELECT * FROM leagues ORDER BY created DESC')];result={'stream_rooms':[dict(r) for r in d.execute('SELECT id,a,b,created FROM game_stream_rooms WHERE (a=? OR b=? OR id IN (SELECT room FROM game_stream_members WHERE uid=?)) AND created>? ORDER BY created DESC',(uid,uid,uid,int(time.time())-7200))],'can_admin':admin(d,uid),'profile':profile,'leagues':leagues,'games':GAMES,'champions':[],'stats':counters(d),'player_stats':playerstats(d,uid),'tiers':TIERS,'qualification':{game:qualification(d,uid,game) for game in GAMES}}
   for room in result['stream_rooms']:
    response=row(d,'SELECT state FROM game_stream_responses WHERE room=? AND uid=?',(room['id'],uid));room['invitation']=response['state'] if response else ('accepted' if uid==room['a'] else 'invited')
@@ -112,6 +115,7 @@ def post(server,uid,action,b):
   raw,mime=image(b);return scan(server,raw,mime)
  with server.db() as d:
   d.execute('BEGIN IMMEDIATE')
+  gamebox_core.current(d)
   if action=='stream_create':
    if not admin(d,uid):raise PermissionError('Only the administrator may create a test stream room')
    other=row(d,'SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))

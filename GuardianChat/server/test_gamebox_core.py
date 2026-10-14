@@ -142,4 +142,13 @@ class CoreTest(unittest.TestCase):
   published=self.call('/gamebox/summary',token=b['token'])['config'];self.assertEqual(published['presentation']['chat_order'][0],'gaming');self.assertEqual(published['presentation']['labels']['search'],'Find friends')
   config['presentation']['chat_order']=['gaming']
   with self.assertRaises(ValueError):gamebox_core.validate(config)
+ def test_custom_game_and_section_publish_for_other_accounts(self):
+  a,b,c=self.players();config=json.loads(json.dumps(gamebox_core.DEFAULT));key='custom_testgame';config['presentation']['custom_games'][key]='Test score game';config['presentation']['custom_sections'].append({'id':key,'title':'Test score game','kind':'game','content':'Numeric score competition','target':key})
+  version=self.call('/gamebox/summary',token=a['token'])['version'];self.call('/gamebox/studio_save',{'base':version,'config':config},a['token']);self.call('/gamebox/studio_publish',{'reason':'Publish a new custom score game'},a['token'])
+  summary=self.call('/gaming/summary',token=b['token']);self.assertEqual(summary['games'][key],'Test score game')
+  for user in (a,b):self.call('/gamebox/identity',{'game':key,'game_id':'custom-'+user['id'],'region':'Nigeria','tz':'Africa/Lagos','availability':[]},user['token'])
+  mid=self.call('/gamebox/invite',{'game':key,'identity':b['id']},a['token'])['match'];self.call('/gamebox/accept',{'match':mid},b['token'])
+  self.assertEqual(self.call('/gamebox/summary',token=b['token'])['matches'][0]['game'],key)
+  invalid=json.loads(json.dumps(config));invalid['presentation']['custom_sections'][0]['kind']='link';invalid['presentation']['custom_sections'][0]['target']='javascript:alert(1)'
+  with self.assertRaises(ValueError):gamebox_core.validate(invalid)
 if __name__=='__main__':unittest.main()

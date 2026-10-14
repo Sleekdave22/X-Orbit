@@ -1,13 +1,14 @@
 """Versioned Gamebox Studio and open-match workflows. Does not edit chat/media security."""
 import json,time,uuid,re,math,hashlib,base64
 DEFAULT={'accept_seconds':300,'checkin_seconds':600,'result_seconds':3600,'evidence_seconds':86400,'retention_seconds':259200,'reminder_seconds':900,'reschedules':1,'group_size':10,'round_days':3,'max_pair_daily':2,'rating_gap':400,'league_cup_slots':4,'open_cup_slots':4,'weekly_min_matches':5,'weekly_min_opponents':3,'theme':{'accent':'#921b37','surface':'#252525','paper':'#101010','ink':'#f4f4f4','radius':8,'tab_padding':12,'font_size':14,'font_family':'system-ui'},'layout':['stats','competitions','players','matches'],'announcement':'','show_stats':True}
-DEFAULT['presentation']={'chat_order':['search','tabs','gaming','list'],'game_tabs':['leagues','seasons','open','schedule','fixtures','players','live','table','card','profile','streams'],'labels':{'brand':'X ORBIT','slogan':'Your world your connection','search':'Search X ORBIT','gaming':'Gamebox'}}
+DEFAULT['presentation']={'chat_order':['search','tabs','gaming','list'],'game_tabs':['leagues','seasons','open','schedule','fixtures','players','live','table','card','profile','streams'],'custom_sections':[],'custom_games':{},'labels':{'brand':'X ORBIT','slogan':'Your world your connection','search':'Search X ORBIT','gaming':'Gamebox'}}
 LIMITS={'accept_seconds':(60,1800),'checkin_seconds':(120,3600),'result_seconds':(1800,7200),'evidence_seconds':(3600,259200),'retention_seconds':(3600,2592000),'reminder_seconds':(60,3600),'reschedules':(0,1),'group_size':(6,16),'round_days':(1,14),'max_pair_daily':(1,3),'rating_gap':(100,800),'league_cup_slots':(0,8),'open_cup_slots':(0,8),'weekly_min_matches':(1,20),'weekly_min_opponents':(1,10)}
 def init(server):
  with server.db() as d:
   d.executescript('''
   CREATE TABLE IF NOT EXISTS gb_comp_retention(fixture TEXT PRIMARY KEY,expires INTEGER);
   CREATE TABLE IF NOT EXISTS gb_walkovers(fixture TEXT PRIMARY KEY,winner TEXT,reason TEXT,actor TEXT,created INTEGER);
+  CREATE TABLE IF NOT EXISTS gb_game_catalog(key TEXT PRIMARY KEY,name TEXT);
   CREATE TABLE IF NOT EXISTS gb_schedule(fixture TEXT PRIMARY KEY,proposer TEXT,proposed INTEGER,scheduled INTEGER,confirmed_a INTEGER DEFAULT 0,confirmed_b INTEGER DEFAULT 0,reschedules INTEGER DEFAULT 0,ready_a INTEGER DEFAULT 0,ready_b INTEGER DEFAULT 0,reminded INTEGER DEFAULT 0);
   CREATE TABLE IF NOT EXISTS gb_cup_eligibility(league TEXT,uid TEXT,source TEXT,PRIMARY KEY(league,uid));
   CREATE TABLE IF NOT EXISTS gb_qualified_cups(league TEXT PRIMARY KEY,version INTEGER,week INTEGER);
@@ -32,11 +33,17 @@ def init(server):
   d.execute('CREATE INDEX IF NOT EXISTS gb_match_a_state ON gb_matches(a,state)');d.execute('CREATE INDEX IF NOT EXISTS gb_match_b_state ON gb_matches(b,state)');d.execute('CREATE INDEX IF NOT EXISTS gb_match_game_created ON gb_matches(game,created)');d.execute('CREATE INDEX IF NOT EXISTS gb_event_match ON gb_events(match,created)');d.execute('CREATE INDEX IF NOT EXISTS gb_room_match ON gb_room_messages(match,id)')
   if not d.execute('SELECT 1 FROM gb_versions').fetchone():d.execute('INSERT INTO gb_versions(config,actor,reason,created) VALUES(?,?,?,?)',(json.dumps(DEFAULT),'system','Initial supported defaults',int(time.time())))
   else:
-   existing=row(d,'SELECT * FROM gb_versions ORDER BY id DESC LIMIT 1');old=json.loads(existing['config']);merged=dict(DEFAULT,**old);merged['theme']=dict(DEFAULT['theme'],**old.get('theme',{}))
+   existing=row(d,'SELECT * FROM gb_versions ORDER BY id DESC LIMIT 1');old=json.loads(existing['config']);merged=dict(DEFAULT,**old);merged['theme']=dict(DEFAULT['theme'],**old.get('theme',{}));merged['presentation']=dict(DEFAULT['presentation'],**old.get('presentation',{}))
    if merged!=old:d.execute('INSERT INTO gb_versions(config,actor,reason,created) VALUES(?,?,?,?)',(json.dumps(merged),'migration','Add supported controls while preserving published customisations',int(time.time())))
 def row(d,sql,args=()):
  r=d.execute(sql,args).fetchone();return dict(r) if r else None
-def current(d):return row(d,'SELECT * FROM gb_versions ORDER BY id DESC LIMIT 1')
+def current(d):
+ result=row(d,'SELECT * FROM gb_versions ORDER BY id DESC LIMIT 1')
+ import gaming
+ config=json.loads(result['config']);custom=config.get('presentation',{}).get('custom_games',{})
+ for key,name in custom.items():d.execute('INSERT OR IGNORE INTO gb_game_catalog VALUES(?,?)',(key,name))
+ gaming.GAMES=dict(gaming.BUILTIN_GAMES,**{r['key']:r['name'] for r in d.execute('SELECT * FROM gb_game_catalog')})
+ return result
 def authorised(d,uid):
  import gaming
  if not gaming.admin(d,uid):raise PermissionError('Administration is restricted to the authorised account')
@@ -65,6 +72,25 @@ def validate(c):
  if type(p['labels'])!=dict or set(p['labels'])!=set(DEFAULT['presentation']['labels']):raise ValueError('Unsupported app labels')
  for value in p['labels'].values():
   if type(value)!=str or not 1<=len(value.strip())<=80:raise ValueError('App labels must be 1–80 characters')
+ games=p['custom_games'];sections=p['custom_sections']
+ if type(games)!=dict or len(games)>20:raise ValueError('At most 20 custom games')
+ for key,name in games.items():
+  if not re.fullmatch(r'custom_[a-z0-9_]{3,40}',key) or type(name)!=str or not 2<=len(name.strip())<=60:raise ValueError('Invalid custom game')
+ if type(sections)!=list or len(sections)>20:raise ValueError('At most 20 custom sections')
+ ids=set()
+ for section in sections:
+  if type(section)!=dict or set(section)!={'id','title','kind','content','target'}:raise ValueError('Unsupported section fields')
+  if not re.fullmatch(r'custom_[a-z0-9_]{3,40}',str(section['id'])) or section['id'] in ids:raise ValueError('Invalid section ID')
+  ids.add(section['id'])
+  if type(section['title'])!=str or not 1<=len(section['title'].strip())<=60 or type(section['content'])!=str or len(section['content'])>4000:raise ValueError('Invalid section text')
+  kind=section['kind'];target=section['target']
+  if kind not in ('page','feature','link','game') or type(target)!=str:raise ValueError('Choose a supported button function')
+  if kind=='feature' and target not in DEFAULT['presentation']['game_tabs']:raise ValueError('Choose a supported feature')
+  if kind=='game' and target not in games:raise ValueError('Choose a custom game')
+  if kind=='link':
+   from urllib.parse import urlparse
+   u=urlparse(target)
+   if u.scheme!='https' or not u.hostname or u.username or u.password:raise ValueError('Use a valid HTTPS website address')
  return c
 def eligible(d,uid,game):
  import gaming
@@ -126,6 +152,7 @@ def post(server,uid,action,b):
   raw,mime=gaming.image(b);reading=gaming.scan(server,raw,mime);b=dict(b,reading=reading.get('text',''))
  with server.db() as d:
   d.execute('BEGIN IMMEDIATE')
+  current(d)
   if action=='notification_test':
    authorised(d,uid);notice(d,uid,'Test match reminder: your fixture is ready. This is a notification test only.');return {'ok':True}
   if action.startswith('studio_'):
@@ -143,7 +170,7 @@ def post(server,uid,action,b):
    elif action=='studio_rollback':
     previous=row(d,'SELECT * FROM gb_versions WHERE id=?',(b.get('version'),))
     if not previous:raise ValueError('Version not found')
-    old_config=json.loads(previous['config']);restored=dict(DEFAULT,**old_config);restored['theme']=dict(DEFAULT['theme'],**old_config.get('theme',{}));config=json.dumps(validate(restored))
+    old_config=json.loads(previous['config']);restored=dict(DEFAULT,**old_config);restored['theme']=dict(DEFAULT['theme'],**old_config.get('theme',{}));restored['presentation']=dict(DEFAULT['presentation'],**old_config.get('presentation',{}));config=json.dumps(validate(restored))
    else:raise ValueError('Unknown Studio action')
    d.execute('INSERT INTO gb_versions(config,actor,reason,created) VALUES(?,?,?,?)',(config,uid,reason,int(time.time())));d.execute('DELETE FROM gb_draft');event(d,'studio',uid,action,old=json.loads(version['config']),new=json.loads(config),reason=reason);return {'ok':True}
   if action=='qualified_cup':
