@@ -5,6 +5,7 @@ TIERS=["Open","Division 2","Division 3","Premier"]
 GAMES={'efootball':'eFootball','fc_mobile':'EA FC Mobile','codm':'CODM 1v1'}
 def init(server):
  with server.db() as d:d.executescript('''
+ CREATE TABLE IF NOT EXISTS game_stream_responses(room TEXT,uid TEXT,state TEXT,PRIMARY KEY(room,uid));
  CREATE TABLE IF NOT EXISTS game_stream_members(room TEXT,uid TEXT,PRIMARY KEY(room,uid));
  CREATE TABLE IF NOT EXISTS game_stream_comments(id INTEGER PRIMARY KEY,room TEXT,uid TEXT,text TEXT,created INTEGER);
  CREATE TABLE IF NOT EXISTS game_stream_likes(room TEXT,uid TEXT,PRIMARY KEY(room,uid));
@@ -65,6 +66,9 @@ def standings(d,l):
 def summary(server,uid,lid=None):
  with server.db() as d:
   profile=row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,));leagues=[dict(r) for r in d.execute('SELECT * FROM leagues ORDER BY created DESC')];result={'stream_rooms':[dict(r) for r in d.execute('SELECT id,a,b,created FROM game_stream_rooms WHERE (a=? OR b=? OR id IN (SELECT room FROM game_stream_members WHERE uid=?)) AND created>? ORDER BY created DESC',(uid,uid,uid,int(time.time())-7200))],'can_admin':admin(d,uid),'profile':profile,'leagues':leagues,'games':GAMES,'champions':[],'stats':counters(d),'player_stats':playerstats(d,uid),'tiers':TIERS,'qualification':{game:qualification(d,uid,game) for game in GAMES}}
+  for room in result['stream_rooms']:
+   response=row(d,'SELECT state FROM game_stream_responses WHERE room=? AND uid=?',(room['id'],uid));room['invitation']=response['state'] if response else ('accepted' if uid==room['a'] else 'invited')
+  result['stream_rooms']=[r for r in result['stream_rooms'] if r['invitation']!='declined']
   for l in leagues:
    if l['champion']:
     p=row(d,'SELECT uid,tag,handle,feature FROM game_profiles WHERE uid=?',(l['champion'],))
@@ -113,7 +117,11 @@ def post(server,uid,action,b):
    other=row(d,'SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
    if not other or other['id']==uid:raise ValueError('Choose a different test account')
    if d.execute('SELECT COUNT(*) FROM game_stream_rooms WHERE a=? AND created>?',(uid,int(time.time())-7200)).fetchone()[0]>=3:raise ValueError('Use an existing test room; rooms expire after two hours')
-   rid=uuid.uuid4().hex;d.execute('INSERT INTO game_stream_rooms VALUES(?,?,?,?)',(rid,uid,other['id'],int(time.time())));gamebox_core.notice(d,other['id'],'You have been invited to a private streaming test. Open Gamebox → Streaming test.');return {'id':rid}
+   rid=uuid.uuid4().hex;d.execute('INSERT INTO game_stream_rooms VALUES(?,?,?,?)',(rid,uid,other['id'],int(time.time())));d.execute('INSERT OR REPLACE INTO game_stream_responses VALUES(?,?,?)',(rid,other['id'],'invited'));gamebox_core.notice(d,other['id'],'You have been invited to a private streaming test. Open Gamebox → Streaming test.');return {'id':rid}
+  if action in ('stream_accept','stream_decline'):
+   rid=b.get('room');room=row(d,'SELECT * FROM game_stream_rooms WHERE id=?',(rid,))
+   if not room or room['created']<time.time()-7200 or uid==room['a'] or (uid!=room['b'] and not row(d,'SELECT uid FROM game_stream_members WHERE room=? AND uid=?',(rid,uid))):raise PermissionError('This invitation is unavailable')
+   state='accepted' if action=='stream_accept' else 'declined';d.execute('INSERT OR REPLACE INTO game_stream_responses VALUES(?,?,?)',(rid,uid,state));gamebox_core.notice(d,room['a'],'Your live-stream invitation was '+state+'.');return {'ok':True}
   if action in ('stream_invite','stream_comment','stream_like'):
    room=stream_access(d,uid,b.get('room'))
    if action=='stream_invite':
@@ -121,7 +129,7 @@ def post(server,uid,action,b):
     other=row(d,'SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
     if not other:raise ValueError('Account not found')
     if d.execute('SELECT COUNT(*) FROM game_stream_members WHERE room=?',(room['id'],)).fetchone()[0]>=4:raise ValueError('This LAN pilot supports five viewers')
-    d.execute('INSERT OR IGNORE INTO game_stream_members VALUES(?,?)',(room['id'],other['id']));gamebox_core.notice(d,other['id'],'You are invited to a live camera stream. Open Gamebox → Live streams.')
+    d.execute('INSERT OR IGNORE INTO game_stream_members VALUES(?,?)',(room['id'],other['id']));d.execute('INSERT OR REPLACE INTO game_stream_responses VALUES(?,?,?)',(room['id'],other['id'],'invited'));gamebox_core.notice(d,other['id'],'You are invited to a live camera stream. Open Gamebox → Live streams.')
    elif action=='stream_comment':
     text=str(b.get('text','')).strip()
     if not 1<=len(text)<=500:raise ValueError('Comment must be 1–500 characters')
@@ -136,7 +144,7 @@ def post(server,uid,action,b):
    if kind not in ('join','offer','answer','ice','end') or len(encoded)>100000:raise ValueError('Invalid stream signal')
    target=payload.get('target') if isinstance(payload,dict) else None
    if not target:raise ValueError('Choose the stream recipient')
-   stream_access(d,target,room['id'])
+   if target not in (room['a'],room['b']) and not row(d,'SELECT uid FROM game_stream_members WHERE room=? AND uid=?',(room['id'],target)):raise PermissionError('Recipient is not invited')
    if uid!=room['a'] and target!=room['a']:raise PermissionError('Viewers signal only to the broadcaster')
    d.execute('INSERT INTO game_stream_signals(room,sender,kind,payload,time) VALUES(?,?,?,?,?)',(room['id'],uid,kind,encoded,int(time.time())))
    d.execute('DELETE FROM game_stream_signals WHERE room=? AND id NOT IN (SELECT id FROM game_stream_signals WHERE room=? ORDER BY id DESC LIMIT 200)',(room['id'],room['id']));return {'ok':True}
@@ -363,6 +371,9 @@ def playerstats(d,uid,game=None):
 def stream_access(d,uid,rid):
  room=row(d,'SELECT * FROM game_stream_rooms WHERE id=?',(rid,))
  if not room or room['created']<time.time()-7200 or (uid not in (room['a'],room['b']) and not row(d,'SELECT uid FROM game_stream_members WHERE room=? AND uid=?',(rid,uid))):raise PermissionError('This live room is unavailable')
+ if uid!=room['a']:
+  response=row(d,'SELECT state FROM game_stream_responses WHERE room=? AND uid=?',(rid,uid))
+  if not response or response['state']!='accepted':raise PermissionError('Accept the live-stream invitation first')
  return room
 
 def stream_signals(server,uid,rid,after=0):
