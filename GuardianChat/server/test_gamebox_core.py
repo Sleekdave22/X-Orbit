@@ -134,4 +134,12 @@ class CoreTest(unittest.TestCase):
   self.assertTrue(any('invitation accepted' in n['text'] for n in summary['notices']))
   self.call('/gamebox/cancel',{'match':mid},b['token'])
   self.assertTrue(any('declined or cancelled' in n['text'] for n in self.call('/gamebox/summary',token=a['token'])['notices']))
+ def test_visual_presentation_is_bounded_and_admin_only(self):
+  a,b,c=self.players();config=json.loads(json.dumps(gamebox_core.DEFAULT));config['presentation']['chat_order']=['gaming','search','tabs','list'];config['presentation']['labels']['search']='Find friends'
+  summary=self.call('/gamebox/summary',token=a['token']);version=summary['version']
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gamebox/studio_save',{'base':version,'config':config},b['token'])
+  self.call('/gamebox/studio_save',{'base':version,'config':config},a['token']);self.call('/gamebox/studio_publish',{'reason':'Move game entry above search'},a['token'])
+  published=self.call('/gamebox/summary',token=b['token'])['config'];self.assertEqual(published['presentation']['chat_order'][0],'gaming');self.assertEqual(published['presentation']['labels']['search'],'Find friends')
+  config['presentation']['chat_order']=['gaming']
+  with self.assertRaises(ValueError):gamebox_core.validate(config)
 if __name__=='__main__':unittest.main()

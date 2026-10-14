@@ -27,3 +27,5 @@ body{font-family:var(--studio-family,system-ui),sans-serif}
 .stream-comments{max-height:240px;overflow:auto;border:1px solid #555;border-radius:10px;padding:8px;margin:10px 0}.stream-comments p{margin:5px 0}.stream-video[hidden]{display:none}
 
 .gaming-profile-identity{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:12px 0}.gaming-profile-identity .rank-avatar{width:72px;height:72px;flex-shrink:0}.gaming-profile-identity h2{margin:0}.gaming-profile-identity p{margin:0}
+
+.visual-editor{border:1px solid #777;border-radius:12px;padding:16px;margin:10px 0;display:flex;flex-direction:column;gap:10px}.visual-order>div{display:flex;flex-direction:column;gap:6px}.editor-block{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid #555;padding:8px;border-radius:8px}.editor-block span{flex:1}.editor-block button{padding:5px 12px;min-height:32px}.editor-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}.visual-preview{padding:16px;border:1px solid #666;border-radius:12px;max-width:420px}.preview-block{padding:10px;margin:6px 0;border:1px solid;border-radius:8px}
