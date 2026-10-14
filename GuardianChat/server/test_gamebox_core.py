@@ -151,4 +151,17 @@ class CoreTest(unittest.TestCase):
   self.assertEqual(self.call('/gamebox/summary',token=b['token'])['matches'][0]['game'],key)
   invalid=json.loads(json.dumps(config));invalid['presentation']['custom_sections'][0]['kind']='link';invalid['presentation']['custom_sections'][0]['target']='javascript:alert(1)'
   with self.assertRaises(ValueError):gamebox_core.validate(invalid)
+ def test_result_chat_private_signal_only_and_verified_score(self):
+  users,m=self.ready();a,b,c=users;room=m['id']
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gamebox/result-state?room='+room,token=c['token'])
+  self.call('/gamebox/result_comment',{'room':room,'text':'Checking result'},a['token'])
+  self.call('/gamebox/result_signal',{'room':room,'kind':'offer','payload':{'session':'test-session','value':{'type':'offer','sdp':'v=0\r\n'}}},a['token'])
+  received=self.call('/gamebox/result-state?room='+room,token=b['token']);self.assertEqual(len(received['signals']),1);self.assertEqual(received['comments'][0]['text'],'Checking result')
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gamebox/result_signal',{'room':room,'kind':'photo','payload':{'session':'test','value':{'image':'private-photo'}}},a['token'])
+  self.call('/gamebox/report',{'match':room,'a':3,'b':1},a['token']);self.assertEqual(self.call('/gamebox/result-state?room='+room,token=b['token'])['reports'],[])
+  self.call('/gamebox/report',{'match':room,'a':3,'b':1},b['token']);final=self.call('/gamebox/result-state?room='+room,token=b['token']);self.assertEqual(final['state'],'verified')
+  self.assertEqual(final['reports'][0]['score_a'],3)
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gamebox/result_signal',{'room':room,'kind':'join','payload':{'session':'late','value':{}}},a['token'])
+  with self.server.db() as d:self.assertEqual(d.execute('SELECT COUNT(*) FROM gb_evidence WHERE match=?',(room,)).fetchone()[0],0)
+  stats=self.call('/gaming/summary',token=a['token'])['player_stats'];self.assertEqual(stats['wins'],1)
 if __name__=='__main__':unittest.main()

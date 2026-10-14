@@ -8,6 +8,8 @@ def init(server):
   d.executescript('''
   CREATE TABLE IF NOT EXISTS gb_comp_retention(fixture TEXT PRIMARY KEY,expires INTEGER);
   CREATE TABLE IF NOT EXISTS gb_walkovers(fixture TEXT PRIMARY KEY,winner TEXT,reason TEXT,actor TEXT,created INTEGER);
+  CREATE TABLE IF NOT EXISTS gb_result_signals(id INTEGER PRIMARY KEY,room TEXT,uid TEXT,kind TEXT,payload TEXT,created INTEGER);
+  CREATE TABLE IF NOT EXISTS gb_result_comments(id INTEGER PRIMARY KEY,room TEXT,uid TEXT,text TEXT,created INTEGER);
   CREATE TABLE IF NOT EXISTS gb_game_catalog(key TEXT PRIMARY KEY,name TEXT);
   CREATE TABLE IF NOT EXISTS gb_schedule(fixture TEXT PRIMARY KEY,proposer TEXT,proposed INTEGER,scheduled INTEGER,confirmed_a INTEGER DEFAULT 0,confirmed_b INTEGER DEFAULT 0,reschedules INTEGER DEFAULT 0,ready_a INTEGER DEFAULT 0,ready_b INTEGER DEFAULT 0,reminded INTEGER DEFAULT 0);
   CREATE TABLE IF NOT EXISTS gb_cup_eligibility(league TEXT,uid TEXT,source TEXT,PRIMARY KEY(league,uid));
@@ -153,6 +155,26 @@ def post(server,uid,action,b):
  with server.db() as d:
   d.execute('BEGIN IMMEDIATE')
   current(d)
+  if action in ('result_signal','result_comment'):
+   match=result_participant(d,uid,b.get('room'));rid=match['id']
+   if match['state'] in ('verified','confirmed','cancelled','void','walkover'):raise ValueError('This result is closed')
+   if action=='result_comment':
+    text=str(b.get('text','')).strip()
+    if not 1<=len(text)<=1000:raise ValueError('Enter a message under 1000 characters')
+    if d.execute('SELECT COUNT(*) FROM gb_result_comments WHERE room=? AND uid=? AND created>?',(rid,uid,int(time.time())-10)).fetchone()[0]>=5:raise ValueError('Please slow down')
+    d.execute('INSERT INTO gb_result_comments(room,uid,text,created) VALUES(?,?,?,?)',(rid,uid,text,int(time.time())))
+   else:
+    kind=b.get('kind');payload=b.get('payload')
+    if kind not in ('join','offer','answer','ice') or type(payload)!=dict or set(payload)!={'session','value'}:raise ValueError('Only connection signaling is accepted; photos must travel peer to peer')
+    sid=payload['session'];value=payload['value']
+    if not isinstance(sid,str) or not re.fullmatch(r'[a-zA-Z0-9-]{1,80}',sid) or type(value)!=dict:raise ValueError('Invalid connection session')
+    if kind in ('offer','answer') and (set(value)!={'type','sdp'} or value['type']!=kind or not str(value['sdp']).startswith('v=0') or len(value['sdp'])>60000):raise ValueError('Invalid connection description')
+    if kind=='ice' and (set(value)-{'candidate','sdpMid','sdpMLineIndex','usernameFragment'} or not str(value.get('candidate','')).startswith('candidate:') or len(str(value))>4000):raise ValueError('Invalid connection candidate')
+    if kind=='join' and value:raise ValueError('Invalid join')
+    if d.execute('SELECT COUNT(*) FROM gb_result_signals WHERE room=? AND uid=? AND created>?',(rid,uid,int(time.time())-60)).fetchone()[0]>=100:raise ValueError('Connection retry limit reached')
+    d.execute('INSERT INTO gb_result_signals(room,uid,kind,payload,created) VALUES(?,?,?,?,?)',(rid,uid,kind,json.dumps(payload),int(time.time())))
+    d.execute('DELETE FROM gb_result_signals WHERE room=? AND id NOT IN (SELECT id FROM gb_result_signals WHERE room=? ORDER BY id DESC LIMIT 300)',(rid,rid))
+   return {'ok':True}
   if action=='notification_test':
    authorised(d,uid);notice(d,uid,'Test match reminder: your fixture is ready. This is a notification test only.');return {'ok':True}
   if action.startswith('studio_'):
@@ -444,3 +466,25 @@ def weekly(d,game,week,rules):
    if uid not in players:players[uid]={'uid':uid,'matches':0,'wins':0,'points':0,'opponents':set()}
    player=players[uid];player['matches']+=1;player['wins']+=own>other;player['points']+=3 if own>other else 1 if own==other else 0;player['opponents'].add(opponent)
  return sorted([p|{'opponents':len(p['opponents'])} for p in players.values() if p['matches']>=rules['weekly_min_matches'] and len(p['opponents'])>=rules['weekly_min_opponents']],key=lambda p:(-p['points'],-p['wins'],p['uid']))
+
+def result_participant(d,uid,rid):
+ match=row(d,'SELECT * FROM gb_matches WHERE id=?',(rid,))
+ kind='open'
+ if not match:match=row(d,'SELECT * FROM fixtures WHERE id=?',(rid,));kind='fixture'
+ if not match or not match['a'] or not match['b'] or uid not in (match['a'],match['b']):raise PermissionError('Only the two assigned match players may enter the result chat')
+ return match|{'kind':kind}
+
+def result_state(server,uid,rid,after):
+ with server.db() as d:
+  m=result_participant(d,uid,rid)
+  if m['kind']=='open':reports=[dict(r) for r in d.execute('SELECT uid,a score_a,b score_b FROM gb_reports WHERE match=?',(rid,))];verification='typed'
+  else:
+   reports=[dict(r) for r in d.execute('SELECT uid,score_a,score_b FROM game_reports WHERE fixture=?',(rid,))];verification=row(d,'SELECT verification FROM leagues WHERE id=?',(m['league'],))['verification']
+  if not any(r['uid']==uid for r in reports):reports=[]
+  names={u:row(d,'SELECT name FROM users WHERE id=?',(u,))['name'] for u in (m['a'],m['b'])}
+  game_ids={m['a']:m['gid_a'],m['b']:m['gid_b']} if m['kind']=='open' else {r['uid']:r['game_id'] for r in d.execute('SELECT uid,game_id FROM league_members WHERE league=? AND uid IN (?,?)',(m['league'],m['a'],m['b']))}
+  signals=[dict(r)|{'payload':json.loads(r['payload'])} for r in d.execute('SELECT id,kind,payload FROM gb_result_signals WHERE room=? AND uid!=? AND id>? AND created>? ORDER BY id LIMIT 300',(rid,uid,after,int(time.time())-1800))]
+  comments=[dict(r) for r in d.execute('SELECT c.id,c.text,u.name FROM gb_result_comments c JOIN users u ON u.id=c.uid WHERE c.room=? ORDER BY c.id DESC LIMIT 100',(rid,))]
+  schedule=row(d,'SELECT * FROM gb_schedule WHERE fixture=?',(rid,)) if m['kind']=='fixture' else None
+  can_report=(m['state']=='awaiting_results') if m['kind']=='open' else (m['state'] not in ('confirmed','void','walkover','disputed') and time.time()>=m['opens'] and (verification=='legacy' or bool(schedule and schedule['ready_a'] and schedule['ready_b'])))
+  return {'game_ids':game_ids,'can_report':can_report,'id':rid,'kind':m['kind'],'a':m['a'],'b':m['b'],'names':names,'state':m['state'],'verification':verification,'reports':reports,'signals':signals,'comments':list(reversed(comments))}

@@ -52,3 +52,10 @@ Tests cover authentication, invalid Studio fields, stale drafts, publish/rollbac
 - Find a match includes direct game invitations with accept/decline, expiry, official identity checks, active-match limits and hourly invite limits. Notices use existing browser alerts and Android Gamebox push delivery. Physical receipt and sound remain to be checked.
 - Removed duplicate native Gamebox toolbar; the web page keeps its own header and back navigation.
 - Validation: 16 gaming tests (including room membership/comment/like/privacy) and 12 match-engine tests (including direct invite acceptance/decline) passed.
+
+## Result chat — independent scores and direct temporary photos
+- Both assigned players have Result chat in open matches and competition fixtures. Score reports use existing authoritative verification; no client-side ranking changes.
+- Optional PNG/JPEG under 5 MB travels over an authenticated-room WebRTC data channel. Server has separate SDP/ICE signaling and text comments; no routine photo HTTP upload/storage. SHA-256 and declared-size checks protect transfers.
+- Photo buffers/previews cleared on verified/confirmed/void/cancelled/walkover result or room exit. Original user files remain; unresolved disputes require retaining original evidence. Moderator escalation has a separate explicit screenshot upload. Legacy competition rules remain frozen.
+- Mac LAN-only address discovery at UDP 3478 fixes masked-host candidate connectivity without camera/microphone capture or an external relay.
+- Validation: 64 backend tests passed, local STUN mapping test passed; real data-channel transfer plus no-upload and two-peer cleanup passed in Chrome and IAB using isolated synthetic data. Physical S21/browser test remains. Repeat browser test with server/test_result_transfer.py.

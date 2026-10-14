@@ -155,7 +155,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             parsed=urlparse(self.path)
-            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js'):
+            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js'):
                 data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/guardianchat-ca.crt':
                 data=(Path(__file__).parent.parent/'chat/src/main/res/raw/guardianchat_local_ca.crt').read_bytes();self.send_response(200);self.send_header('Content-Type','application/x-x509-ca-cert');self.send_header('Content-Disposition','attachment; filename=guardianchat-ca.crt');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
@@ -170,6 +170,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(200,gamebox_core.summary(self.server,uid));return
             if parsed.path=='/gamebox/studio':
                 self.reply(200,gamebox_core.studio(self.server,uid));return
+            if parsed.path=='/gamebox/result-state':
+                q=parse_qs(parsed.query);self.reply(200,gamebox_core.result_state(self.server,uid,q.get('room',[''])[0],int(q.get('after',['0'])[0])));return
             if parsed.path=='/gamebox/room':
                 q=parse_qs(parsed.query)
                 with self.server.db() as db:
@@ -554,4 +556,7 @@ if __name__=='__main__':
     if a.cert:
         context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.minimum_version=ssl.TLSVersion.TLSv1_2;context.load_cert_chain(a.cert,a.key);s.socket=context.wrap_socket(s.socket,server_side=True)
     print(f'GuardianChat LAN server on port {a.port}. Invitation code is in {s.data / "invite.txt"}. Use test content only.',flush=True)
+    if a.cert:
+        import lan_stun
+        lan_stun.start()
     s.serve_forever()
