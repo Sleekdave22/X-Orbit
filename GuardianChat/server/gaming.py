@@ -321,7 +321,7 @@ def advance(d,l):
   table=standings(d,l['id'])
   for index,p in enumerate(table):
    if d.execute('SELECT 1 FROM game_promotions WHERE league=? AND uid=?',(l['id'],p['uid'])).fetchone():continue
-   old=qualification(d,p['uid'],l['game']);new=max(0,min(len(TIERS)-1,old+(1 if index<3 else -1 if index>=len(table)-3 else 0)))
+   old=qualification(d,p['uid'],l['game']);zone=min(3,(len(table)-1)//2);new=max(0,min(len(TIERS)-1,old+(1 if index<zone else -1 if index>=len(table)-zone else 0)))
    d.execute('INSERT INTO game_promotions VALUES(?,?,?,?)',(l['id'],p['uid'],old,new));d.execute('INSERT INTO game_qualification VALUES(?,?,?) ON CONFLICT(uid,game) DO UPDATE SET tier=excluded.tier',(p['uid'],l['game'],new));audit(d,l['id'],p['uid'],'division_updated',TIERS[old]+' → '+TIERS[new])
 
 def evidence(server,uid,fid,player):

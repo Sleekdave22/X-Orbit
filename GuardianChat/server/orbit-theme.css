@@ -1,0 +1,52 @@
+/* Orbit theme — oxblood + gold. Tokens first, then overrides for chat, Gamebox and calls.
+   Contrast (WCAG): gold #E8B84A on Oxblood 950 #1B0709 = 10.6:1; cream #F7ECDD on Oxblood 900 #2A0A10 = 14.6:1;
+   Oxblood 700 #7A1630 on Cream 50 #FBF4EA = 9.9:1; cream on Oxblood 600 #8E1B38 = 8.1:1. Oxblood is never used as text on dark. */
+:root{--ox-950:#1b0709;--ox-900:#2a0a10;--ox-800:#4a1020;--ox-700:#7a1630;--ox-600:#8e1b38;--gold:#e8b84a;--gold-deep:#b8841a;--cream:#f7ecdd;--cream-50:#fbf4ea;--sand:#d9c3a5;
+--paper:var(--ox-950);--surface:var(--ox-900);--ink:var(--cream);--muted:#c9ae9c;--line:#5b2430;--accent:var(--ox-600);--heading:var(--gold);--on-accent:var(--cream);--focus:var(--gold);color-scheme:dark}
+html[data-theme=bright]{--paper:var(--cream-50);--surface:#f1e3d0;--ink:#2a0d12;--muted:#6b4650;--line:#cdb392;--accent:var(--ox-700);--heading:var(--ox-700);--on-accent:var(--cream-50);--focus:var(--ox-700);color-scheme:light}
+@media(prefers-color-scheme:light){html:not([data-theme=dark]):not([data-theme=bright]){--paper:var(--cream-50);--surface:#f1e3d0;--ink:#2a0d12;--muted:#6b4650;--line:#cdb392;--accent:var(--ox-700);--heading:var(--ox-700);--on-accent:var(--cream-50);--focus:var(--ox-700);color-scheme:light}}
+body{background:var(--paper);color:var(--ink);font-family:Roboto,system-ui,sans-serif}
+h1,h2,h3,.brand-header h1,header h1,#welcome strong,#orbitIntro strong{color:var(--heading)!important;letter-spacing:.04em}
+h1{font-weight:800}
+button{background:var(--accent);color:var(--on-accent);border:1px solid color-mix(in srgb,var(--gold) 35%,transparent);border-radius:12px;min-height:44px;padding:10px 16px;font-weight:600;transition:transform .12s,filter .12s}
+button:hover{filter:brightness(1.1)}button:active{transform:scale(.97)}
+button.ghost,nav button,header>button{background:transparent;color:var(--ink);border-color:var(--line)}
+nav button.selected,nav button[aria-current=true]{background:var(--gold);color:var(--ox-950);border-color:var(--gold)}
+header>button{color:var(--heading);font-size:28px;border:0}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+input,select,textarea{background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:12px;min-height:44px}
+.card,.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px}
+.muted,small{color:var(--muted)}
+a{color:var(--heading)}
+/* chat bubbles */
+.message{background:var(--surface)!important;color:var(--ink);border:1px solid var(--line)}
+.message.own{background:var(--ox-700)!important;color:var(--cream);border-color:transparent}
+.message small{color:var(--muted)}.message.own small{color:#f0d9c4}
+/* status chips, zones and badges (Gamebox) */
+.chip{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.chip.win,.zone-up{background:#1f3a22;color:#bff0c4;border-color:#2f6b36}
+.chip.warn,.zone-play{background:#4a3a0e;color:#ffe29a;border-color:#8a6c1c}
+.chip.bad,.zone-down{background:#4a1418;color:#ffc4c4;border-color:#8e2a30}
+html[data-theme=bright] .chip.win,html[data-theme=bright] .zone-up{background:#dff3e0;color:#14501b}
+html[data-theme=bright] .chip.warn,html[data-theme=bright] .zone-play{background:#fbeec4;color:#5a4208}
+html[data-theme=bright] .chip.bad,html[data-theme=bright] .zone-down{background:#f8d6d6;color:#7a1414}
+.zone-up td:first-child{box-shadow:inset 4px 0 #3fae4a}.zone-down td:first-child{box-shadow:inset 4px 0 #c9444c}.zone-play td:first-child{box-shadow:inset 4px 0 var(--gold)}
+.medal{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;font-weight:800;color:var(--ox-950)}
+.medal.m1{background:var(--gold)}.medal.m2{background:#cfd2d6}.medal.m3{background:#c98a58}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:8px 0}
+/* tab groups */
+nav{scrollbar-width:thin}nav .tab-group{display:flex;gap:8px;align-items:center;padding-right:12px;margin-right:4px;border-right:1px solid var(--line)}
+nav .tab-group>span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+/* Orbit Play intro */
+#welcome{background:radial-gradient(circle at 50% 40%,var(--ox-800),var(--ox-950) 70%)!important;color:var(--cream)}
+#welcome .ring{position:relative;width:132px;height:132px;margin-bottom:24px;display:grid;place-items:center}
+#welcome .ring::before{content:'';position:absolute;inset:0;border-radius:50%;border:3px solid color-mix(in srgb,var(--gold) 30%,transparent);border-top-color:var(--gold);animation:spin 1.6s linear infinite}
+#welcome .ring img{border-radius:20px}
+#welcome .bar{width:min(280px,70vw);height:4px;background:#ffffff22;border-radius:4px;overflow:hidden;margin:20px 0}
+#welcome .bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .3s}
+#welcome button{background:var(--gold);color:var(--ox-950)}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* calls */
+.call-screen{background:radial-gradient(circle at 50% 20%,var(--ox-800),var(--ox-950) 75%);color:var(--cream)}
+.call-answer{background:#2e9a4a!important;color:#fff}.call-end{background:#c43540!important;color:#fff}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

@@ -155,8 +155,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             parsed=urlparse(self.path)
-            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js'):
-                data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
+            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js','/orbit-theme.css','/orbit-icon.png'):
+                data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'image/png' if parsed.path.endswith('.png') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/guardianchat-ca.crt':
                 data=(Path(__file__).parent.parent/'chat/src/main/res/raw/guardianchat_local_ca.crt').read_bytes();self.send_response(200);self.send_header('Content-Type','application/x-x509-ca-cert');self.send_header('Content-Disposition','attachment; filename=guardianchat-ca.crt');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path in ('/roboto-0.ttf','/roboto-1.ttf'):
