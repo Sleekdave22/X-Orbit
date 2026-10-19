@@ -1,8 +1,8 @@
 """Versioned Gamebox Studio and open-match workflows. Does not edit chat/media security."""
 import json,time,uuid,re,math,hashlib,base64
-DEFAULT={'accept_seconds':300,'checkin_seconds':600,'result_seconds':3600,'evidence_seconds':86400,'retention_seconds':259200,'reminder_seconds':900,'reschedules':1,'group_size':10,'round_days':3,'max_pair_daily':2,'rating_gap':400,'league_cup_slots':4,'open_cup_slots':4,'weekly_min_matches':5,'weekly_min_opponents':3,'theme':{'accent':'#921b37','surface':'#252525','paper':'#101010','ink':'#f4f4f4','radius':8,'tab_padding':12,'font_size':14,'font_family':'system-ui'},'layout':['stats','competitions','players','matches'],'announcement':'','show_stats':True}
+DEFAULT={'accept_seconds':300,'checkin_seconds':600,'result_seconds':3600,'evidence_seconds':86400,'retention_seconds':259200,'reminder_seconds':900,'reschedules':1,'group_size':10,'round_days':3,'max_pair_daily':2,'rating_gap':400,'league_cup_slots':4,'open_cup_slots':4,'weekly_min_matches':5,'start_rating':1000,'k_provisional':40,'k_established':20,'provisional_matches':20,'weekly_min_opponents':3,'theme':{'accent':'#921b37','surface':'#252525','paper':'#101010','ink':'#f4f4f4','radius':8,'tab_padding':12,'font_size':14,'font_family':'system-ui'},'layout':['stats','competitions','players','matches'],'announcement':'','show_stats':True}
 DEFAULT['presentation']={'chat_order':['search','tabs','gaming','list'],'game_tabs':['leagues','seasons','open','schedule','fixtures','players','live','table','card','profile','streams'],'custom_sections':[],'custom_games':{},'labels':{'brand':'X ORBIT','slogan':'Your world your connection','search':'Search X ORBIT','gaming':'Gamebox'}}
-LIMITS={'accept_seconds':(60,1800),'checkin_seconds':(120,3600),'result_seconds':(1800,7200),'evidence_seconds':(3600,259200),'retention_seconds':(3600,2592000),'reminder_seconds':(60,3600),'reschedules':(0,1),'group_size':(6,16),'round_days':(1,14),'max_pair_daily':(1,3),'rating_gap':(100,800),'league_cup_slots':(0,8),'open_cup_slots':(0,8),'weekly_min_matches':(1,20),'weekly_min_opponents':(1,10)}
+LIMITS={'accept_seconds':(60,1800),'checkin_seconds':(120,3600),'result_seconds':(1800,7200),'evidence_seconds':(3600,259200),'retention_seconds':(3600,2592000),'reminder_seconds':(60,3600),'reschedules':(0,1),'group_size':(6,16),'round_days':(1,14),'max_pair_daily':(1,3),'rating_gap':(100,800),'league_cup_slots':(0,8),'open_cup_slots':(0,8),'weekly_min_matches':(1,20),'weekly_min_opponents':(1,10),'start_rating':(500,2000),'k_provisional':(10,80),'k_established':(5,40),'provisional_matches':(5,50)}
 def init(server):
  with server.db() as d:
   d.executescript('''
@@ -21,7 +21,10 @@ def init(server):
   CREATE TABLE IF NOT EXISTS gb_draft(id INTEGER PRIMARY KEY CHECK(id=1),base INTEGER,config TEXT);
   CREATE TABLE IF NOT EXISTS gb_game_ids(uid TEXT,game TEXT,game_id TEXT,region TEXT,tz TEXT,availability TEXT,reminders INTEGER DEFAULT 1,PRIMARY KEY(uid,game));
   CREATE TABLE IF NOT EXISTS gb_rating_events(fixture TEXT PRIMARY KEY,created INTEGER);
-  CREATE TABLE IF NOT EXISTS gb_ratings(uid TEXT,game TEXT,rating REAL DEFAULT 1500,played INTEGER DEFAULT 0,activity INTEGER DEFAULT 0,PRIMARY KEY(uid,game));
+  CREATE TABLE IF NOT EXISTS gb_rating_tx(id INTEGER PRIMARY KEY AUTOINCREMENT,ref TEXT,uid TEXT,game TEXT,before REAL,change REAL,after REAL,k INTEGER,expected REAL,opponent TEXT,opponent_rating REAL,outcome REAL,formula INTEGER DEFAULT 1,created INTEGER,UNIQUE(ref,uid));
+  CREATE TRIGGER IF NOT EXISTS gb_rating_tx_no_update BEFORE UPDATE ON gb_rating_tx BEGIN SELECT RAISE(ABORT,'Rating history is immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS gb_rating_tx_no_delete BEFORE DELETE ON gb_rating_tx BEGIN SELECT RAISE(ABORT,'Rating history is immutable'); END;
+  CREATE TABLE IF NOT EXISTS gb_ratings(uid TEXT,game TEXT,rating REAL DEFAULT 1000,played INTEGER DEFAULT 0,activity INTEGER DEFAULT 0,PRIMARY KEY(uid,game));
   CREATE TABLE IF NOT EXISTS gb_queue(uid TEXT PRIMARY KEY,game TEXT,region TEXT,priority INTEGER DEFAULT 0,created INTEGER);
   CREATE TABLE IF NOT EXISTS gb_matches(id TEXT PRIMARY KEY,game TEXT,a TEXT,b TEXT,gid_a TEXT,gid_b TEXT,state TEXT,created INTEGER,deadline INTEGER,accepted_a INTEGER DEFAULT 0,accepted_b INTEGER DEFAULT 0,ready_a INTEGER DEFAULT 0,ready_b INTEGER DEFAULT 0,score_a INTEGER,score_b INTEGER,version INTEGER,rules TEXT,verified INTEGER,rated INTEGER DEFAULT 0);
   CREATE TABLE IF NOT EXISTS gb_reports(match TEXT,uid TEXT,a INTEGER,b INTEGER,PRIMARY KEY(match,uid));
@@ -105,6 +108,15 @@ def participant(d,uid,mid):
  if not m or uid not in (m['a'],m['b']):raise PermissionError('Only the match participants may do this')
  return m
 
+def rating_cards(d,uid,cfg):
+ cfg=dict(DEFAULT,**cfg);cards=[]
+ for r in d.execute('SELECT * FROM gb_ratings WHERE uid=?',(uid,)):
+  tx=[dict(x) for x in d.execute('SELECT ref,before,change,after,opponent_rating,outcome,created FROM gb_rating_tx WHERE uid=? AND game=? ORDER BY id DESC LIMIT 10',(uid,r['game']))]
+  wdl=[0,0,0]
+  for x in d.execute('SELECT outcome FROM gb_rating_tx WHERE uid=? AND game=?',(uid,r['game'])):wdl[0 if x[0]==1 else 1 if x[0]==.5 else 2]+=1
+  rank=d.execute('SELECT COUNT(*)+1 FROM gb_ratings WHERE game=? AND played>0 AND rating>?',(r['game'],r['rating'])).fetchone()[0]
+  n=sum(wdl);cards.append({'game':r['game'],'rating':r['rating'],'tier':rating_tier(r['rating']),'provisional':r['played']<cfg['provisional_matches'],'matches':r['played'],'rank':rank if r['played'] else None,'wins':wdl[0],'draws':wdl[1],'losses':wdl[2],'win_pct':round(100*wdl[0]/n) if n else 0,'history':tx})
+ return cards
 def summary(server,uid):
  with server.db() as d:
   version=current(d);config=json.loads(version['config'])
@@ -112,7 +124,7 @@ def summary(server,uid):
   for m in matches:
    m.pop('rules',None);m['reports']=[dict(r) for r in d.execute('SELECT * FROM gb_reports WHERE match=?',(m['id'],))]
    if m['state']=='awaiting_results' and not any(r['uid']==uid for r in m['reports']):m['reports']=[{'uid':r['uid'],'submitted':True} for r in m['reports']]
-  return {'seasons':[dict(r)|{'registered':d.execute('SELECT COUNT(*) FROM gb_season_entries WHERE season=?',(r['id'],)).fetchone()[0],'joined':bool(d.execute('SELECT 1 FROM gb_season_entries WHERE season=? AND uid=?',(r['id'],uid)).fetchone()),'groups':[x[0] for x in d.execute('SELECT league FROM gb_season_groups WHERE season=? ORDER BY number',(r['id'],))]} for r in d.execute('SELECT id,name,game,tier,opens,closes,state FROM gb_seasons ORDER BY closes DESC LIMIT 30')],'version':version['id'],'config':config,'ids':[dict(r) for r in d.execute('SELECT * FROM gb_game_ids WHERE uid=?',(uid,))],'ratings':[dict(r) for r in d.execute('SELECT * FROM gb_ratings WHERE uid=?',(uid,))],'queue':row(d,'SELECT * FROM gb_queue WHERE uid=?',(uid,)),'matches':matches,'notices':[dict(r) for r in d.execute('SELECT * FROM gb_notices WHERE uid=? AND seen=0 ORDER BY id DESC LIMIT 30',(uid,))]}
+  return {'seasons':[dict(r)|{'registered':d.execute('SELECT COUNT(*) FROM gb_season_entries WHERE season=?',(r['id'],)).fetchone()[0],'joined':bool(d.execute('SELECT 1 FROM gb_season_entries WHERE season=? AND uid=?',(r['id'],uid)).fetchone()),'groups':[x[0] for x in d.execute('SELECT league FROM gb_season_groups WHERE season=? ORDER BY number',(r['id'],))]} for r in d.execute('SELECT id,name,game,tier,opens,closes,state FROM gb_seasons ORDER BY closes DESC LIMIT 30')],'version':version['id'],'config':config,'ids':[dict(r) for r in d.execute('SELECT * FROM gb_game_ids WHERE uid=?',(uid,))],'ratings':[dict(r) for r in d.execute('SELECT * FROM gb_ratings WHERE uid=?',(uid,))],'rating_cards':rating_cards(d,uid,config),'queue':row(d,'SELECT * FROM gb_queue WHERE uid=?',(uid,)),'matches':matches,'notices':[dict(r) for r in d.execute('SELECT * FROM gb_notices WHERE uid=? AND seen=0 ORDER BY id DESC LIMIT 30',(uid,))]}
 def studio(server,uid):
  with server.db() as d:
   authorised(d,uid)
@@ -124,7 +136,7 @@ def studio(server,uid):
   return {'published':current(d),'draft':row(d,'SELECT * FROM gb_draft WHERE id=1'),'versions':[dict(r) for r in d.execute('SELECT id,actor,reason,created FROM gb_versions ORDER BY id DESC LIMIT 20')],'limits':LIMITS,'events':[dict(r) for r in d.execute('SELECT * FROM gb_events ORDER BY id DESC LIMIT 100')],'disputes':disputes,'sanctions':[dict(r) for r in d.execute('SELECT * FROM gb_sanctions')]}
 
 def pair(d,game,region):
- candidates=[dict(r) for r in d.execute('SELECT q.*,i.game_id,COALESCE(r.rating,1500) rating FROM gb_queue q JOIN gb_game_ids i ON i.uid=q.uid AND i.game=q.game LEFT JOIN gb_ratings r ON r.uid=q.uid AND r.game=q.game WHERE q.game=? AND q.region=? ORDER BY priority DESC,q.created',(game,region))];version=current(d);rules=json.loads(version['config'])
+ candidates=[dict(r) for r in d.execute('SELECT q.*,i.game_id,COALESCE(r.rating,1000) rating FROM gb_queue q JOIN gb_game_ids i ON i.uid=q.uid AND i.game=q.game LEFT JOIN gb_ratings r ON r.uid=q.uid AND r.game=q.game WHERE q.game=? AND q.region=? ORDER BY priority DESC,q.created',(game,region))];version=current(d);rules=json.loads(version['config'])
  for i,a in enumerate(candidates):
   for b in candidates[i+1:]:
    if a['game_id'].casefold()==b['game_id'].casefold() or abs(a['rating']-b['rating'])>rules['rating_gap']:continue
@@ -135,15 +147,36 @@ def pair(d,game,region):
    return mid
  return None
 
+
+RATING_TIERS=[('Bronze',0),('Silver',1000),('Gold',1200),('Platinum',1400),('Elite',1600)]
+def rating_tier(r):
+ name='Bronze'
+ for n,lo in RATING_TIERS:
+  if r>=lo:name=n
+ return name
+def rating_change(own,opp,outcome,played,cfg):
+ """Elo change from pre-match ratings. Rounded half away from zero so equal players are exactly symmetric."""
+ k=cfg['k_provisional'] if played<cfg['provisional_matches'] else cfg['k_established']
+ expected=1/(1+10**((opp-own)/400));raw=k*(outcome-expected)
+ return (int(abs(raw)+.5)*(1 if raw>=0 else -1)),k,expected
+def apply_rating(d,ref,game,a,b,score_a,cfg):
+ """Rates one verified result for both players once. Idempotent per (ref,player). Returns {uid:change}."""
+ start=cfg['start_rating']
+ for u in (a,b):d.execute('INSERT OR IGNORE INTO gb_ratings(uid,game,rating) VALUES(?,?,?)',(u,game,start))
+ pre={u:row(d,'SELECT rating,played FROM gb_ratings WHERE uid=? AND game=?',(u,game)) for u in (a,b)};out={}
+ for u,o,sc in ((a,b,score_a),(b,a,1-score_a)):
+  if d.execute('SELECT 1 FROM gb_rating_tx WHERE ref=? AND uid=?',(ref,u)).fetchone():continue
+  ch,k,e=rating_change(pre[u]['rating'],pre[o]['rating'],sc,pre[u]['played'],cfg);after=pre[u]['rating']+ch
+  d.execute('INSERT INTO gb_rating_tx(ref,uid,game,before,change,after,k,expected,opponent,opponent_rating,outcome,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',(ref,u,game,pre[u]['rating'],ch,after,k,round(e,4),o,pre[o]['rating'],sc,int(time.time())))
+  d.execute('UPDATE gb_ratings SET rating=?,played=played+1,activity=activity+1 WHERE uid=? AND game=?',(after,u,game));out[u]=ch
+ return out
 def verify(d,m,a,b,actor,reason='Matching independent typed reports'):
  if m['state']=='verified':raise ValueError('This result is already verified')
  d.execute("UPDATE gb_matches SET state='verified',score_a=?,score_b=?,verified=? WHERE id=?",(a,b,int(time.time()),m['id']))
- old={};new={}
- for uid,other,outcome in [(m['a'],m['b'],1 if a>b else .5 if a==b else 0),(m['b'],m['a'],1 if b>a else .5 if b==a else 0)]:
-  for u in (uid,other):d.execute('INSERT OR IGNORE INTO gb_ratings(uid,game) VALUES(?,?)',(u,m['game']))
-  old[uid]=row(d,'SELECT * FROM gb_ratings WHERE uid=? AND game=?',(uid,m['game']))
- for uid,other,outcome in [(m['a'],m['b'],1 if a>b else .5 if a==b else 0),(m['b'],m['a'],1 if b>a else .5 if b==a else 0)]:
-  expected=1/(1+10**((old[other]['rating']-old[uid]['rating'])/400));rating=round(old[uid]['rating']+24*(outcome-expected),2);new[uid]=rating;d.execute('UPDATE gb_ratings SET rating=?,played=played+1,activity=activity+1 WHERE uid=? AND game=?',(rating,uid,m['game']))
+ cfg=dict(DEFAULT,**json.loads(m['rules']));old={}
+ for u in (m['a'],m['b']):
+  d.execute('INSERT OR IGNORE INTO gb_ratings(uid,game,rating) VALUES(?,?,?)',(u,m['game'],cfg['start_rating']));old[u]=row(d,'SELECT * FROM gb_ratings WHERE uid=? AND game=?',(u,m['game']))
+ apply_rating(d,m['id'],m['game'],m['a'],m['b'],1 if a>b else .5 if a==b else 0,cfg);new={u:row(d,'SELECT rating FROM gb_ratings WHERE uid=? AND game=?',(u,m['game']))['rating'] for u in (m['a'],m['b'])}
  d.execute('UPDATE gb_matches SET rated=1 WHERE id=?',(m['id'],));event(d,m['id'],actor,'result_verified',old={'reports':[dict(r) for r in d.execute('SELECT * FROM gb_reports WHERE match=?',(m['id'],))],'ratings':old},new={'score':[a,b],'ratings':new},reason=reason)
  rules=json.loads(m['rules']);d.execute('UPDATE gb_evidence SET expires=? WHERE match=?',(int(time.time())+rules['retention_seconds'],m['id']))
  for uid in (m['a'],m['b']):notice(d,uid,'Result verified. Skill rating and participation record updated.')
@@ -377,7 +410,7 @@ def tick(server,now=None):
   d.execute('DELETE FROM game_stream_signals WHERE room IN (SELECT id FROM game_stream_rooms WHERE created<?)',(now-7200,));d.execute('DELETE FROM game_stream_rooms WHERE created<?',(now-7200,))
   for finished in d.execute("SELECT s.id FROM gb_seasons s WHERE s.state='active' AND EXISTS(SELECT 1 FROM gb_season_groups g WHERE g.season=s.id) AND NOT EXISTS(SELECT 1 FROM gb_season_groups g JOIN leagues l ON l.id=g.league WHERE g.season=s.id AND l.state!='finished')").fetchall():d.execute("UPDATE gb_seasons SET state='finished' WHERE id=?",(finished['id'],));event(d,finished['id'],'system','season_completed')
   for season in [dict(r) for r in d.execute("SELECT * FROM gb_seasons WHERE state='enrolling' AND closes<=?",(now,))]:
-   entries=[dict(r) for r in d.execute('SELECT e.*,COALESCE(r.rating,1500) rating FROM gb_season_entries e LEFT JOIN gb_ratings r ON r.uid=e.uid AND r.game=? WHERE season=? ORDER BY rating DESC,e.registered,e.uid',(season['game'],season['id']))]
+   entries=[dict(r) for r in d.execute('SELECT e.*,COALESCE(r.rating,1000) rating FROM gb_season_entries e LEFT JOIN gb_ratings r ON r.uid=e.uid AND r.game=? WHERE season=? ORDER BY rating DESC,e.registered,e.uid',(season['game'],season['id']))]
    rules=json.loads(season['rules']);size=rules['group_size'];groups=math.ceil(len(entries)/size) if entries else 0
    conflict=any(d.execute('SELECT 1 FROM gb_sanctions WHERE uid=? AND game=? AND until>?',(e['uid'],season['game'],now)).fetchone() or d.execute("SELECT 1 FROM league_members m JOIN leagues l ON l.id=m.league WHERE m.uid=? AND l.game=? AND l.state IN ('active','finals') AND l.format='league'",(e['uid'],season['game'])).fetchone() or __import__('gaming').qualification(d,e['uid'],season['game'])!=season['tier'] for e in entries)
    if not groups or len(entries)//groups<6 or conflict:
@@ -430,12 +463,10 @@ def tick(server,now=None):
 
 def rate_competition_results(d,league):
  for f in [dict(r) for r in d.execute("SELECT * FROM fixtures WHERE league=? AND state='confirmed' AND id NOT IN (SELECT fixture FROM gb_rating_events)",(league['id'],))]:
-  game=league['game'];old={}
+  game=league['game'];cfg=dict(DEFAULT,**json.loads(league['policy_snapshot'] or current(d)['config']));old={}
   for uid in (f['a'],f['b']):
-   d.execute('INSERT OR IGNORE INTO gb_ratings(uid,game) VALUES(?,?)',(uid,game));old[uid]=row(d,'SELECT * FROM gb_ratings WHERE uid=? AND game=?',(uid,game))
-  for uid,other,own,theirs in [(f['a'],f['b'],f['score_a'],f['score_b']),(f['b'],f['a'],f['score_b'],f['score_a'])]:
-   score=1 if own>theirs else .5 if own==theirs else 0;expected=1/(1+10**((old[other]['rating']-old[uid]['rating'])/400));rating=round(old[uid]['rating']+24*(score-expected),2)
-   d.execute('UPDATE gb_ratings SET rating=?,played=played+1,activity=activity+1 WHERE uid=? AND game=?',(rating,uid,game))
+   d.execute('INSERT OR IGNORE INTO gb_ratings(uid,game,rating) VALUES(?,?,?)',(uid,game,cfg['start_rating']));old[uid]=row(d,'SELECT * FROM gb_ratings WHERE uid=? AND game=?',(uid,game))
+  apply_rating(d,f['id'],game,f['a'],f['b'],1 if f['score_a']>f['score_b'] else .5 if f['score_a']==f['score_b'] else 0,cfg)
   d.execute('INSERT OR IGNORE INTO gb_comp_retention VALUES(?,?)',(f['id'],int(time.time())+json.loads(league['policy_snapshot'] or current(d)['config'])['retention_seconds']));d.execute('INSERT INTO gb_rating_events VALUES(?,?)',(f['id'],int(time.time())));event(d,f['id'],'system','competition_rating_updated',old=old,reason='Confirmed played result; no walkover rating')
 
 def dispatch_notices(server):
