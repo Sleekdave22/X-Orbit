@@ -37,6 +37,11 @@ def init(server):
   if 'round_days' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN round_days INTEGER NOT NULL DEFAULT 4')
   if 'tier' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN tier INTEGER NOT NULL DEFAULT 0')
   if 'hidden' not in {r[1] for r in d.execute('PRAGMA table_info(game_comments)')}:d.execute('ALTER TABLE game_comments ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0')
+  for col in ('min_rating','max_rating','min_matches','closes'):
+   if col not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN '+col+' INTEGER NOT NULL DEFAULT 0')
+  d.execute('CREATE TABLE IF NOT EXISTS league_eligibility(league TEXT,uid TEXT,rating REAL,tier TEXT,matches INTEGER,created INTEGER,PRIMARY KEY(league,uid))')
+  d.execute("CREATE TRIGGER IF NOT EXISTS league_eligibility_no_update BEFORE UPDATE ON league_eligibility BEGIN SELECT RAISE(ABORT,'Eligibility snapshot is immutable'); END")
+  d.execute("CREATE TRIGGER IF NOT EXISTS league_eligibility_no_delete BEFORE DELETE ON league_eligibility BEGIN SELECT RAISE(ABORT,'Eligibility snapshot is immutable'); END")
   if 'format' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute("ALTER TABLE leagues ADD COLUMN format TEXT NOT NULL DEFAULT 'league'")
   for name in ('sponsor_art','sponsor_week'):
    if name not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN '+name+" TEXT NOT NULL DEFAULT ''")
@@ -50,6 +55,16 @@ def init(server):
 
 def row(d,sql,args=()):
  r=d.execute(sql,args).fetchone();return dict(r) if r else None
+def skill(d,uid,game):
+ import gamebox_core
+ r=row(d,'SELECT rating,played FROM gb_ratings WHERE uid=? AND game=?',(uid,game));cfg=dict(gamebox_core.DEFAULT,**json.loads(gamebox_core.current(d)['config']))
+ return (r['rating'],r['played']) if r else (cfg['start_rating'],0)
+def eligibility_problem(d,l,uid):
+ rating,played=skill(d,uid,l['game'])
+ if l['min_rating'] and rating<l['min_rating']:return 'This competition needs a skill rating of at least '+str(l['min_rating'])
+ if l['max_rating'] and rating>l['max_rating']:return 'This competition is for ratings up to '+str(l['max_rating'])
+ if l['min_matches'] and played<l['min_matches']:return 'Play at least '+str(l['min_matches'])+' verified ranked matches first'
+ return None
 def admin(d,uid):return bool(d.execute('SELECT 1 FROM game_admin WHERE uid=?',(uid,)).fetchone())
 def mod(d,l,uid):return admin(d,uid)
 def audit(d,f,uid,action,details=''):d.execute('INSERT INTO game_audit(fixture,actor,action,details,time) VALUES(?,?,?,?,?)',(f,uid,action,details,int(time.time())))
@@ -63,7 +78,16 @@ def standings(d,l):
    winner=row(d,'SELECT winner FROM gb_walkovers WHERE fixture=?',(f['id'],))['winner'];lookup[winner]['points']+=3;lookup[winner]['wins']+=1;continue
   for uid,own,other in ((f['a'],f['score_a'],f['score_b']),(f['b'],f['score_b'],f['score_a'])):
    r=lookup[uid];r['played']+=1;r['gf']+=own;r['ga']+=other;r['wins']+=own>other;r['draws']+=own==other;r['losses']+=own<other;r['points']+=3 if own>other else 1 if own==other else 0
- return sorted(people,key=lambda r:(-r['points'],-(r['gf']-r['ga']),-r['gf'],-r['wins'],r['tag'].lower(),r['uid']))
+ table=sorted(people,key=lambda r:(-r['points'],-(r['gf']-r['ga']),-r['gf'],-r['wins'],r['tag'].lower(),r['uid']))
+ key=lambda r:(r['points'],r['gf']-r['ga'],r['gf'],r['wins'])
+ for i in range(len(table)-1):
+  hi,lo=table[i],table[i+1]
+  if key(hi)==key(lo):
+   direct=row(d,"SELECT * FROM fixtures WHERE league=? AND stage='league' AND state='confirmed' AND ((a=? AND b=?) OR (a=? AND b=?))",(l,hi['uid'],lo['uid'],lo['uid'],hi['uid']))
+   if direct:
+    lo_score,hi_score=(direct['score_a'],direct['score_b']) if direct['a']==lo['uid'] else (direct['score_b'],direct['score_a'])
+    if lo_score>hi_score:table[i],table[i+1]=lo,hi
+ return table
 def summary(server,uid,lid=None):
  with server.db() as d:
   import gamebox_core
@@ -178,6 +202,9 @@ def post(server,uid,action,b):
    if l['state']!='enrolling':raise ValueError('Enrolment is closed')
    if d.execute('SELECT 1 FROM gb_qualified_cups WHERE league=?',(l['id'],)).fetchone() and not d.execute('SELECT 1 FROM gb_cup_eligibility WHERE league=? AND uid=?',(l['id'],uid)).fetchone():raise ValueError('This major cup is restricted to verified league/open qualifiers')
    if not row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,)):raise ValueError('Set up your gaming profile first')
+   if l['closes'] and time.time()>l['closes']:raise ValueError('Registration has closed')
+   problem=eligibility_problem(d,l,uid)
+   if problem:raise ValueError(problem)
    if d.execute('SELECT COUNT(*) FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]>=l['capacity']:raise ValueError('This division is full')
    if l['format']=='league' and qualification(d,uid,l['game'])!=l['tier']:raise ValueError('Your qualified division is '+TIERS[qualification(d,uid,l['game'])])
    if l['format']=='league' and d.execute("SELECT 1 FROM league_members m JOIN leagues other ON other.id=m.league WHERE m.uid=? AND other.game=? AND other.format='league' AND other.state IN ('active','finals') AND other.id!=?",(uid,l['game'],l['id'])).fetchone():raise ValueError('Finish your active league for this game first')
@@ -197,7 +224,7 @@ def post(server,uid,action,b):
    name=str(b.get('name','')).strip()
    if l['state']!='enrolling' or not 3<=len(name)<=60:raise ValueError('Names can change only before the competition starts')
    d.execute('UPDATE leagues SET name=? WHERE id=?',(name,l['id']));audit(d,l['id'],uid,'competition_renamed',name);return {'ok':True}
-  if action in ('start','sponsor','moderator','remove_moderator','finals'):
+  if action in ('start','eligibility','recheck','sponsor','moderator','remove_moderator','finals'):
    if not admin(d,uid):raise PermissionError('Only the league organiser can do this')
    if action in ('moderator','remove_moderator'):
     target=row(d,'SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
@@ -223,6 +250,21 @@ def post(server,uid,action,b):
       logo.verify()
      art='data:'+mime+';base64,'+base64.b64encode(raw).decode()
     d.execute('UPDATE leagues SET sponsor=?,sponsor_url=?,reward=?,sponsor_art=?,sponsor_week=? WHERE id=?',(sponsor,url,reward,art,week,l['id']));audit(d,l['id'],uid,'sponsor_updated',json.dumps({'sponsor':sponsor,'week':week,'reward':reward}));return {'ok':True}
+   if action=='eligibility':
+    if not mod(d,l,uid):raise PermissionError('Only the organiser can change eligibility')
+    if l['state']!='enrolling':raise ValueError('Eligibility is fixed once the competition starts')
+    vals=[b.get(k,0) for k in ('min_rating','max_rating','min_matches','closes')]
+    if any(type(v)!=int or v<0 for v in vals) or vals[1] and vals[0]>vals[1] or vals[2]>1000:raise ValueError('Enter whole numbers; the maximum rating must be above the minimum')
+    d.execute('UPDATE leagues SET min_rating=?,max_rating=?,min_matches=?,closes=? WHERE id=?',(*vals,l['id']));audit(d,l['id'],uid,'eligibility_updated',json.dumps(vals));return {'ok':True}
+   if action=='recheck':
+    if not mod(d,l,uid):raise PermissionError('Only the organiser can run the qualification cutoff')
+    if l['state']!='enrolling':raise ValueError('Qualification is already final')
+    removed=[]
+    for u in [r[0] for r in d.execute('SELECT uid FROM league_members WHERE league=?',(l['id'],))]:
+     if eligibility_problem(d,l,u):
+      d.execute('DELETE FROM league_members WHERE league=? AND uid=?',(l['id'],u));removed.append(u)
+      d.execute('INSERT INTO gb_notices(uid,text,created) VALUES(?,?,?)',(u,'You no longer meet the entry rating for '+l['name']+' at the qualification cutoff.',int(time.time())))
+    audit(d,l['id'],uid,'qualification_cutoff',json.dumps(removed));return {'ok':True,'removed':len(removed)}
    if action=='start':
     if l['state']!='enrolling':raise ValueError('League has already started')
     ids=[r[0] for r in d.execute('SELECT uid FROM league_members WHERE league=? ORDER BY slot',(l['id'],))]
@@ -232,8 +274,12 @@ def post(server,uid,action,b):
      for player in ids:
       if d.execute("SELECT 1 FROM league_members m JOIN leagues other ON other.id=m.league WHERE m.uid=? AND other.game=? AND other.format='league' AND other.state IN ('active','finals') AND other.id!=?",(player,l['game'],l['id'])).fetchone():raise ValueError('A player is already in another active league for this game')
     now=int(time.time())
+    import gamebox_core
+    for u in ids:
+     rt,pl=skill(d,u,l['game']);d.execute('INSERT OR IGNORE INTO league_eligibility VALUES(?,?,?,?,?,?)',(l['id'],u,rt,gamebox_core.rating_tier(rt),pl,now))
     if l['format']=='cup':
-     for i in range(0,8,2):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'quarter')",(uuid.uuid4().hex,l['id'],1,ids[i],ids[i+1],now,now+4*86400))
+     seeds=sorted(ids,key=lambda u:(-skill(d,u,l['game'])[0],ids.index(u)));order=[seeds[i] for i in (0,7,3,4,1,6,2,5)]
+     for i in range(0,8,2):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'quarter')",(uuid.uuid4().hex,l['id'],1,order[i],order[i+1],now,now+4*86400))
      d.execute("UPDATE leagues SET state='finals' WHERE id=?",(l['id'],));return {'ok':True}
     if len(ids)%2:ids.append(None)
     rounds=len(ids)-1;days=l['round_days']
@@ -247,6 +293,15 @@ def post(server,uid,action,b):
     top=standings(d,l['id'])[:4];now=int(time.time())
     for a,z in ((0,3),(1,2)):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'semi')",(uuid.uuid4().hex,l['id'],8,top[a]['uid'],top[z]['uid'],now,now+3*86400))
     d.execute("UPDATE leagues SET state='finals' WHERE id=?",(l['id'],));return {'ok':True}
+  if action=='withdraw':
+   if l['state'] not in ('active',) or l['format']!='league' or not d.execute('SELECT 1 FROM league_members WHERE league=? AND uid=?',(l['id'],uid)).fetchone():raise ValueError('You can withdraw only from a league that is in progress')
+   reason=str(b.get('reason','')).strip() or 'Player withdrew'
+   open_fixtures=[dict(r) for r in d.execute("SELECT * FROM fixtures WHERE league=? AND stage='league' AND state NOT IN ('confirmed','walkover','void') AND (a=? OR b=?)",(l['id'],uid,uid))]
+   for f in open_fixtures:
+    other=f['b'] if f['a']==uid else f['a']
+    d.execute('INSERT OR IGNORE INTO gb_walkovers VALUES(?,?,?,?,?)',(f['id'],other,reason,uid,int(time.time())));d.execute("UPDATE fixtures SET state='walkover' WHERE id=?",(f['id'],))
+    d.execute('INSERT INTO gb_notices(uid,text,created) VALUES(?,?,?)',(other,'Your opponent withdrew from '+l['name']+'. You were awarded a walkover.',int(time.time())))
+   d.execute('INSERT INTO gb_reliability(uid,kind,ref,created) VALUES(?,?,?,?)',(uid,'withdrawal',l['id'],int(time.time())));audit(d,l['id'],uid,'withdrew',str(len(open_fixtures)));advance(d,l);return {'ok':True,'walkovers':len(open_fixtures)}
   f=row(d,'SELECT * FROM fixtures WHERE id=? AND league=?',(b.get('fixture'),l['id']))
   if not f:raise ValueError('Fixture not found')
   if action=='comment':

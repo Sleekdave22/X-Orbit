@@ -20,6 +20,33 @@ class GamingTest(unittest.TestCase):
  def view(self,l,u):return self.call('/gaming/summary?league='+l,token=u['token'])
  def result(self,f,us,l):
   users={u['id']:u for u in us};self.call('/gaming/report',{'league':l,'fixture':f['id'],'score_a':3,'score_b':1,'image':account_qr(f['id'])},users[f['a']]['token']);self.call('/gaming/confirm',{'league':l,'fixture':f['id']},users[f['b']]['token'])
+ def test_eligibility_cutoff_and_immutable_snapshot(self):
+  us=[self.register('P'+str(n)) for n in range(3)]
+  for u in us:self.call('/gaming/profile',{'tag':u['name'],'game_id':'g-'+u['id'],'adult':True},u['token'])
+  l=self.call('/gaming/create',{'name':'Gated','game':'efootball'},us[0]['token'])['id']
+  self.call('/gaming/eligibility',{'league':l,'min_rating':1100,'max_rating':0,'min_matches':0,'closes':0},us[0]['token'])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/join',{'league':l},us[1]['token'])
+  with self.server.db() as d:d.execute("INSERT INTO gb_ratings(uid,game,rating,played) VALUES(?,?,?,?)",(us[1]['id'],'efootball',1150,25))
+  self.call('/gaming/join',{'league':l},us[1]['token'])
+  with self.server.db() as d:d.execute("UPDATE gb_ratings SET rating=1000 WHERE uid=?",(us[1]['id'],))
+  self.assertEqual(self.call('/gaming/recheck',{'league':l},us[0]['token'])['removed'],1)
+  with self.server.db() as d:
+   d.execute("INSERT INTO league_eligibility VALUES(?,?,?,?,?,?)",(l,us[1]['id'],1150,'Silver',25,1))
+   with self.assertRaises(Exception):d.execute("UPDATE league_eligibility SET rating=1")
+ def test_withdrawal_awards_walkovers_and_records_reliability(self):
+  us,l=self.league();self.assertEqual(self.call('/gaming/withdraw',{'league':l},us[1]['token'])['walkovers'],7)
+  table=self.view(l,us[0])['table'];self.assertEqual(sum(r['points'] for r in table),21)
+  with self.server.db() as d:self.assertEqual(d.execute("SELECT COUNT(*) FROM gb_reliability WHERE uid=? AND kind='withdrawal'",(us[1]['id'],)).fetchone()[0],1)
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/withdraw',{'league':l},us[8]['token'])
+ def test_head_to_head_breaks_exact_ties(self):
+  import gaming
+  us,l=self.league()
+  for p,q in ((us[0],us[1]),(us[1],us[0])):
+   with self.server.db() as d:
+    d.execute("DELETE FROM fixtures WHERE league=?",(l,))
+    for n,(a,b,sa,sb) in enumerate(((p['id'],q['id'],1,0),(q['id'],us[2]['id'],1,0),(us[3]['id'],p['id'],1,0))):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,state,score_a,score_b) VALUES(?,?,1,?,?,0,0,'confirmed',?,?)",('h%d'%n,l,a,b,sa,sb))
+    order=[r['uid'] for r in gaming.standings(d,l)]
+   self.assertLess(order.index(p['id']),order.index(q['id']))
  def test_scheduler_and_capacity(self):
   us,l=self.league();fs=self.view(l,us[0])['fixtures'];self.assertEqual(len(fs),28);self.assertEqual(len({tuple(sorted((f['a'],f['b']))) for f in fs}),28);self.assertEqual(set(Counter(p for f in fs for p in (f['a'],f['b'])).values()),{7})
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/join',{'league':l},us[8]['token'])
@@ -74,7 +101,7 @@ class GamingTest(unittest.TestCase):
   self.assertEqual(len(self.view(l,us[0])['slots']),8)
   with self.server.db() as d:d.execute("UPDATE leagues SET verification='legacy' WHERE id=?",(l,))
   self.call('/gaming/start',{'league':l},us[0]['token'])
-  q=self.view(l,us[0])['fixtures'];self.assertEqual(len(q),4);self.assertEqual((q[0]['a'],q[0]['b']),(us[0]['id'],us[1]['id']))
+  q=self.view(l,us[0])['fixtures'];self.assertEqual(len(q),4);self.assertEqual((q[0]['a'],q[0]['b']),(us[0]['id'],us[7]['id']))
   for f in q:self.result(f,us,l)
   semis=[f for f in self.view(l,us[0])['fixtures'] if f['stage']=='semi'];self.assertEqual(len(semis),2)
   for f in semis:self.result(f,us,l)

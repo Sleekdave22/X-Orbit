@@ -35,7 +35,7 @@ html[data-theme=bright] .chip.bad,html[data-theme=bright] .zone-down{background:
 .medal.m1{background:var(--gold)}.medal.m2{background:#cfd2d6}.medal.m3{background:#c98a58}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:8px 0}
 /* tab groups */
-nav{scrollbar-width:thin}nav .tab-group{display:flex;gap:8px;align-items:center;padding-right:12px;margin-right:4px;border-right:1px solid var(--line)}
+nav{scrollbar-width:thin}nav button.group-start{margin-left:10px;position:relative;overflow:visible}nav button.group-start::before{content:attr(data-group-label);position:absolute;top:-15px;left:2px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700}nav{padding-top:22px!important}nav .tab-group{display:flex;gap:8px;align-items:center;padding-right:12px;margin-right:4px;border-right:1px solid var(--line)}
 nav .tab-group>span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 /* Orbit Play intro */
 #welcome{background:radial-gradient(circle at 50% 40%,var(--ox-800),var(--ox-950) 70%)!important;color:var(--cream)}
@@ -50,3 +50,6 @@ nav .tab-group>span{font-size:11px;letter-spacing:.14em;text-transform:uppercase
 .call-screen{background:radial-gradient(circle at 50% 20%,var(--ox-800),var(--ox-950) 75%);color:var(--cream)}
 .call-answer{background:#2e9a4a!important;color:#fff}.call-end{background:#c43540!important;color:#fff}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.stat-cell strong{color:var(--heading)}
+nav{flex-wrap:wrap;row-gap:26px}
+html[data-theme=bright] .stat-cell strong{color:var(--ox-700)}
