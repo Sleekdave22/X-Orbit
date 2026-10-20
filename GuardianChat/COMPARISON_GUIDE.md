@@ -6,9 +6,9 @@ the owner has compared both apps and chosen which interface to continue with.
 
 ## The two repositories
 
-| Installed name | Source repository | Inspected baseline | Local source |
+| App / launcher name | Source repository | Inspected baseline | Local source |
 |---|---|---|---|
-| **X ORBIT Original** | [Sleekdave22/GuardianLab](https://github.com/Sleekdave22/GuardianLab) | `feature/orbit-match-live-relay`, `59b70059a7f3c7c846570cfc733eb949afb57046` | `/Users/mac/Documents/Codex/2026-10-09/ca/OrbitBrandingPhase1/GuardianChat` |
+| **X ORBIT** (the original installed app) | [Sleekdave22/GuardianLab](https://github.com/Sleekdave22/GuardianLab) | Source comparison baseline `feature/orbit-match-live-relay`, `59b70059a7f3c7c846570cfc733eb949afb57046`; see installed-binary finding below | `/Users/mac/Documents/Codex/2026-10-09/ca/OrbitBrandingPhase1/GuardianChat` |
 | **X ORBIT Compare** | [Sleekdave22/X-Orbit](https://github.com/Sleekdave22/X-Orbit) | remote `main`, `3b1209ef0ffc554981f3e8035a444a39d6014a37`; comparison work on `fix/separate-android-installer` | `/Users/mac/Documents/Codex/2026-10-09/ca/XOrbitStandalone/GuardianChat` |
 
 These repositories share earlier code, but their recent work diverges. A later
@@ -81,8 +81,8 @@ root configures the separate detector `app` module.
 
 Comparison packaging is limited to a distinct application ID/launcher label,
 bundling the fork's web interface, and a narrow response-compatibility bridge.
-Original keeps its package, account storage and installation; its launcher label
-distinguishes it from Compare. Do not change PNGs, icons, logos, approved palette
+Original keeps its package, account storage, installation and existing launcher
+label. The new Compare label distinguishes the second app. Do not change PNGs, icons, logos, approved palette
 values or GuardianLab detection/security logic to make a second installer.
 
 ## Shared backend, preserved interface
@@ -130,7 +130,7 @@ a second existing account is needed for a two-person test.
 
 ## Manual comparison
 
-1. Open **X ORBIT Original**, then **X ORBIT Compare** from the launcher. Confirm
+1. Open the existing **X ORBIT**, then **X ORBIT Compare** from the launcher. Confirm
    Compare has not replaced Original.
 2. Sign into Compare with your existing account and current server address.
    Check that account ID, profile name and contacts agree with Original.
@@ -157,8 +157,8 @@ this comparison. Preserve existing users and histories while the owner chooses.
 
 Builds and isolated integration verification completed on 20 October:
 
-- Original `:chat:assembleDebug`: passed (23 seconds). Original's source change
-  is its launcher label; package `com.guardianlab.chat` and saved data stay intact.
+- A label-only Original `:chat:assembleDebug` passed (23 seconds). That update was
+  subsequently cancelled rather than overwriting an untracked phone build.
 - Compare `:chat:testDebugUnitTest :chat:assembleDebug`: passed. The first packaging
   attempt found AGP's unsupported Provider-valued legacy source directory; using
   an explicit generated directory with a preBuild task dependency fixed it.
@@ -181,8 +181,35 @@ Builds and isolated integration verification completed on 20 October:
 
 | APK | SHA256 |
 |---|---|
-| X ORBIT Original | `fc5fb55ef6e1498ebafd762eef3da13590df537e3ae3eb794243f5afc84172d4` |
+| Prepared label-only Original APK (not installed) | `fc5fb55ef6e1498ebafd762eef3da13590df537e3ae3eb794243f5afc84172d4` |
 | X ORBIT Compare | `786ff15b4ce4fb8593e5383c311431799486e9dcb95f8d02680ccdab5384c298` |
 
-Phone installation/hash comparison and the user's physical interface comparison
-are pending. Record actual installation results before claiming completion.
+### Untracked installed version preserved
+
+Read-only phone inspection found the existing `com.guardianlab.chat` APK has SHA256
+`6b0c8de927984fccaa0682b5e57eb6c37c9ae126a52a1106bc50e57bcd6f3ff8`.
+This differs from the saved local builds, so its exact source cannot be established
+from its fingerprint alone. The label-update installation was cancelled, leaving
+that phone version and its data untouched. A slow partial APK backup was cancelled
+to prioritize the new installer; it is incomplete and must not be treated as a
+recoverable backup. The installed copy itself remains preserved on the phone.
+
+GuardianLab commit `006b931` prepared the Original label. Commit `b0c5c27` reverts
+that source-only label change. Existing launcher name remains **X ORBIT**; the
+comparison interface's phrase "X ORBIT Original" refers to this existing app.
+
+### Completed side-by-side installation
+
+The S21 Wi-Fi streamed install returned `Success` on 20 October. Read-only
+package inspection confirmed both `com.guardianlab.chat` and
+`com.guardianlab.chat.compare` are installed. The installed Compare APK's SHA256
+is `786ff15b4ce4fb8593e5383c311431799486e9dcb95f8d02680ccdab5384c298`,
+matching the final tested local build exactly. The existing X ORBIT APK still
+has SHA256 `6b0c8de927984fccaa0682b5e57eb6c37c9ae126a52a1106bc50e57bcd6f3ff8`;
+its package path and binary are unchanged.
+
+The owner can now open **X ORBIT** and **X ORBIT Compare** separately and sign
+into Compare with the same existing account and server. Physical sign-in,
+notification, protected-media and broadcast verification on Compare have not
+been performed. The owner's visual comparison and interface choice remain
+pending; the new handoff remains deferred.
