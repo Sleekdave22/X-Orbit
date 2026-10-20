@@ -109,7 +109,7 @@ def eligible(d,uid,game):
  if game not in gaming.GAMES:raise ValueError('Choose a supported game')
  if not d.execute('SELECT 1 FROM game_profiles WHERE uid=? AND adult=1',(uid,)).fetchone():raise ValueError('Create your adult gaming profile first')
  if d.execute('SELECT 1 FROM gb_sanctions WHERE uid=? AND game=? AND until>?',(uid,game,int(time.time()))).fetchone():raise ValueError('Gaming access is suspended; contact administration for review')
- return row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(uid,game)) or gaming.provision_identity(d,uid,game)
+ return row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(uid,game))
 def participant(d,uid,mid):
  m=row(d,'SELECT * FROM gb_matches WHERE id=?',(mid,))
  if not m or uid not in (m['a'],m['b']):raise PermissionError('Only the match participants may do this')

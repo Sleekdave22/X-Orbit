@@ -189,17 +189,25 @@ def post(server,uid,action,b):
    d.execute('DELETE FROM game_stream_signals WHERE room=? AND id NOT IN (SELECT id FROM game_stream_signals WHERE room=? ORDER BY id DESC LIMIT 200)',(room['id'],room['id']));return {'ok':True}
   if action=='profile':
    if b.get('adult') is not True:raise ValueError('This pilot is for adults aged 18 and over')
-   tag=str(b.get('tag','')).strip();gid=str(b.get('game_id','')).strip();handle=str(b.get('handle','')).strip()
-   if not 2<=len(tag)<=30 or not 2<=len(gid)<=60 or len(handle)>80:raise ValueError('Enter a gaming nickname and game account ID')
-   d.execute('INSERT INTO game_profiles(uid,tag,game_id,handle,feature,adult) VALUES(?,?,?,?,?,1) ON CONFLICT(uid) DO UPDATE SET tag=excluded.tag,game_id=excluded.game_id,handle=excluded.handle,feature=excluded.feature,adult=1',(uid,tag,gid,handle,int(b.get('feature') is True)))
+   tag=str(b.get('tag','')).strip();handle=str(b.get('handle','')).strip();ids=b.get('game_ids')
+   if type(ids) is not dict:ids={}
+   ids={g:str(v).strip() for g,v in ids.items() if g in GAMES and str(v).strip()}
+   legacy=str(b.get('game_id','')).strip()
+   gid=next(iter(ids.values()),legacy)
+   if not 2<=len(tag)<=30 or not 2<=len(gid)<=60 or len(handle)>80:raise ValueError('Enter a gaming nickname and at least one game ID')
+   if any(not 2<=len(v)<=60 for v in ids.values()):raise ValueError('Each game ID must be 2–60 characters')
    region=str(b.get('region','')).strip();tz=str(b.get('tz','')).strip()
-   if region or tz:
+   if ids:
     from zoneinfo import ZoneInfo
     try:ZoneInfo(tz)
     except Exception:raise ValueError('Use a valid time-zone name')
     if not 1<=len(region)<=40:raise ValueError('Enter your region')
+    for g,v in ids.items():
+     if d.execute('SELECT 1 FROM gb_game_ids WHERE game=? AND game_id=? COLLATE NOCASE AND uid!=?',(g,v,uid)).fetchone():raise ValueError('That '+GAMES[g]+' ID is already registered to another account')
+   d.execute('INSERT INTO game_profiles(uid,tag,game_id,handle,feature,adult) VALUES(?,?,?,?,?,1) ON CONFLICT(uid) DO UPDATE SET tag=excluded.tag,game_id=excluded.game_id,handle=excluded.handle,feature=excluded.feature,adult=1',(uid,tag,gid,handle,int(b.get('feature') is True)))
+   if ids:
     d.execute('UPDATE game_profiles SET region=?,tz=? WHERE uid=?',(region,tz,uid))
-    for game in GAMES:provision_identity(d,uid,game)
+    for g,v in ids.items():d.execute('INSERT INTO gb_game_ids(uid,game,game_id,region,tz,availability,reminders) VALUES(?,?,?,?,?,?,1) ON CONFLICT(uid,game) DO UPDATE SET game_id=excluded.game_id,region=excluded.region,tz=excluded.tz',(uid,g,v,region,tz,'[]'))
    return {'ok':True}
   if action in ('create','rename','sponsor','moderator','remove_moderator','start','finals','review','hide_comment') and not admin(d,uid):raise PermissionError('Administration is restricted to the authorised account')
   if action=='create':
@@ -229,7 +237,9 @@ def post(server,uid,action,b):
    if l['format']=='league' and qualification(d,uid,l['game'])!=l['tier']:raise ValueError('Your qualified division is '+TIERS[qualification(d,uid,l['game'])])
    if l['format']=='league' and d.execute("SELECT 1 FROM league_members m JOIN leagues other ON other.id=m.league WHERE m.uid=? AND other.game=? AND other.format='league' AND other.state IN ('active','finals') AND other.id!=?",(uid,l['game'],l['id'])).fetchone():raise ValueError('Finish your active league for this game first')
    identity=row(d,'SELECT game_id FROM gb_game_ids WHERE uid=? AND game=?',(uid,l['game']))
-   gid=identity['game_id'] if identity else row(d,'SELECT game_id FROM game_profiles WHERE uid=?',(uid,))['game_id']
+   prof=row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,))
+   if not identity and prof['region']:raise ValueError('Add your '+GAMES[l['game']]+' ID first: Find a match → Add or change a game ID')
+   gid=identity['game_id'] if identity else prof['game_id']
    if d.execute('SELECT 1 FROM league_members WHERE league=? AND game_id=? COLLATE NOCASE AND uid!=?',(l['id'],gid,uid)).fetchone():raise ValueError('That game account is already registered in this division')
    slot=d.execute('SELECT COALESCE(MAX(slot),0)+1 FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]
    d.execute('INSERT INTO league_members(league,uid,game_id,slot) VALUES(?,?,?,?)',(l['id'],uid,gid,slot));return {'ok':True,'slot':slot}

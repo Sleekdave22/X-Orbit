@@ -72,3 +72,4 @@ nav.locked [data-tab=admin]:not([hidden]),nav.locked [data-tab=studio]:not([hidd
 .steps{margin:8px 0 16px;padding-left:22px;line-height:1.7}
 button.primary{background:var(--gold);color:var(--ox-950);font-size:16px;min-height:48px;width:100%}
 label:has(input[type=checkbox]){display:flex;flex-direction:row-reverse;justify-content:flex-end;gap:10px;align-items:flex-start;margin:10px 0}label:has(input[type=checkbox]) input{margin:3px 0 0;flex:none;width:20px;height:20px}
+label+small,h4+small{display:block}h4{margin:18px 0 4px;color:var(--heading)}f small,form small{display:block;margin-bottom:10px}

@@ -10,10 +10,12 @@ class CoreTest(unittest.TestCase):
    with self.assertRaises(urllib.error.HTTPError):self.call(path,body,u['token'])
   self.call('/gaming/profile',{'tag':'Newcomer','game_id':'x1','adult':True},u['token'])
   self.call('/gamebox/identity',{'game':'efootball','game_id':'x1','region':'Nigeria','tz':'Africa/Lagos','availability':[]},u['token'])
- def test_game_ids_carry_over_from_registration(self):
-  u=self.register('Carry');self.call('/gaming/profile',{'tag':'Carry','game_id':'carry-id','adult':True,'region':'Nigeria','tz':'Africa/Lagos'},u['token'])
-  ids=self.call('/gamebox/summary',token=u['token'])['ids'];self.assertGreaterEqual(len(ids),3);self.assertTrue(all(i['game_id']=='carry-id' and i['region']=='Nigeria' for i in ids))
-  other=self.register('Clash');self.call('/gaming/profile',{'tag':'Clash','game_id':'CARRY-ID','adult':True,'region':'Nigeria','tz':'Africa/Lagos'},other['token']);self.assertEqual(self.call('/gamebox/summary',token=other['token'])['ids'],[])
+ def test_each_game_has_its_own_id_from_registration(self):
+  u=self.register('Carry');self.call('/gaming/profile',{'tag':'Carry','adult':True,'region':'Nigeria','tz':'Africa/Lagos','game_ids':{'efootball':'ef-carry','codm':'codm-carry','nonsense':'x'}},u['token'])
+  ids={i['game']:i['game_id'] for i in self.call('/gamebox/summary',token=u['token'])['ids']};self.assertEqual(ids,{'efootball':'ef-carry','codm':'codm-carry'})
+  other=self.register('Clash')
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/profile',{'tag':'Clash','adult':True,'region':'Nigeria','tz':'Africa/Lagos','game_ids':{'codm':'CODM-CARRY'}},other['token'])
+  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/profile',{'tag':'Clash','adult':True,'region':'Nigeria','tz':'Africa/Lagos','game_ids':{}},other['token'])
  def players(self):
   users=[self.register(name) for name in ('Owner','Player','Reviewer')]
   with self.server.db() as d:d.execute('INSERT INTO game_admin VALUES(?)',(users[0]['id'],))
