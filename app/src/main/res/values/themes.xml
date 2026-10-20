@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.GuardianLab" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.GuardianLab" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#7a1630</item>
+        <item name="android:colorAccent">#b8841a</item>
+        <item name="android:statusBarColor">#1b0709</item>
+        <item name="android:navigationBarColor">#1b0709</item>
+    </style>
 </resources>

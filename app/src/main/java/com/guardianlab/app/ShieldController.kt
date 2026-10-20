@@ -38,10 +38,12 @@ class ShieldController(
         val padding = (12 * rootLayout.resources.displayMetrics.density).toInt()
         setPadding(padding, padding, padding, padding)
     }
-    private val overrideButton = Button(rootLayout.context)
+    private val overrideButton = Button(rootLayout.context).apply {
+        setBackgroundColor(Color.parseColor("#e8b84a")); setTextColor(Color.parseColor("#1b0709"))
+    }
     private val controls = LinearLayout(rootLayout.context).apply {
         orientation = LinearLayout.VERTICAL
-        setBackgroundColor(Color.BLACK)
+        setBackgroundColor(Color.parseColor("#1b0709"))
         setPadding(16, 8, 16, 8)
         addView(falseAlarmNote)
         addView(pauseStatus)
@@ -184,8 +186,8 @@ class ShieldController(
             val overlay = TextView(target.view.context).apply {
                 text = "🔒 PROTECTED"
                 textSize = 18f
-                setTextColor(Color.WHITE)
-                setBackgroundColor(Color.BLACK)
+                setTextColor(Color.parseColor("#e8b84a"))
+                setBackgroundColor(Color.parseColor("#1b0709"))
                 gravity = Gravity.CENTER
             }
 

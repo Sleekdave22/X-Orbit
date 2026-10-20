@@ -85,23 +85,23 @@ class MainActivity : ComponentActivity() {
         }
         sensitiveContentText = TextView(this).apply {
             textSize = 26f
-            setTextColor(android.graphics.Color.BLACK)
-            setBackgroundColor(android.graphics.Color.WHITE)
+            setTextColor(android.graphics.Color.parseColor("#2a0d12"))
+            setBackgroundColor(android.graphics.Color.parseColor("#fbf4ea"))
             text = "Account Balance\n₦2,450,000"
             setPadding(40, 40, 40, 40)
         }
 
         warningText = TextView(this).apply {
             textSize = 28f
-            setTextColor(android.graphics.Color.RED)
-            setBackgroundColor(android.graphics.Color.argb(180, 0, 0, 0))
+            setTextColor(android.graphics.Color.parseColor("#e8b84a"))
+            setBackgroundColor(android.graphics.Color.argb(230, 27, 7, 9))
             text = ""
             setPadding(20, 120, 20, 40)
             visibility = android.view.View.GONE
         }
         shieldView = android.view.View(this).apply {
             setBackgroundColor(
-                android.graphics.Color.argb(245, 0, 0, 0)
+                android.graphics.Color.argb(245, 27, 7, 9)
             )
             visibility = android.view.View.GONE
         }
@@ -138,6 +138,8 @@ class MainActivity : ComponentActivity() {
         layout.addView(blurPanel, blurParams)
 
         val diagnosticButton = android.widget.Button(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#8e1b38"))
+            setTextColor(android.graphics.Color.parseColor("#f7ecdd"))
             text = "START D1-L8C"
             setOnClickListener {
                 if (yoloDetector.isDiagnosticActive()) {

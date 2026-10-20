@@ -1,10 +1,10 @@
 /* Orbit theme — oxblood + gold. Tokens first, then overrides for chat, Gamebox and calls.
    Contrast (WCAG): gold #E8B84A on Oxblood 950 #1B0709 = 10.6:1; cream #F7ECDD on Oxblood 900 #2A0A10 = 14.6:1;
-   Oxblood 700 #7A1630 on Cream 50 #FBF4EA = 9.9:1; cream on Oxblood 600 #8E1B38 = 8.1:1. Oxblood is never used as text on dark. */
+   Light mode (ivory paper #F7EEE0, white-ivory cards #FFFCF7): ink #2A0D12 15.7:1, muted #6B4650 7.0:1, oxblood-700 headings 9.2:1, cream on oxblood-700 buttons 9.7:1, oxblood-950 on gold tabs 10.5:1. Oxblood is never used as text on dark. */
 :root{--ox-950:#1b0709;--ox-900:#2a0a10;--ox-800:#4a1020;--ox-700:#7a1630;--ox-600:#8e1b38;--gold:#e8b84a;--gold-deep:#b8841a;--cream:#f7ecdd;--cream-50:#fbf4ea;--sand:#d9c3a5;
 --paper:var(--ox-950);--surface:var(--ox-900);--ink:var(--cream);--muted:#c9ae9c;--line:#5b2430;--accent:var(--ox-600);--heading:var(--gold);--on-accent:var(--cream);--focus:var(--gold);color-scheme:dark}
-html[data-theme=bright]{--paper:var(--cream-50);--surface:#f1e3d0;--ink:#2a0d12;--muted:#6b4650;--line:#cdb392;--accent:var(--ox-700);--heading:var(--ox-700);--on-accent:var(--cream-50);--focus:var(--ox-700);color-scheme:light}
-@media(prefers-color-scheme:light){html:not([data-theme=dark]):not([data-theme=bright]){--paper:var(--cream-50);--surface:#f1e3d0;--ink:#2a0d12;--muted:#6b4650;--line:#cdb392;--accent:var(--ox-700);--heading:var(--ox-700);--on-accent:var(--cream-50);--focus:var(--ox-700);color-scheme:light}}
+html[data-theme=bright]{--paper:#f7eee0;--surface:#fffcf7;--ink:#2a0d12;--muted:#6b4650;--line:#9c7a4f;--accent:var(--ox-700);--heading:var(--ox-700);--on-accent:var(--cream-50);--focus:var(--ox-700);color-scheme:light}
+@media(prefers-color-scheme:light){html:not([data-theme=dark]):not([data-theme=bright]){--paper:#f7eee0;--surface:#fffcf7;--ink:#2a0d12;--muted:#6b4650;--line:#9c7a4f;--accent:var(--ox-700);--heading:var(--ox-700);--on-accent:var(--cream-50);--focus:var(--ox-700);color-scheme:light}}
 body{background:var(--paper);color:var(--ink);font-family:Roboto,system-ui,sans-serif}
 h1,h2,h3,.brand-header h1,header h1,#welcome strong,#orbitIntro strong{color:var(--heading)!important;letter-spacing:.04em}
 h1{font-weight:800}
@@ -60,3 +60,9 @@ html[data-theme="bright"] input,html[data-theme="bright"] textarea,html[data-the
 #callsTab[aria-pressed=true],#chatsTab[aria-pressed=true]{background:var(--accent)!important;color:var(--on-accent)!important}
 #ownAvatar{background:var(--ox-800)!important;color:var(--gold)!important}
 html[data-theme="bright"] #ownAvatar{background:#ead9c3!important;color:var(--ox-700)!important}
+/* always-dark surfaces keep gold headings in both modes */
+.call-screen h1,.call-screen h2,.call-screen h3{color:var(--gold)!important}
+.call-photo{background:var(--ox-800)!important;color:var(--gold)}
+#settingsPanel{background:var(--paper)!important;color:var(--ink)!important;border-left:1px solid var(--line)}
+#topGamingProfile,#topGamingProfile *{color:var(--cream)!important}
+#topGamingProfile [class*=avatar],#topGamingProfile [class*=portrait]{background:var(--ox-800)!important}

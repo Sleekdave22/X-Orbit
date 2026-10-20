@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.XOrbit" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#1b0709</item>
+        <item name="android:colorPrimary">#7a1630</item>
+        <item name="android:colorAccent">#e8b84a</item>
+        <item name="android:statusBarColor">#1b0709</item>
+        <item name="android:navigationBarColor">#1b0709</item>
+    </style>
+</resources>
