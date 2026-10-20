@@ -53,3 +53,10 @@ nav .tab-group>span{font-size:11px;letter-spacing:.14em;text-transform:uppercase
 .stat-cell strong{color:var(--heading)}
 nav{flex-wrap:wrap;row-gap:26px}
 html[data-theme=bright] .stat-cell strong{color:var(--ox-700)}
+/* chat page: inline rules carried older neutral greys; align them with the tokens */
+html[data-theme="bright"] body,html[data-theme="bright"] main,html[data-theme="bright"] .panel{background:var(--paper)!important;color:var(--ink)!important}
+html[data-theme="bright"] input,html[data-theme="bright"] textarea,html[data-theme="bright"] select{background:#fff!important;border-color:var(--line)!important}
+#callsTab[aria-pressed=false],#chatsTab[aria-pressed=false]{background:var(--surface)!important;color:var(--ink)!important;border:1px solid var(--line)}
+#callsTab[aria-pressed=true],#chatsTab[aria-pressed=true]{background:var(--accent)!important;color:var(--on-accent)!important}
+#ownAvatar{background:var(--ox-800)!important;color:var(--gold)!important}
+html[data-theme="bright"] #ownAvatar{background:#ead9c3!important;color:var(--ox-700)!important}
