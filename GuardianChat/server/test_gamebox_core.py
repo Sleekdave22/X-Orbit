@@ -4,6 +4,12 @@ import test_server,gamebox_core
 from server import account_qr
 class CoreTest(unittest.TestCase):
  setUp=test_server.ChatTest.setUp;tearDown=test_server.ChatTest.tearDown;call=test_server.ChatTest.call;register=test_server.ChatTest.register
+ def test_registration_comes_before_game_ids_and_queueing(self):
+  u=self.register('Newcomer')
+  for path,body in (('/gamebox/identity',{'game':'efootball','game_id':'x1','region':'Nigeria','tz':'Africa/Lagos','availability':[]}),('/gamebox/queue',{'game':'efootball'})):
+   with self.assertRaises(urllib.error.HTTPError):self.call(path,body,u['token'])
+  self.call('/gaming/profile',{'tag':'Newcomer','game_id':'x1','adult':True},u['token'])
+  self.call('/gamebox/identity',{'game':'efootball','game_id':'x1','region':'Nigeria','tz':'Africa/Lagos','availability':[]},u['token'])
  def players(self):
   users=[self.register(name) for name in ('Owner','Player','Reviewer')]
   with self.server.db() as d:d.execute('INSERT INTO game_admin VALUES(?)',(users[0]['id'],))

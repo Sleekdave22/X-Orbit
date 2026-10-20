@@ -302,6 +302,7 @@ def post(server,uid,action,b):
    d.execute("UPDATE gb_seasons SET closes=?,state='enrolling' WHERE id=?",(closes,season['id']));event(d,season['id'],uid,'registration_extended',old={'closes':season['closes']},new={'closes':closes},reason=reason)
    for entry in d.execute('SELECT uid FROM gb_season_entries WHERE season=?',(season['id'],)):notice(d,entry['uid'],'Registration deadline changed for '+season['name']+'. '+reason)
    return {'ok':True}
+  if action in ('identity','invite','queue','season_register') and not d.execute('SELECT 1 FROM game_profiles WHERE uid=?',(uid,)).fetchone():raise ValueError('Register for Orbit Play first, then choose a game')
   if action in ('season_register','season_leave'):
    season=row(d,'SELECT * FROM gb_seasons WHERE id=?',(b.get('season'),))
    if not season or season['state']!='enrolling' or not season['opens']<=time.time()<season['closes']:raise ValueError('The season registration window is closed')
