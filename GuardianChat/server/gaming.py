@@ -37,6 +37,8 @@ def init(server):
   if 'round_days' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN round_days INTEGER NOT NULL DEFAULT 4')
   if 'tier' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN tier INTEGER NOT NULL DEFAULT 0')
   if 'hidden' not in {r[1] for r in d.execute('PRAGMA table_info(game_comments)')}:d.execute('ALTER TABLE game_comments ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0')
+  for col in ('region','tz'):
+   if col not in {r[1] for r in d.execute('PRAGMA table_info(game_profiles)')}:d.execute("ALTER TABLE game_profiles ADD COLUMN "+col+" TEXT NOT NULL DEFAULT ''")
   for col in ('min_rating','max_rating','min_matches','closes'):
    if col not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN '+col+' INTEGER NOT NULL DEFAULT 0')
   d.execute('CREATE TABLE IF NOT EXISTS league_eligibility(league TEXT,uid TEXT,rating REAL,tier TEXT,matches INTEGER,created INTEGER,PRIMARY KEY(league,uid))')
@@ -55,6 +57,15 @@ def init(server):
 
 def row(d,sql,args=()):
  r=d.execute(sql,args).fetchone();return dict(r) if r else None
+def provision_identity(d,uid,game):
+ """Create the per-game official ID from the registration profile so players enter it once."""
+ p=row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,))
+ if not p or not p['region'] or not p['tz']:return None
+ existing=row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(uid,game))
+ if existing:return existing
+ if d.execute('SELECT 1 FROM gb_game_ids WHERE game=? AND game_id=? COLLATE NOCASE AND uid!=?',(game,p['game_id'],uid)).fetchone():return None
+ d.execute('INSERT INTO gb_game_ids VALUES(?,?,?,?,?,?,1)',(uid,game,p['game_id'],p['region'],p['tz'],'[]'))
+ return row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(uid,game))
 def skill(d,uid,game):
  import gamebox_core
  r=row(d,'SELECT rating,played FROM gb_ratings WHERE uid=? AND game=?',(uid,game));cfg=dict(gamebox_core.DEFAULT,**json.loads(gamebox_core.current(d)['config']))
@@ -180,7 +191,16 @@ def post(server,uid,action,b):
    if b.get('adult') is not True:raise ValueError('This pilot is for adults aged 18 and over')
    tag=str(b.get('tag','')).strip();gid=str(b.get('game_id','')).strip();handle=str(b.get('handle','')).strip()
    if not 2<=len(tag)<=30 or not 2<=len(gid)<=60 or len(handle)>80:raise ValueError('Enter a gaming nickname and game account ID')
-   d.execute('INSERT INTO game_profiles VALUES(?,?,?,?,?,1) ON CONFLICT(uid) DO UPDATE SET tag=excluded.tag,game_id=excluded.game_id,handle=excluded.handle,feature=excluded.feature,adult=1',(uid,tag,gid,handle,int(b.get('feature') is True)));return {'ok':True}
+   d.execute('INSERT INTO game_profiles(uid,tag,game_id,handle,feature,adult) VALUES(?,?,?,?,?,1) ON CONFLICT(uid) DO UPDATE SET tag=excluded.tag,game_id=excluded.game_id,handle=excluded.handle,feature=excluded.feature,adult=1',(uid,tag,gid,handle,int(b.get('feature') is True)))
+   region=str(b.get('region','')).strip();tz=str(b.get('tz','')).strip()
+   if region or tz:
+    from zoneinfo import ZoneInfo
+    try:ZoneInfo(tz)
+    except Exception:raise ValueError('Use a valid time-zone name')
+    if not 1<=len(region)<=40:raise ValueError('Enter your region')
+    d.execute('UPDATE game_profiles SET region=?,tz=? WHERE uid=?',(region,tz,uid))
+    for game in GAMES:provision_identity(d,uid,game)
+   return {'ok':True}
   if action in ('create','rename','sponsor','moderator','remove_moderator','start','finals','review','hide_comment') and not admin(d,uid):raise PermissionError('Administration is restricted to the authorised account')
   if action=='create':
    if not row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,)):raise ValueError('Set up your gaming profile first')
