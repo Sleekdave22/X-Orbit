@@ -2,7 +2,7 @@ plugins { alias(libs.plugins.android.application) }
 android {
  namespace = "com.guardianlab.chat"
  compileSdk { version = release(36) { minorApiLevel = 1 } }
- defaultConfig { applicationId = "com.guardianlab.chat.compare"; minSdk = 29; targetSdk = 36; versionCode = 2; versionName = "0.2-xorbit-compare"; buildConfigField("boolean", "COMPARISON_INTERFACE", "true"); ndk { abiFilters += "arm64-v8a" } }
+ defaultConfig { applicationId = "com.guardianlab.chat.compare"; minSdk = 29; targetSdk = 36; versionCode = 3; versionName = "0.3-xorbit-compare-icons"; buildConfigField("boolean", "COMPARISON_INTERFACE", "true"); ndk { abiFilters += "arm64-v8a" } }
  buildFeatures { buildConfig = true }
  sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/comparison-assets").get().asFile)
  compileOptions { sourceCompatibility = JavaVersion.VERSION_11; targetCompatibility = JavaVersion.VERSION_11 }

@@ -182,7 +182,7 @@ Builds and isolated integration verification completed on 20 October:
 | APK | SHA256 |
 |---|---|
 | Prepared label-only Original APK (not installed) | `fc5fb55ef6e1498ebafd762eef3da13590df537e3ae3eb794243f5afc84172d4` |
-| X ORBIT Compare | `786ff15b4ce4fb8593e5383c311431799486e9dcb95f8d02680ccdab5384c298` |
+| Initial X ORBIT Compare v2 (superseded by the approved icon update below) | `786ff15b4ce4fb8593e5383c311431799486e9dcb95f8d02680ccdab5384c298` |
 
 ### Untracked installed version preserved
 
@@ -198,7 +198,7 @@ GuardianLab commit `006b931` prepared the Original label. Commit `b0c5c27` rever
 that source-only label change. Existing launcher name remains **X ORBIT**; the
 comparison interface's phrase "X ORBIT Original" refers to this existing app.
 
-### Completed side-by-side installation
+### Completed initial side-by-side installation
 
 The S21 Wi-Fi streamed install returned `Success` on 20 October. Read-only
 package inspection confirmed both `com.guardianlab.chat` and
@@ -213,3 +213,39 @@ into Compare with the same existing account and server. Physical sign-in,
 notification, protected-media and broadcast verification on Compare have not
 been performed. The owner's visual comparison and interface choice remain
 pending; the new handoff remains deferred.
+
+## Approved icon correction and browser access
+
+The owner subsequently requested the established icon across both apps. The
+fork had no launcher icon declaration/resources, and its welcome icon was the
+generic Android artwork. Compare version 3 (`0.3-xorbit-compare-icons`) now uses
+the original's five launcher PNGs and icon/roundIcon declarations. Its welcome
+PNG is copied unchanged from the approved dark oxblood artwork, SHA256
+`8147e90ba062195c14b00a78cf5845ca04451b1b9016cd7df848c6c8320804b2`.
+This is an explicitly requested asset correction; the remaining fork styling,
+colours, logos and GuardianLab behavior are preserved.
+
+The Android build and four routing tests passed. APK inspection verifies all
+five launcher images match the original pixels and the bundled welcome image
+matches the approved source bytes. The version 3 APK SHA256 is
+`bcb747a472964a36a7290711ce41e044dd5a14fc35f26090f9cc85238ac7785f`.
+The S21 streamed update returned `Success`; its installed APK SHA256 matches
+that version 3 build exactly. The original phone app was not updated and still
+has SHA256 `6b0c8de927984fccaa0682b5e57eb6c37c9ae126a52a1106bc50e57bcd6f3ff8`.
+
+The existing shared HTTPS service was restored without changing backend code.
+The Mac then moved from `192.168.1.171` to `172.20.10.4`; the old LAN URL no
+longer reaches this Mac. On the Mac itself use **https://localhost:8766/** or
+**https://localhost:8766/gaming.html**. The existing certificate includes localhost
+and HTTPS was verified using the existing trusted local CA. No certificate
+validation was disabled. A changed LAN address requires a separate reachability
+and certificate check before other devices use it.
+
+These browser URLs serve the current shared browser interface. Compare's fork
+interface is packaged inside its Android app; restarting the shared server does
+not replace the browser's appearance with the fork.
+
+The new Command Center document was reviewed separately in
+[COMMAND_CENTER_PHASE1_AUDIT.md](COMMAND_CENTER_PHASE1_AUDIT.md). It is an audit
+and architecture proposal, not implementation of the earlier league handoff or
+the new Command Center. Major implementation remains subject to owner approval.
