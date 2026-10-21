@@ -55,6 +55,13 @@ internal class LatestMessageScrollView(context: Context) : ScrollView(context) {
         invalidate()
     }
 
+    fun revealPosition(top:Int) {
+        followingLatest=false
+        revealPending=false
+        alpha=1f
+        smoothScrollTo(0,maxOf(0,top))
+    }
+
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         val anchor = followingLatest
         positioning = true

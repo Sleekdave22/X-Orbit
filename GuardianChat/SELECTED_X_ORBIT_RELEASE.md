@@ -5,9 +5,11 @@ Branch: `fix/separate-android-installer`; original branch head `7e9e33f`.
 Default branch inspected: `3b1209ef0ffc554981f3e8035a444a39d6014a37`.
 No merge into main.
 
-Latest incremental update: see `NAVIGATION_WALLPAPER_UPDATE.md` for version 7,
-global account search, bottom native tabs, Settings copyright and the supplied
-wallpaper. That update supersedes the earlier footer placement described below.
+Latest incremental updates: see `NAVIGATION_WALLPAPER_UPDATE.md` for version 7
+and `CHAT_NAVIGATION_UPDATE.md` for version 8. These add the supplied wallpaper,
+global/conversation search, expanding menu, revised bubbles and profile-photo
+decoding. Bottom navigation now has Calls and Search, with Chats as the default
+home screen. Copyright lives in Settings.
 
 ## Source and compatibility
 

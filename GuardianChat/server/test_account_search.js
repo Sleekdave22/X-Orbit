@@ -6,7 +6,7 @@ class Node{
 }
 const ids=['globalSearchForm','globalSearchQuery','globalSearchStatus','globalSearchResults','globalSearchMore'],nodes=Object.fromEntries(ids.map(id=>[id,new Node()])),pending=[];
 const context={window:{},account:{id:'owner'},el:id=>nodes[id],document:{createElement:()=>new Node()},api:path=>new Promise((resolve,reject)=>pending.push({path,resolve,reject})),openSocialProfile:id=>context.opened=id};
-vm.createContext(context);vm.runInContext(fs.readFileSync(__dirname+'/account-search.js','utf8'),context);
+vm.createContext(context);vm.runInContext(fs.readFileSync(__dirname+'/account-search.js','utf8').split('/* A separate magnifier')[0],context);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const submit=()=>nodes.globalSearchForm.onsubmit({preventDefault(){}});
 (async()=>{
