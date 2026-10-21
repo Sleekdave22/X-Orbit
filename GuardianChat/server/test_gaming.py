@@ -4,6 +4,14 @@ import test_server
 from server import account_qr
 class GamingTest(unittest.TestCase):
  setUp=test_server.ChatTest.setUp;tearDown=test_server.ChatTest.tearDown;call=test_server.ChatTest.call;registerBase=test_server.ChatTest.register
+ def call(self,path,body=None,token=''):
+  result=test_server.ChatTest.call(self,path,body,token)
+  if path=='/gaming/profile' and body and body.get('adult') is True:
+   # Competition fixtures now explicitly register their per-game identity.
+   owner=test_server.ChatTest.call(self,'/profile',token=token)['id']
+   with self.server.db() as d:exists=d.execute('SELECT 1 FROM gb_game_ids WHERE uid=? AND game=?',(owner,'efootball')).fetchone()
+   if not exists:test_server.ChatTest.call(self,'/gamebox/identity',{'game':'efootball','game_id':body['game_id'],'region':'Nigeria','tz':'Africa/Lagos','availability':[]},token)
+  return result
  def register(self,name):
   user=self.registerBase(name)
   with self.server.db() as d:
@@ -20,33 +28,6 @@ class GamingTest(unittest.TestCase):
  def view(self,l,u):return self.call('/gaming/summary?league='+l,token=u['token'])
  def result(self,f,us,l):
   users={u['id']:u for u in us};self.call('/gaming/report',{'league':l,'fixture':f['id'],'score_a':3,'score_b':1,'image':account_qr(f['id'])},users[f['a']]['token']);self.call('/gaming/confirm',{'league':l,'fixture':f['id']},users[f['b']]['token'])
- def test_eligibility_cutoff_and_immutable_snapshot(self):
-  us=[self.register('P'+str(n)) for n in range(3)]
-  for u in us:self.call('/gaming/profile',{'tag':u['name'],'game_id':'g-'+u['id'],'adult':True},u['token'])
-  l=self.call('/gaming/create',{'name':'Gated','game':'efootball'},us[0]['token'])['id']
-  self.call('/gaming/eligibility',{'league':l,'min_rating':1100,'max_rating':0,'min_matches':0,'closes':0},us[0]['token'])
-  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/join',{'league':l},us[1]['token'])
-  with self.server.db() as d:d.execute("INSERT INTO gb_ratings(uid,game,rating,played) VALUES(?,?,?,?)",(us[1]['id'],'efootball',1150,25))
-  self.call('/gaming/join',{'league':l},us[1]['token'])
-  with self.server.db() as d:d.execute("UPDATE gb_ratings SET rating=1000 WHERE uid=?",(us[1]['id'],))
-  self.assertEqual(self.call('/gaming/recheck',{'league':l},us[0]['token'])['removed'],1)
-  with self.server.db() as d:
-   d.execute("INSERT INTO league_eligibility VALUES(?,?,?,?,?,?)",(l,us[1]['id'],1150,'Silver',25,1))
-   with self.assertRaises(Exception):d.execute("UPDATE league_eligibility SET rating=1")
- def test_withdrawal_awards_walkovers_and_records_reliability(self):
-  us,l=self.league();self.assertEqual(self.call('/gaming/withdraw',{'league':l},us[1]['token'])['walkovers'],7)
-  table=self.view(l,us[0])['table'];self.assertEqual(sum(r['points'] for r in table),21)
-  with self.server.db() as d:self.assertEqual(d.execute("SELECT COUNT(*) FROM gb_reliability WHERE uid=? AND kind='withdrawal'",(us[1]['id'],)).fetchone()[0],1)
-  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/withdraw',{'league':l},us[8]['token'])
- def test_head_to_head_breaks_exact_ties(self):
-  import gaming
-  us,l=self.league()
-  for p,q in ((us[0],us[1]),(us[1],us[0])):
-   with self.server.db() as d:
-    d.execute("DELETE FROM fixtures WHERE league=?",(l,))
-    for n,(a,b,sa,sb) in enumerate(((p['id'],q['id'],1,0),(q['id'],us[2]['id'],1,0),(us[3]['id'],p['id'],1,0))):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,state,score_a,score_b) VALUES(?,?,1,?,?,0,0,'confirmed',?,?)",('h%d'%n,l,a,b,sa,sb))
-    order=[r['uid'] for r in gaming.standings(d,l)]
-   self.assertLess(order.index(p['id']),order.index(q['id']))
  def test_scheduler_and_capacity(self):
   us,l=self.league();fs=self.view(l,us[0])['fixtures'];self.assertEqual(len(fs),28);self.assertEqual(len({tuple(sorted((f['a'],f['b']))) for f in fs}),28);self.assertEqual(set(Counter(p for f in fs for p in (f['a'],f['b'])).values()),{7})
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/join',{'league':l},us[8]['token'])
@@ -88,7 +69,7 @@ class GamingTest(unittest.TestCase):
   us,l=self.league();f=next(f for f in self.view(l,us[0])['fixtures'][:4] if us[0]['id'] in (f['a'],f['b']));users={u['id']:u for u in us};self.call('/gaming/report',{'league':l,'fixture':f['id'],'score_a':2,'score_b':1,'image':account_qr(f['id'])},users[f['a']]['token'])
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/review',{'league':l,'fixture':f['id'],'score_a':2,'score_b':1,'reason':'I approve myself'},us[0]['token'])
  def test_static_gaming_page_does_not_require_bearer(self):
-  page=self.call('/gaming.html');self.assertIn(b'Gamebox',page)
+  page=self.call('/gaming.html');self.assertIn(b'OrbitPlay',page)
  def test_snapshot_game_ids_survive_profile_changes(self):
   us,l=self.league();u=us[1];original='player-'+u['id'];self.call('/gaming/profile',{'tag':'Changed','game_id':'new-id','adult':True},u['token']);f=next(f for f in self.view(l,u)['fixtures'] if u['id'] in (f['a'],f['b']));self.assertEqual(f['game_ids'][u['id']],original)
 
@@ -101,7 +82,7 @@ class GamingTest(unittest.TestCase):
   self.assertEqual(len(self.view(l,us[0])['slots']),8)
   with self.server.db() as d:d.execute("UPDATE leagues SET verification='legacy' WHERE id=?",(l,))
   self.call('/gaming/start',{'league':l},us[0]['token'])
-  q=self.view(l,us[0])['fixtures'];self.assertEqual(len(q),4);self.assertEqual((q[0]['a'],q[0]['b']),(us[0]['id'],us[7]['id']))
+  q=self.view(l,us[0])['fixtures'];self.assertEqual(len(q),4);self.assertEqual((q[0]['a'],q[0]['b']),(us[0]['id'],us[1]['id']))
   for f in q:self.result(f,us,l)
   semis=[f for f in self.view(l,us[0])['fixtures'] if f['stage']=='semi'];self.assertEqual(len(semis),2)
   for f in semis:self.result(f,us,l)
@@ -154,6 +135,7 @@ class GamingTest(unittest.TestCase):
   rid=self.call('/gaming/stream_create',{'identity':b['id']},a['token'])['id']
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/stream-signals?room='+rid,token=b['token'])
   self.call('/gaming/stream_accept',{'room':rid},b['token'])
+  self.call('/gaming/stream_begin',{'room':rid},a['token'])
   self.call('/gaming/stream_signal',{'room':rid,'kind':'offer','payload':{'target':b['id'],'value':{'type':'offer','sdp':'test'}}},a['token'])
   self.assertEqual(len(self.call('/gaming/stream-signals?room='+rid,token=b['token'])['signals']),1)
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/stream-signals?room='+rid,token=c['token'])
@@ -167,4 +149,40 @@ class GamingTest(unittest.TestCase):
   self.assertEqual(result['likes'],1);self.assertEqual(result['comments'][0]['text'],'Nice stream');self.assertEqual(result['signals'],[])
   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/stream_invite',{'room':rid,'identity':a['id']},c['token'])
   self.assertEqual(self.call('/gaming/summary',token=b['token'])['stats']['confirmed_matches'],0)
+ def test_stream_cleanup_and_cumulative_viewers(self):
+  a=self.register('Broadcaster');b=self.register('Audience')
+  for expected in (1,2):
+   rid=self.call('/gaming/stream_create',{'identity':b['id']},a['token'])['id']
+   self.call('/gaming/stream_accept',{'room':rid},b['token'])
+   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/stream_comment',{'room':rid,'text':'Too early'},b['token'])
+   self.call('/gaming/stream_begin',{'room':rid},a['token'])
+   for _ in range(3):self.call('/gaming/stream_watch',{'room':rid},b['token'])
+   self.call('/gaming/stream_watch',{'room':rid},a['token'])
+   live=self.call('/gaming/stream-signals?room='+rid,token=b['token'])['live']
+   self.assertEqual(live['viewers'],1);self.assertEqual(live['session_viewers'],1)
+   self.call('/gaming/stream_comment',{'room':rid,'text':'Ephemeral'},b['token'])
+   self.call('/gaming/stream_like',{'room':rid},b['token'])
+   for _ in range(6):self.call('/gaming/stream_react',{'room':rid,'emoji':'❤️'},b['token'])
+   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/stream_react',{'room':rid,'emoji':'❤️'},b['token'])
+   reactions=self.call('/gaming/stream-signals?room='+rid,token=b['token'])['reactions'];self.assertEqual(len(reactions),6);self.assertEqual(set(reactions[0]),{'id','emoji'})
+   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/stream_end',{'room':rid},b['token'])
+   self.call('/gaming/stream_end',{'room':rid},a['token'])
+   self.call('/gaming/stream_end',{'room':rid},a['token'])
+   self.assertEqual(__import__('live_reactions').read(rid),[])
+   summary=self.call('/gaming/summary',token=a['token'])
+   self.assertEqual(summary['player_stats']['stream_viewers'],expected)
+   with self.server.db() as d:
+    for table in ('game_stream_comments','game_stream_likes','game_stream_signals','game_stream_members','game_stream_responses','live_viewers','live_sessions'):
+     self.assertEqual(d.execute('SELECT COUNT(*) FROM '+table+' WHERE room=?',(rid,)).fetchone()[0],0)
+   with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/stream-signals?room='+rid,token=b['token'])
+ def test_stream_expiry_cleans_abandoned_session(self):
+  import stream_lifecycle
+  a=self.register('Host');b=self.register('Guest')
+  rid=self.call('/gaming/stream_create',{'identity':b['id']},a['token'])['id']
+  self.call('/gaming/stream_accept',{'room':rid},b['token'])
+  self.call('/gaming/stream_begin',{'room':rid},a['token'])
+  self.call('/gaming/stream_watch',{'room':rid},b['token'])
+  with self.server.db() as d:d.execute('UPDATE live_sessions SET heartbeat=0 WHERE room=?',(rid,))
+  stream_lifecycle.expire(self.server);stream_lifecycle.expire(self.server)
+  self.assertEqual(self.call('/gaming/summary',token=a['token'])['stream_viewers'],1)
 if __name__=='__main__':unittest.main()

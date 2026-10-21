@@ -62,17 +62,31 @@ class ChatServer(ThreadingHTTPServer):
             db.execute('CREATE TABLE IF NOT EXISTS message_hidden(user_id TEXT NOT NULL,message_id INTEGER NOT NULL,PRIMARY KEY(user_id,message_id))')
             db.execute('CREATE TABLE IF NOT EXISTS chat_pins(owner TEXT NOT NULL,peer TEXT NOT NULL,PRIMARY KEY(owner,peer))')
             db.execute('CREATE TABLE IF NOT EXISTS chat_hidden(owner TEXT NOT NULL,peer TEXT NOT NULL,through_id INTEGER NOT NULL,PRIMARY KEY(owner,peer))')
+        import social
+        social.init(self)
+        __import__("social_spaces").init(self)
         gaming.init(self)
+        __import__("wallet").init(self)
+        __import__("account_invites").init(self)
+        __import__("stream_lifecycle").init(self)
+        __import__("match_streams").init(self)
+        self.stream_relay=__import__("stream_relay").StreamRelay(self)
         self.calls={};self.call_lock=threading.RLock()
         self.login_attempts={}
         self.migrate_files()
         self.expire_views()
         super().__init__(address,Handler)
-    def service_actions(self):
+    def server_close(self):
+        relay=getattr(self,'stream_relay',None)
+        if relay:relay.close()
+        super().server_close()
+    def _gamebox_service_actions(self):
         if time.monotonic()<getattr(self,'next_gamebox_tick',0):return
         self.next_gamebox_tick=time.monotonic()+30
-        try:gamebox_core.tick(self);gamebox_core.dispatch_notices(self)
+        try:gamebox_core.tick(self);__import__('sponsored_leagues').tick(self);gamebox_core.dispatch_notices(self);__import__("social").dispatch_notices(self)
         except Exception as error:print('Gamebox background task failed: '+type(error).__name__,flush=True)
+        try:__import__("wallet").maintenance(self)
+        except Exception as error:print('Test wallet maintenance failed: '+type(error).__name__,flush=True)
     def push_call(self,call,event):
         if not self.push.enabled:return
         targets=[call['recipient']] if event=='call_ringing' else [call['caller'],call['recipient']]
@@ -126,6 +140,14 @@ class ChatServer(ThreadingHTTPServer):
             for row in rows:self.delete_view(db,row)
     def service_actions(self):
         self.expire_views()
+        if time.monotonic()>=getattr(self,"next_schedule_tick",0):
+            self.next_schedule_tick=time.monotonic()+1
+            try:
+                __import__("match_scheduling").tick(self)
+                if time.monotonic()<getattr(self,"next_gamebox_tick",0):gamebox_core.dispatch_notices(self)
+            except Exception as error:print("Match reminder task failed: "+type(error).__name__,flush=True)
+        __import__("stream_lifecycle").expire(self)
+        self._gamebox_service_actions()
     def file_path(self, fid, filename, mime):
         # Keep a readable basename, with a unique ID so duplicate names never overwrite.
         name=str(filename or 'attachment').replace('\\','/').split('/')[-1]
@@ -155,10 +177,21 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             parsed=urlparse(self.path)
-            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js','/orbit-theme.css','/orbit-icon.png'):
-                data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'image/png' if parsed.path.endswith('.png') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
+            if parsed.path=='/orbit-icon.png':
+                data=(Path(__file__).parent/'orbit-icon.png').read_bytes();self.send_response(200);self.send_header('Content-Type','image/png');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
+            if parsed.path in ('/branding/XOrbit-app-icon-1024.png','/branding/XOrbit-logo-dark.png','/branding/XOrbit-logo-light.png'):
+                data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','image/png');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
+            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js','/orbit-theme.js','/orbit-theme.css','/social.js','/profile-tabs.css','/social-spaces.js','/phase-b.js','/form-panels.js','/form-panels.css','/scheduling.js','/wallet.html','/wallet.js','/live-room-ui.js','/stream-relay-ui.js','/invitations.js','/join.js','/sponsored-ui.js'):
+                data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/guardianchat-ca.crt':
                 data=(Path(__file__).parent.parent/'chat/src/main/res/raw/guardianchat_local_ca.crt').read_bytes();self.send_response(200);self.send_header('Content-Type','application/x-x509-ca-cert');self.send_header('Content-Disposition','attachment; filename=guardianchat-ca.crt');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
+            if parsed.path=='/join':
+                data=(Path(__file__).parent/'join.html').read_bytes();self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('Referrer-Policy','no-referrer');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
+            if parsed.path=='/invitations/check':
+                token=parse_qs(parsed.query).get('invite',[''])[0]
+                try:self.reply(200,__import__('account_invites').validatepublic(self.server,token))
+                except (PermissionError,ValueError):self.reply(400,{'error':'This invitation link is unavailable. Ask your friend for a new link.'})
+                return
             if parsed.path in ('/roboto-0.ttf','/roboto-1.ttf'):
                 data=(Path(__file__).parent/parsed.path[1:]).read_bytes()
                 self.send_response(200);self.send_header('Content-Type','font/ttf');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
@@ -166,6 +199,38 @@ class Handler(BaseHTTPRequestHandler):
                 data=(Path(__file__).parent/'index.html').read_bytes()
                 self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(data);return
             uid=self.user()
+            if parsed.path=='/invitations/mine':
+                self.reply(200,__import__('account_invites').getown(self.server,uid));return
+            if parsed.path=='/gaming/live-streams':
+                self.reply(200,__import__('match_streams').list_streams(self.server,uid));return
+            if parsed.path.startswith('/leagues/'):
+                try:self.reply(200,__import__('sponsored_leagues').get(self.server,uid,parsed.path.split('/')[-1],parse_qs(parsed.query)))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                except ValueError as e:self.reply(400,{'error':str(e)})
+                return
+            if parsed.path.startswith('/wallet/'):
+                try:self.reply(200,__import__('wallet').get(self.server,uid,parsed.path.split('/')[-1],parse_qs(parsed.query)))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                except ValueError as e:self.reply(400,{'error':str(e)})
+                return
+            if parsed.path.startswith('/scheduling/'):
+                try:self.reply(200,__import__('match_scheduling').get(self.server,uid,parsed.path.split('/')[-1],parse_qs(parsed.query)))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                return
+            if parsed.path.startswith('/identities/') or parsed.path.startswith('/rankings/'):
+                module=__import__('game_identities' if parsed.path.startswith('/identities/') else 'rankings')
+                try:self.reply(200,module.get(self.server,uid,parsed.path.split('/')[-1],parse_qs(parsed.query)))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                return
+            if parsed.path.startswith('/spaces/'):
+                try:self.reply(200,__import__('social_spaces').get(self.server,uid,parsed.path.split('/')[-1],parse_qs(parsed.query)))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                return
+            if parsed.path.startswith('/social/'):
+                import social
+                try:self.reply(200,social.get(self.server,uid,parsed.path.split('/')[-1],parse_qs(parsed.query)))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                return
             if parsed.path=='/gamebox/summary':
                 self.reply(200,gamebox_core.summary(self.server,uid));return
             if parsed.path=='/gamebox/studio':
@@ -310,20 +375,82 @@ class Handler(BaseHTTPRequestHandler):
                     self.server.login_attempts.pop(key,None)
                     self.reply(200,{'id':row['id'],'name':row['name'],'nickname':row['nickname'],'token':token});return
             if self.path=='/register':
-                if not hmac.compare_digest(str(body.get('invite','')),self.server.invite):raise PermissionError('Incorrect invitation code')
+                using_link='invite_link' in body
+                if not using_link and not hmac.compare_digest(str(body.get('invite','')),self.server.invite):raise PermissionError('Incorrect invitation code')
+                password=body.get('password','')
+                if using_link and (not isinstance(password,str) or not 10<=len(password)<=128):self.reply(400,{'error':'Use a password of 10–128 characters'});return
                 name=str(body.get('name','')).strip()
                 if not 1<=len(name)<=40:raise ValueError()
                 uid=uuid.uuid4().hex[:12];token=secrets.token_urlsafe(32)
                 nickname=str(body.get('nickname') or uid).strip().lstrip('@').lower()
                 if not re.fullmatch(r'[a-z0-9_]{3,24}',nickname):self.reply(400,{'error':'Nickname must be 3–24 letters, numbers or underscores'});return
                 with self.server.db() as db:
+                    db.execute('BEGIN IMMEDIATE')
+                    try:inviter=__import__('account_invites').authorize_registration(self.server,db,body)
+                    except ValueError as e:self.reply(400,{'error':str(e)});return
                     if db.execute('SELECT 1 FROM users WHERE nickname=? COLLATE NOCASE',(nickname,)).fetchone():self.reply(409,{'error':'That nickname is already taken'});return
-                    db.execute('INSERT INTO users(id,name,token_hash,nickname) VALUES(?,?,?,?)',(uid,name,hashlib.sha256(token.encode()).hexdigest(),nickname))
-                with self.server.db() as db:db.execute('INSERT INTO sessions VALUES(?,?)',(hashlib.sha256(token.encode()).hexdigest(),uid))
+                    password_hash=''
+                    if using_link:
+                        salt=secrets.token_hex(16);password_hash=salt+':'+hashlib.pbkdf2_hmac('sha256',password.encode(),bytes.fromhex(salt),200000).hex()
+                    db.execute('INSERT INTO users(id,name,token_hash,nickname,password_hash) VALUES(?,?,?,?,?)',(uid,name,hashlib.sha256(token.encode()).hexdigest(),nickname,password_hash))
+                    __import__('wallet').create_wallet(db,uid)
+                    db.execute('INSERT INTO sessions VALUES(?,?)',(hashlib.sha256(token.encode()).hexdigest(),uid))
+                    __import__('account_invites').record(db,uid,inviter)
                 self.reply(201,{'id':uid,'token':token,'name':name,'nickname':nickname});return
             uid=self.user()
+            if self.path=='/invitations/reset':
+                self.reply(200,__import__('account_invites').getown(self.server,uid,rotate=True));return
+            if self.path.startswith('/leagues/'):
+                try:self.reply(200,__import__('sponsored_leagues').post(self.server,uid,self.path.split('/')[-1],body))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                except ValueError as e:self.reply(400,{'error':str(e)})
+                return
+            if self.path.startswith('/wallet/'):
+                try:self.reply(200,__import__('wallet').post(self.server,uid,self.path.split('/')[-1],body))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                except ValueError as e:self.reply(400,{'error':str(e)})
+                return
+            if self.path.startswith('/scheduling/'):
+                try:self.reply(200,__import__('match_scheduling').post(self.server,uid,self.path.split('/')[-1],body))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                return
+            if self.path.startswith('/identities/') or self.path=='/rankings/publish':
+                try:
+                    if self.path.startswith('/identities/'):result=__import__('game_identities').post(self.server,uid,self.path.split('/')[-1],body)
+                    else:
+                        with self.server.db() as db:
+                            db.execute('BEGIN IMMEDIATE');result=__import__('rankings').publish(db,uid,body)
+                    self.reply(200,result)
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                return
+            if self.path.startswith('/spaces/'):
+                try:self.reply(200,__import__('social_spaces').post(self.server,uid,self.path.split('/')[-1],body))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                return
+            if self.path.startswith('/social/'):
+                import social
+                try:self.reply(200,social.post(self.server,uid,self.path.split('/')[-1],body))
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                return
+            if self.path in ('/messages','/messages/forward','/calls/start','/contacts'):
+                import social
+                target=str(body.get('recipient',body.get('peer',body.get('code','')))).lstrip('@')
+                with self.server.db() as db:
+                    other=db.execute('SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(target,target)).fetchone()
+                    if other and social.blocked(db,uid,other['id']):self.reply(403,{'error':'Account interaction unavailable'});return
             if self.path.startswith('/gamebox/'):
                 self.reply(200,gamebox_core.post(self.server,uid,self.path.split('/')[-1],body));return
+            if self.path in ('/gaming/match_stream_create','/gaming/stream_join','/gaming/stream_relay_offer','/gaming/stream_relay_close'):
+                try:
+                    if self.path.endswith('/match_stream_create'):result=__import__('match_streams').create(self.server,uid,body)
+                    elif self.path.endswith('/stream_join'):result=__import__('match_streams').join(self.server,uid,str(body.get('room','')))
+                    elif self.path.endswith('/stream_relay_offer'):result=self.server.stream_relay.offer(uid,body,hashlib.sha256(self.headers.get('Authorization','').removeprefix('Bearer ').encode()).hexdigest())
+                    else:result=self.server.stream_relay.close_peer(uid,body)
+                    self.reply(200,result)
+                except PermissionError as e:self.reply(403,{'error':str(e)})
+                except __import__('stream_relay').RelayUnavailable as e:self.reply(503,{'error':str(e)})
+                except ValueError as e:self.reply(400,{'error':str(e)})
+                return
             if self.path.startswith('/gaming/'):
                 try:self.reply(200,gaming.post(self.server,uid,self.path.split('/')[-1],body))
                 except ValueError as e:self.reply(400,{'error':str(e)})
@@ -398,7 +525,9 @@ class Handler(BaseHTTPRequestHandler):
                     if 'avatar' in body:
                         raw=base64.b64decode(body['avatar'],validate=True);mime=str(body.get('avatar_mime',''))
                         if len(raw)>256*1024 or not ((mime=='image/jpeg' and raw.startswith(b'\xff\xd8\xff')) or (mime=='image/png' and raw.startswith(b'\x89PNG\r\n\x1a\n'))):self.reply(400,{'error':'Choose a JPEG or PNG profile picture under 256 KB'});return
-                        avatar=body['avatar']
+                        from profile_images import normalize
+                        raw,mime=normalize(raw,mime)
+                        avatar=base64.b64encode(raw).decode('ascii')
                     db.execute('UPDATE users SET name=?,nickname=?,avatar=?,avatar_mime=?,profile_version=profile_version+1 WHERE id=?',(name,nickname,avatar,mime,uid))
                 self.reply(200,{'id':uid,'name':name,'nickname':nickname});return
             if self.path=='/delivered':

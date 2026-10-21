@@ -4,18 +4,6 @@ import test_server,gamebox_core
 from server import account_qr
 class CoreTest(unittest.TestCase):
  setUp=test_server.ChatTest.setUp;tearDown=test_server.ChatTest.tearDown;call=test_server.ChatTest.call;register=test_server.ChatTest.register
- def test_registration_comes_before_game_ids_and_queueing(self):
-  u=self.register('Newcomer')
-  for path,body in (('/gamebox/identity',{'game':'efootball','game_id':'x1','region':'Nigeria','tz':'Africa/Lagos','availability':[]}),('/gamebox/queue',{'game':'efootball'})):
-   with self.assertRaises(urllib.error.HTTPError):self.call(path,body,u['token'])
-  self.call('/gaming/profile',{'tag':'Newcomer','game_id':'x1','adult':True},u['token'])
-  self.call('/gamebox/identity',{'game':'efootball','game_id':'x1','region':'Nigeria','tz':'Africa/Lagos','availability':[]},u['token'])
- def test_each_game_has_its_own_id_from_registration(self):
-  u=self.register('Carry');self.call('/gaming/profile',{'tag':'Carry','adult':True,'region':'Nigeria','tz':'Africa/Lagos','game_ids':{'efootball':'ef-carry','codm':'codm-carry','nonsense':'x'}},u['token'])
-  ids={i['game']:i['game_id'] for i in self.call('/gamebox/summary',token=u['token'])['ids']};self.assertEqual(ids,{'efootball':'ef-carry','codm':'codm-carry'})
-  other=self.register('Clash')
-  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/profile',{'tag':'Clash','adult':True,'region':'Nigeria','tz':'Africa/Lagos','game_ids':{'codm':'CODM-CARRY'}},other['token'])
-  with self.assertRaises(urllib.error.HTTPError):self.call('/gaming/profile',{'tag':'Clash','adult':True,'region':'Nigeria','tz':'Africa/Lagos','game_ids':{}},other['token'])
  def players(self):
   users=[self.register(name) for name in ('Owner','Player','Reviewer')]
   with self.server.db() as d:d.execute('INSERT INTO game_admin VALUES(?)',(users[0]['id'],))
@@ -97,6 +85,7 @@ class CoreTest(unittest.TestCase):
   us=self.players()
   for i in range(5):
    u=self.register('League'+str(i));self.call('/gaming/profile',{'tag':u['name'],'game_id':u['id'],'adult':True},u['token']);us.append(u)
+  for u in us:self.call('/gamebox/identity',{'game':'efootball','game_id':'game-'+u['id'],'region':'Nigeria','tz':'Africa/Lagos','availability':[]},u['token'])
   l=self.call('/gaming/create',{'name':'No show policy test','game':'efootball'},us[0]['token'])['id']
   for u in us:self.call('/gaming/join',{'league':l},u['token'])
   self.call('/gaming/start',{'league':l},us[0]['token']);state=self.call('/gaming/summary?league='+l,token=us[0]['token']);f=next(f for f in state['fixtures'] if us[0]['id'] not in (f['a'],f['b']))

@@ -1,0 +1,4 @@
+# Optional in-memory LAN WebRTC relay; install alongside the normal server deps.
+aiortc==1.14.0
+# Intel macOS wheel compatibility with this project's Firebase runtime.
+cryptography<46

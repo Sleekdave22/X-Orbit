@@ -37,13 +37,6 @@ def init(server):
   if 'round_days' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN round_days INTEGER NOT NULL DEFAULT 4')
   if 'tier' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN tier INTEGER NOT NULL DEFAULT 0')
   if 'hidden' not in {r[1] for r in d.execute('PRAGMA table_info(game_comments)')}:d.execute('ALTER TABLE game_comments ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0')
-  for col in ('region','tz'):
-   if col not in {r[1] for r in d.execute('PRAGMA table_info(game_profiles)')}:d.execute("ALTER TABLE game_profiles ADD COLUMN "+col+" TEXT NOT NULL DEFAULT ''")
-  for col in ('min_rating','max_rating','min_matches','closes'):
-   if col not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN '+col+' INTEGER NOT NULL DEFAULT 0')
-  d.execute('CREATE TABLE IF NOT EXISTS league_eligibility(league TEXT,uid TEXT,rating REAL,tier TEXT,matches INTEGER,created INTEGER,PRIMARY KEY(league,uid))')
-  d.execute("CREATE TRIGGER IF NOT EXISTS league_eligibility_no_update BEFORE UPDATE ON league_eligibility BEGIN SELECT RAISE(ABORT,'Eligibility snapshot is immutable'); END")
-  d.execute("CREATE TRIGGER IF NOT EXISTS league_eligibility_no_delete BEFORE DELETE ON league_eligibility BEGIN SELECT RAISE(ABORT,'Eligibility snapshot is immutable'); END")
   if 'format' not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute("ALTER TABLE leagues ADD COLUMN format TEXT NOT NULL DEFAULT 'league'")
   for name in ('sponsor_art','sponsor_week'):
    if name not in {r[1] for r in d.execute('PRAGMA table_info(leagues)')}:d.execute('ALTER TABLE leagues ADD COLUMN '+name+" TEXT NOT NULL DEFAULT ''")
@@ -54,28 +47,12 @@ def init(server):
   d.execute("CREATE UNIQUE INDEX IF NOT EXISTS league_game_identity ON league_members(league,game_id COLLATE NOCASE) WHERE game_id!=''")
  import gamebox_core
  gamebox_core.init(server)
+ __import__("game_identities").init(server)
+ __import__("rankings").init(server);__import__('match_scheduling').init(server)
+ __import__('match_streams').init(server)
 
 def row(d,sql,args=()):
  r=d.execute(sql,args).fetchone();return dict(r) if r else None
-def provision_identity(d,uid,game):
- """Create the per-game official ID from the registration profile so players enter it once."""
- p=row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,))
- if not p or not p['region'] or not p['tz']:return None
- existing=row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(uid,game))
- if existing:return existing
- if d.execute('SELECT 1 FROM gb_game_ids WHERE game=? AND game_id=? COLLATE NOCASE AND uid!=?',(game,p['game_id'],uid)).fetchone():return None
- d.execute('INSERT INTO gb_game_ids VALUES(?,?,?,?,?,?,1)',(uid,game,p['game_id'],p['region'],p['tz'],'[]'))
- return row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(uid,game))
-def skill(d,uid,game):
- import gamebox_core
- r=row(d,'SELECT rating,played FROM gb_ratings WHERE uid=? AND game=?',(uid,game));cfg=dict(gamebox_core.DEFAULT,**json.loads(gamebox_core.current(d)['config']))
- return (r['rating'],r['played']) if r else (cfg['start_rating'],0)
-def eligibility_problem(d,l,uid):
- rating,played=skill(d,uid,l['game'])
- if l['min_rating'] and rating<l['min_rating']:return 'This competition needs a skill rating of at least '+str(l['min_rating'])
- if l['max_rating'] and rating>l['max_rating']:return 'This competition is for ratings up to '+str(l['max_rating'])
- if l['min_matches'] and played<l['min_matches']:return 'Play at least '+str(l['min_matches'])+' verified ranked matches first'
- return None
 def admin(d,uid):return bool(d.execute('SELECT 1 FROM game_admin WHERE uid=?',(uid,)).fetchone())
 def mod(d,l,uid):return admin(d,uid)
 def audit(d,f,uid,action,details=''):d.execute('INSERT INTO game_audit(fixture,actor,action,details,time) VALUES(?,?,?,?,?)',(f,uid,action,details,int(time.time())))
@@ -89,24 +66,29 @@ def standings(d,l):
    winner=row(d,'SELECT winner FROM gb_walkovers WHERE fixture=?',(f['id'],))['winner'];lookup[winner]['points']+=3;lookup[winner]['wins']+=1;continue
   for uid,own,other in ((f['a'],f['score_a'],f['score_b']),(f['b'],f['score_b'],f['score_a'])):
    r=lookup[uid];r['played']+=1;r['gf']+=own;r['ga']+=other;r['wins']+=own>other;r['draws']+=own==other;r['losses']+=own<other;r['points']+=3 if own>other else 1 if own==other else 0
- table=sorted(people,key=lambda r:(-r['points'],-(r['gf']-r['ga']),-r['gf'],-r['wins'],r['tag'].lower(),r['uid']))
- key=lambda r:(r['points'],r['gf']-r['ga'],r['gf'],r['wins'])
- for i in range(len(table)-1):
-  hi,lo=table[i],table[i+1]
-  if key(hi)==key(lo):
-   direct=row(d,"SELECT * FROM fixtures WHERE league=? AND stage='league' AND state='confirmed' AND ((a=? AND b=?) OR (a=? AND b=?))",(l,hi['uid'],lo['uid'],lo['uid'],hi['uid']))
-   if direct:
-    lo_score,hi_score=(direct['score_a'],direct['score_b']) if direct['a']==lo['uid'] else (direct['score_b'],direct['score_a'])
-    if lo_score>hi_score:table[i],table[i+1]=lo,hi
- return table
+ return sorted(people,key=lambda r:(-r['points'],-(r['gf']-r['ga']),-r['gf'],-r['wins'],r['tag'].lower(),r['uid']))
 def summary(server,uid,lid=None):
  with server.db() as d:
   import gamebox_core
   gamebox_core.current(d)
-  profile=row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,));leagues=[dict(r) for r in d.execute('SELECT * FROM leagues ORDER BY created DESC')];result={'stream_rooms':[dict(r) for r in d.execute('SELECT id,a,b,created FROM game_stream_rooms WHERE (a=? OR b=? OR id IN (SELECT room FROM game_stream_members WHERE uid=?)) AND created>? ORDER BY created DESC',(uid,uid,uid,int(time.time())-7200))],'can_admin':admin(d,uid),'profile':profile,'leagues':leagues,'games':GAMES,'champions':[],'stats':counters(d),'player_stats':playerstats(d,uid),'tiers':TIERS,'qualification':{game:qualification(d,uid,game) for game in GAMES}}
+  profile=row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,));leagues=[dict(r) for r in d.execute('SELECT * FROM leagues ORDER BY created DESC')];result={'stream_rooms':[dict(r) for r in d.execute('SELECT id,a,b,created FROM game_stream_rooms WHERE (a=? OR b=? OR id IN (SELECT room FROM game_stream_members WHERE uid=?)) AND created>? ORDER BY created DESC',(uid,uid,uid,int(time.time())-7200))],'can_admin':admin(d,uid),'profile':profile,'leagues':leagues,'games':GAMES,'champions':[],'stats':counters(d),'player_stats':playerstats(d,uid),'stream_viewers':__import__('stream_lifecycle').total(d,uid),'tiers':TIERS,'qualification':{game:qualification(d,uid,game) for game in GAMES}}
   for room in result['stream_rooms']:
+   room['players']=[{'id':pid,'name':row(d,'SELECT name FROM users WHERE id=?',(pid,))['name']} for pid in (room['a'],room['b'])]
    response=row(d,'SELECT state FROM game_stream_responses WHERE room=? AND uid=?',(room['id'],uid));room['invitation']=response['state'] if response else ('accepted' if uid==room['a'] else 'invited')
   result['stream_rooms']=[r for r in result['stream_rooms'] if r['invitation']!='declined']
+  visible_rooms=[]
+  for room in result['stream_rooms']:
+   try:
+    __import__('social').ensure(d,uid,room['a'])
+    if __import__('match_streams').linked(d,room['id']):
+     link=__import__('match_streams').linked(d,room['id']);m=__import__('match_streams').match(d,link['kind'],link['match_id'])
+     for player in (m['a'],m['b']):__import__('social').ensure(d,uid,player)
+     # A pending public room is the host's setup, not another invitation for
+     # the already matched opponent. Other people discover it only once live.
+     if uid!=room['a'] and not d.execute('SELECT 1 FROM game_stream_members WHERE room=? AND uid=?',(room['id'],uid)).fetchone():continue
+    visible_rooms.append(__import__('match_streams').describe(d,server,uid,room))
+   except PermissionError:continue
+  result['stream_rooms']=visible_rooms
   for l in leagues:
    if l['champion']:
     p=row(d,'SELECT uid,tag,handle,feature FROM game_profiles WHERE uid=?',(l['champion'],))
@@ -155,26 +137,58 @@ def post(server,uid,action,b):
    if not admin(d,uid):raise PermissionError('Only the administrator may create a test stream room')
    other=row(d,'SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
    if not other or other['id']==uid:raise ValueError('Choose a different test account')
-   if d.execute('SELECT COUNT(*) FROM game_stream_rooms WHERE a=? AND created>?',(uid,int(time.time())-7200)).fetchone()[0]>=3:raise ValueError('Use an existing test room; rooms expire after two hours')
-   rid=uuid.uuid4().hex;d.execute('INSERT INTO game_stream_rooms VALUES(?,?,?,?)',(rid,uid,other['id'],int(time.time())));d.execute('INSERT OR REPLACE INTO game_stream_responses VALUES(?,?,?)',(rid,other['id'],'invited'));gamebox_core.notice(d,other['id'],'You have been invited to a private streaming test. Open Gamebox → Streaming test.');return {'id':rid}
+   mode=b.get('broadcaster','self')
+   if mode not in ('self','invited'):raise ValueError('Choose the current account or invited player as broadcaster')
+   __import__('social').ensure(d,uid,other['id'])
+   host,viewer=(uid,other['id']) if mode=='self' else (other['id'],uid)
+   if mode=='invited' and not d.execute('SELECT 1 FROM game_profiles WHERE uid=? AND adult=1',(host,)).fetchone():raise ValueError('The broadcaster must first create an adult gaming profile')
+   if d.execute('SELECT COUNT(*) FROM game_stream_rooms WHERE (a=? OR b=?) AND created>?',(host,host,int(time.time())-7200)).fetchone()[0]>=3:raise ValueError('Use an existing test room; rooms expire after two hours')
+   rid=uuid.uuid4().hex;d.execute('INSERT INTO game_stream_rooms VALUES(?,?,?,?)',(rid,host,viewer,int(time.time())))
+   if __import__('match_streams').relay_available(server):d.execute("INSERT INTO game_stream_transport VALUES(?,'relay')",(rid,))
+   d.execute('INSERT OR REPLACE INTO game_stream_responses VALUES(?,?,?)',(rid,viewer,'accepted' if viewer==uid else 'invited'))
+   gamebox_core.notice(d,other['id'],'A private OrbitPlay room is ready. '+('You are the broadcaster: open Live streams, open the room and choose camera or gameplay sharing.' if host==other['id'] else 'Open Live streams to accept and watch.'))
+   gamebox_core.event(d,rid,uid,'stream_room_created',new={'broadcaster':host,'viewer':viewer})
+   return {'id':rid,'broadcaster':host,'viewer':viewer}
+  if action in ('stream_begin','stream_end','stream_watch'):
+   import stream_lifecycle as life
+   rid=str(b.get('room',''))
+   if action=='stream_end':
+    r=row(d,'SELECT * FROM game_stream_rooms WHERE id=?',(rid,))
+    if not r:return {'ended':True}
+    if r['a']!=uid:raise PermissionError('Only the broadcaster can end this session')
+    life.finish(d,rid,server);return {'ended':True,'total_viewers':life.total(d,uid)}
+   stream_access(d,uid,rid)
+   if action=='stream_begin':
+    __import__('match_streams').access(d,uid,rid,publish=True)
+    return life.begin(d,uid,rid)
+   if __import__('match_streams').linked(d,rid) and not __import__('match_streams').ready(server,rid):raise PermissionError('This livestream is not broadcasting right now')
+   return life.watch(d,uid,rid)
   if action in ('stream_accept','stream_decline'):
    rid=b.get('room');room=row(d,'SELECT * FROM game_stream_rooms WHERE id=?',(rid,))
    if not room or room['created']<time.time()-7200 or uid==room['a'] or (uid!=room['b'] and not row(d,'SELECT uid FROM game_stream_members WHERE room=? AND uid=?',(rid,uid))):raise PermissionError('This invitation is unavailable')
    state='accepted' if action=='stream_accept' else 'declined';d.execute('INSERT OR REPLACE INTO game_stream_responses VALUES(?,?,?)',(rid,uid,state));gamebox_core.notice(d,room['a'],'Your live-stream invitation was '+state+'.');return {'ok':True}
+  if action=='stream_react':
+   room=stream_access(d,uid,b.get('room'));__import__('stream_lifecycle').active(d,room['id'])
+   __import__('live_reactions').emit(room['id'],uid,b.get('emoji'));return {'ok':True}
   if action in ('stream_invite','stream_comment','stream_like'):
    room=stream_access(d,uid,b.get('room'))
    if action=='stream_invite':
     if uid!=room['a']:raise PermissionError('Only the broadcaster may invite viewers')
     other=row(d,'SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
     if not other:raise ValueError('Account not found')
-    if d.execute('SELECT COUNT(*) FROM game_stream_members WHERE room=?',(room['id'],)).fetchone()[0]>=4:raise ValueError('This LAN pilot supports five viewers')
+    import social
+    social.ensure(d,uid,other['id'])
+    relay=d.execute('SELECT 1 FROM game_stream_transport WHERE room=?',(room['id'],)).fetchone()
+    if not relay and d.execute('SELECT COUNT(*) FROM game_stream_members WHERE room=?',(room['id'],)).fetchone()[0]>=4:raise ValueError('This older direct room supports five viewers; create a relay room for more viewers')
     d.execute('INSERT OR IGNORE INTO game_stream_members VALUES(?,?)',(room['id'],other['id']));d.execute('INSERT OR REPLACE INTO game_stream_responses VALUES(?,?,?)',(room['id'],other['id'],'invited'));gamebox_core.notice(d,other['id'],'You are invited to a live camera stream. Open Gamebox → Live streams.')
    elif action=='stream_comment':
+    __import__('stream_lifecycle').active(d,room['id'])
     text=str(b.get('text','')).strip()
     if not 1<=len(text)<=500:raise ValueError('Comment must be 1–500 characters')
     if d.execute('SELECT COUNT(*) FROM game_stream_comments WHERE room=? AND uid=? AND created>?',(room['id'],uid,int(time.time())-10)).fetchone()[0]>=5:raise ValueError('Please slow down')
     d.execute('INSERT INTO game_stream_comments(room,uid,text,created) VALUES(?,?,?,?)',(room['id'],uid,text,int(time.time())))
    else:
+    __import__('stream_lifecycle').active(d,room['id'])
     d.execute('INSERT OR IGNORE INTO game_stream_likes VALUES(?,?)',(room['id'],uid))
    return {'ok':True}
   if action=='stream_signal':
@@ -189,26 +203,9 @@ def post(server,uid,action,b):
    d.execute('DELETE FROM game_stream_signals WHERE room=? AND id NOT IN (SELECT id FROM game_stream_signals WHERE room=? ORDER BY id DESC LIMIT 200)',(room['id'],room['id']));return {'ok':True}
   if action=='profile':
    if b.get('adult') is not True:raise ValueError('This pilot is for adults aged 18 and over')
-   tag=str(b.get('tag','')).strip();handle=str(b.get('handle','')).strip();ids=b.get('game_ids')
-   if type(ids) is not dict:ids={}
-   ids={g:str(v).strip() for g,v in ids.items() if g in GAMES and str(v).strip()}
-   legacy=str(b.get('game_id','')).strip()
-   gid=next(iter(ids.values()),legacy)
-   if not 2<=len(tag)<=30 or not 2<=len(gid)<=60 or len(handle)>80:raise ValueError('Enter a gaming nickname and at least one game ID')
-   if any(not 2<=len(v)<=60 for v in ids.values()):raise ValueError('Each game ID must be 2–60 characters')
-   region=str(b.get('region','')).strip();tz=str(b.get('tz','')).strip()
-   if ids:
-    from zoneinfo import ZoneInfo
-    try:ZoneInfo(tz)
-    except Exception:raise ValueError('Use a valid time-zone name')
-    if not 1<=len(region)<=40:raise ValueError('Enter your region')
-    for g,v in ids.items():
-     if d.execute('SELECT 1 FROM gb_game_ids WHERE game=? AND game_id=? COLLATE NOCASE AND uid!=?',(g,v,uid)).fetchone():raise ValueError('That '+GAMES[g]+' ID is already registered to another account')
-   d.execute('INSERT INTO game_profiles(uid,tag,game_id,handle,feature,adult) VALUES(?,?,?,?,?,1) ON CONFLICT(uid) DO UPDATE SET tag=excluded.tag,game_id=excluded.game_id,handle=excluded.handle,feature=excluded.feature,adult=1',(uid,tag,gid,handle,int(b.get('feature') is True)))
-   if ids:
-    d.execute('UPDATE game_profiles SET region=?,tz=? WHERE uid=?',(region,tz,uid))
-    for g,v in ids.items():d.execute('INSERT INTO gb_game_ids(uid,game,game_id,region,tz,availability,reminders) VALUES(?,?,?,?,?,?,1) ON CONFLICT(uid,game) DO UPDATE SET game_id=excluded.game_id,region=excluded.region,tz=excluded.tz',(uid,g,v,region,tz,'[]'))
-   return {'ok':True}
+   tag=str(b.get('tag','')).strip();gid=str(b.get('game_id','')).strip();handle=str(b.get('handle','')).strip()
+   if not 2<=len(tag)<=30 or not 2<=len(gid)<=60 or len(handle)>80:raise ValueError('Enter a gaming nickname and game account ID')
+   d.execute('INSERT INTO game_profiles VALUES(?,?,?,?,?,1) ON CONFLICT(uid) DO UPDATE SET tag=excluded.tag,game_id=excluded.game_id,handle=excluded.handle,feature=excluded.feature,adult=1',(uid,tag,gid,handle,int(b.get('feature') is True)));return {'ok':True}
   if action in ('create','rename','sponsor','moderator','remove_moderator','start','finals','review','hide_comment') and not admin(d,uid):raise PermissionError('Administration is restricted to the authorised account')
   if action=='create':
    if not row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,)):raise ValueError('Set up your gaming profile first')
@@ -230,16 +227,13 @@ def post(server,uid,action,b):
    if l['state']!='enrolling':raise ValueError('Enrolment is closed')
    if d.execute('SELECT 1 FROM gb_qualified_cups WHERE league=?',(l['id'],)).fetchone() and not d.execute('SELECT 1 FROM gb_cup_eligibility WHERE league=? AND uid=?',(l['id'],uid)).fetchone():raise ValueError('This major cup is restricted to verified league/open qualifiers')
    if not row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,)):raise ValueError('Set up your gaming profile first')
-   if l['closes'] and time.time()>l['closes']:raise ValueError('Registration has closed')
-   problem=eligibility_problem(d,l,uid)
-   if problem:raise ValueError(problem)
    if d.execute('SELECT COUNT(*) FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]>=l['capacity']:raise ValueError('This division is full')
    if l['format']=='league' and qualification(d,uid,l['game'])!=l['tier']:raise ValueError('Your qualified division is '+TIERS[qualification(d,uid,l['game'])])
    if l['format']=='league' and d.execute("SELECT 1 FROM league_members m JOIN leagues other ON other.id=m.league WHERE m.uid=? AND other.game=? AND other.format='league' AND other.state IN ('active','finals') AND other.id!=?",(uid,l['game'],l['id'])).fetchone():raise ValueError('Finish your active league for this game first')
    identity=row(d,'SELECT game_id FROM gb_game_ids WHERE uid=? AND game=?',(uid,l['game']))
-   prof=row(d,'SELECT * FROM game_profiles WHERE uid=?',(uid,))
-   if not identity and prof['region']:raise ValueError('Add your '+GAMES[l['game']]+' ID first: Find a match → Add or change a game ID')
-   gid=identity['game_id'] if identity else prof['game_id']
+   if l['verification']=='typed' and not identity:raise ValueError('Register a separate gaming ID for this game in Find a match first')
+   if identity and (__import__('game_identities').meta(d,uid,l['game']) or {}).get('state')!='active':raise ValueError('This game registration is inactive or needs review')
+   gid=identity['game_id'] if identity else row(d,'SELECT game_id FROM game_profiles WHERE uid=?',(uid,))['game_id']
    if d.execute('SELECT 1 FROM league_members WHERE league=? AND game_id=? COLLATE NOCASE AND uid!=?',(l['id'],gid,uid)).fetchone():raise ValueError('That game account is already registered in this division')
    slot=d.execute('SELECT COALESCE(MAX(slot),0)+1 FROM league_members WHERE league=?',(l['id'],)).fetchone()[0]
    d.execute('INSERT INTO league_members(league,uid,game_id,slot) VALUES(?,?,?,?)',(l['id'],uid,gid,slot));return {'ok':True,'slot':slot}
@@ -254,7 +248,7 @@ def post(server,uid,action,b):
    name=str(b.get('name','')).strip()
    if l['state']!='enrolling' or not 3<=len(name)<=60:raise ValueError('Names can change only before the competition starts')
    d.execute('UPDATE leagues SET name=? WHERE id=?',(name,l['id']));audit(d,l['id'],uid,'competition_renamed',name);return {'ok':True}
-  if action in ('start','eligibility','recheck','sponsor','moderator','remove_moderator','finals'):
+  if action in ('start','sponsor','moderator','remove_moderator','finals'):
    if not admin(d,uid):raise PermissionError('Only the league organiser can do this')
    if action in ('moderator','remove_moderator'):
     target=row(d,'SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
@@ -280,21 +274,6 @@ def post(server,uid,action,b):
       logo.verify()
      art='data:'+mime+';base64,'+base64.b64encode(raw).decode()
     d.execute('UPDATE leagues SET sponsor=?,sponsor_url=?,reward=?,sponsor_art=?,sponsor_week=? WHERE id=?',(sponsor,url,reward,art,week,l['id']));audit(d,l['id'],uid,'sponsor_updated',json.dumps({'sponsor':sponsor,'week':week,'reward':reward}));return {'ok':True}
-   if action=='eligibility':
-    if not mod(d,l,uid):raise PermissionError('Only the organiser can change eligibility')
-    if l['state']!='enrolling':raise ValueError('Eligibility is fixed once the competition starts')
-    vals=[b.get(k,0) for k in ('min_rating','max_rating','min_matches','closes')]
-    if any(type(v)!=int or v<0 for v in vals) or vals[1] and vals[0]>vals[1] or vals[2]>1000:raise ValueError('Enter whole numbers; the maximum rating must be above the minimum')
-    d.execute('UPDATE leagues SET min_rating=?,max_rating=?,min_matches=?,closes=? WHERE id=?',(*vals,l['id']));audit(d,l['id'],uid,'eligibility_updated',json.dumps(vals));return {'ok':True}
-   if action=='recheck':
-    if not mod(d,l,uid):raise PermissionError('Only the organiser can run the qualification cutoff')
-    if l['state']!='enrolling':raise ValueError('Qualification is already final')
-    removed=[]
-    for u in [r[0] for r in d.execute('SELECT uid FROM league_members WHERE league=?',(l['id'],))]:
-     if eligibility_problem(d,l,u):
-      d.execute('DELETE FROM league_members WHERE league=? AND uid=?',(l['id'],u));removed.append(u)
-      d.execute('INSERT INTO gb_notices(uid,text,created) VALUES(?,?,?)',(u,'You no longer meet the entry rating for '+l['name']+' at the qualification cutoff.',int(time.time())))
-    audit(d,l['id'],uid,'qualification_cutoff',json.dumps(removed));return {'ok':True,'removed':len(removed)}
    if action=='start':
     if l['state']!='enrolling':raise ValueError('League has already started')
     ids=[r[0] for r in d.execute('SELECT uid FROM league_members WHERE league=? ORDER BY slot',(l['id'],))]
@@ -304,12 +283,8 @@ def post(server,uid,action,b):
      for player in ids:
       if d.execute("SELECT 1 FROM league_members m JOIN leagues other ON other.id=m.league WHERE m.uid=? AND other.game=? AND other.format='league' AND other.state IN ('active','finals') AND other.id!=?",(player,l['game'],l['id'])).fetchone():raise ValueError('A player is already in another active league for this game')
     now=int(time.time())
-    import gamebox_core
-    for u in ids:
-     rt,pl=skill(d,u,l['game']);d.execute('INSERT OR IGNORE INTO league_eligibility VALUES(?,?,?,?,?,?)',(l['id'],u,rt,gamebox_core.rating_tier(rt),pl,now))
     if l['format']=='cup':
-     seeds=sorted(ids,key=lambda u:(-skill(d,u,l['game'])[0],ids.index(u)));order=[seeds[i] for i in (0,7,3,4,1,6,2,5)]
-     for i in range(0,8,2):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'quarter')",(uuid.uuid4().hex,l['id'],1,order[i],order[i+1],now,now+4*86400))
+     for i in range(0,8,2):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'quarter')",(uuid.uuid4().hex,l['id'],1,ids[i],ids[i+1],now,now+4*86400))
      d.execute("UPDATE leagues SET state='finals' WHERE id=?",(l['id'],));return {'ok':True}
     if len(ids)%2:ids.append(None)
     rounds=len(ids)-1;days=l['round_days']
@@ -323,15 +298,6 @@ def post(server,uid,action,b):
     top=standings(d,l['id'])[:4];now=int(time.time())
     for a,z in ((0,3),(1,2)):d.execute("INSERT INTO fixtures(id,league,round,a,b,opens,due,stage) VALUES(?,?,?,?,?,?,?,'semi')",(uuid.uuid4().hex,l['id'],8,top[a]['uid'],top[z]['uid'],now,now+3*86400))
     d.execute("UPDATE leagues SET state='finals' WHERE id=?",(l['id'],));return {'ok':True}
-  if action=='withdraw':
-   if l['state'] not in ('active',) or l['format']!='league' or not d.execute('SELECT 1 FROM league_members WHERE league=? AND uid=?',(l['id'],uid)).fetchone():raise ValueError('You can withdraw only from a league that is in progress')
-   reason=str(b.get('reason','')).strip() or 'Player withdrew'
-   open_fixtures=[dict(r) for r in d.execute("SELECT * FROM fixtures WHERE league=? AND stage='league' AND state NOT IN ('confirmed','walkover','void') AND (a=? OR b=?)",(l['id'],uid,uid))]
-   for f in open_fixtures:
-    other=f['b'] if f['a']==uid else f['a']
-    d.execute('INSERT OR IGNORE INTO gb_walkovers VALUES(?,?,?,?,?)',(f['id'],other,reason,uid,int(time.time())));d.execute("UPDATE fixtures SET state='walkover' WHERE id=?",(f['id'],))
-    d.execute('INSERT INTO gb_notices(uid,text,created) VALUES(?,?,?)',(other,'Your opponent withdrew from '+l['name']+'. You were awarded a walkover.',int(time.time())))
-   d.execute('INSERT INTO gb_reliability(uid,kind,ref,created) VALUES(?,?,?,?)',(uid,'withdrawal',l['id'],int(time.time())));audit(d,l['id'],uid,'withdrew',str(len(open_fixtures)));advance(d,l);return {'ok':True,'walkovers':len(open_fixtures)}
   f=row(d,'SELECT * FROM fixtures WHERE id=? AND league=?',(b.get('fixture'),l['id']))
   if not f:raise ValueError('Fixture not found')
   if action=='comment':
@@ -406,7 +372,7 @@ def advance(d,l):
   table=standings(d,l['id'])
   for index,p in enumerate(table):
    if d.execute('SELECT 1 FROM game_promotions WHERE league=? AND uid=?',(l['id'],p['uid'])).fetchone():continue
-   old=qualification(d,p['uid'],l['game']);zone=min(3,(len(table)-1)//2);new=max(0,min(len(TIERS)-1,old+(1 if index<zone else -1 if index>=len(table)-zone else 0)))
+   old=qualification(d,p['uid'],l['game']);new=max(0,min(len(TIERS)-1,old+(1 if index<3 else -1 if index>=len(table)-3 else 0)))
    d.execute('INSERT INTO game_promotions VALUES(?,?,?,?)',(l['id'],p['uid'],old,new));d.execute('INSERT INTO game_qualification VALUES(?,?,?) ON CONFLICT(uid,game) DO UPDATE SET tier=excluded.tier',(p['uid'],l['game'],new));audit(d,l['id'],p['uid'],'division_updated',TIERS[old]+' → '+TIERS[new])
 
 def evidence(server,uid,fid,player):
@@ -455,22 +421,20 @@ def playerstats(d,uid,game=None):
  for f in matches:
   own=f['score_a'] if f['a']==uid else f['score_b'];other=f['score_b'] if f['a']==uid else f['score_a'];results.append('W' if own>other else 'L' if own<other else 'D')
  recent=results[:5]
- return {'played':len(results),'wins':results.count('W'),'losses':results.count('L'),'draws':results.count('D'),'last_five':recent,'recent_summary':'Won '+str(recent.count('W'))+' of last '+str(len(recent))+' matches' if recent else 'No confirmed matches yet','titles':d.execute('SELECT COUNT(*) FROM leagues WHERE champion=?'+(' AND game=?' if game else ''),[uid]+([game] if game else [])).fetchone()[0],'divisions':{g:(TIERS[qualification(d,uid,g)] if d.execute('SELECT 1 FROM game_promotions p JOIN leagues l ON l.id=p.league WHERE p.uid=? AND l.game=?',(uid,g)).fetchone() else 'Unranked') for g in GAMES}}
+ return {'stream_viewers':__import__('stream_lifecycle').total(d,uid),'played':len(results),'wins':results.count('W'),'losses':results.count('L'),'draws':results.count('D'),'last_five':recent,'recent_summary':'Won '+str(recent.count('W'))+' of last '+str(len(recent))+' matches' if recent else 'No confirmed matches yet','titles':d.execute('SELECT COUNT(*) FROM leagues WHERE champion=?'+(' AND game=?' if game else ''),[uid]+([game] if game else [])).fetchone()[0],'divisions':{g:(TIERS[qualification(d,uid,g)] if d.execute('SELECT 1 FROM game_promotions p JOIN leagues l ON l.id=p.league WHERE p.uid=? AND l.game=?',(uid,g)).fetchone() else 'Unranked') for g in GAMES}}
 
 def stream_access(d,uid,rid):
- room=row(d,'SELECT * FROM game_stream_rooms WHERE id=?',(rid,))
- if not room or room['created']<time.time()-7200 or (uid not in (room['a'],room['b']) and not row(d,'SELECT uid FROM game_stream_members WHERE room=? AND uid=?',(rid,uid))):raise PermissionError('This live room is unavailable')
- if uid!=room['a']:
-  response=row(d,'SELECT state FROM game_stream_responses WHERE room=? AND uid=?',(rid,uid))
-  if not response or response['state']!='accepted':raise PermissionError('Accept the live-stream invitation first')
- return room
+ return __import__('match_streams').access(d,uid,rid)
 
 def stream_signals(server,uid,rid,after=0):
  with server.db() as d:
   room=stream_access(d,uid,rid)
+  import stream_lifecycle as life
+  live=life.state(d,rid)
+  if live['active'] and uid==room['a']:d.execute('UPDATE live_sessions SET heartbeat=? WHERE room=?',(int(time.time()),rid))
   signals=[]
   for r in d.execute('SELECT id,sender,kind,payload FROM game_stream_signals WHERE room=? AND sender!=? AND id>? ORDER BY id LIMIT 200',(rid,uid,after)):
    payload=json.loads(r['payload'])
    if payload.get('target')==uid:signals.append(dict(r)|{'payload':payload})
-  comments=[dict(r) for r in d.execute('SELECT c.id,c.text,c.created,u.name FROM game_stream_comments c JOIN users u ON u.id=c.uid WHERE room=? ORDER BY c.id DESC LIMIT 100',(rid,))]
-  return {'signals':signals,'comments':list(reversed(comments)),'likes':d.execute('SELECT COUNT(*) FROM game_stream_likes WHERE room=?',(rid,)).fetchone()[0],'liked':bool(row(d,'SELECT uid FROM game_stream_likes WHERE room=? AND uid=?',(rid,uid)))}
+  comments=[dict(r) for r in d.execute('SELECT c.id,c.uid,c.text,c.created,u.name FROM game_stream_comments c JOIN users u ON u.id=c.uid WHERE room=? ORDER BY c.id DESC LIMIT 100',(rid,))]
+  return {'reactions':__import__('live_reactions').read(rid),'live':live,'signals':signals,'comments':list(reversed(comments)),'likes':d.execute('SELECT COUNT(*) FROM game_stream_likes WHERE room=?',(rid,)).fetchone()[0],'liked':bool(row(d,'SELECT uid FROM game_stream_likes WHERE room=? AND uid=?',(rid,uid)))}

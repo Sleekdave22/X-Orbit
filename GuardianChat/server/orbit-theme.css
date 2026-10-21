@@ -73,3 +73,10 @@ nav.locked [data-tab=admin]:not([hidden]),nav.locked [data-tab=studio]:not([hidd
 button.primary{background:var(--gold);color:var(--ox-950);font-size:16px;min-height:48px;width:100%}
 label:has(input[type=checkbox]){display:flex;flex-direction:row-reverse;justify-content:flex-end;gap:10px;align-items:flex-start;margin:10px 0}label:has(input[type=checkbox]) input{margin:3px 0 0;flex:none;width:20px;height:20px}
 label+small,h4+small{display:block}h4{margin:18px 0 4px;color:var(--heading)}f small,form small{display:block;margin-bottom:10px}
+
+/* Compact navigation preserves the approved colours and existing press effect. */
+nav{gap:6px;row-gap:10px;padding:8px 0 12px;align-content:start}
+nav button{min-width:0;min-height:36px;padding:7px 11px!important;font-size:12px!important;flex:0 1 auto;border-radius:8px;line-height:1.2}
+nav button.group-start{margin-left:0}
+nav button.group-start:before{font-size:9px}
+@media(max-width:480px){nav{gap:5px;row-gap:10px}nav button{flex:0 1 auto;min-width:0;min-height:36px;padding:7px 10px!important}main{padding:10px}header{padding:12px;gap:10px}h1{font-size:24px}.card{padding:12px;margin-bottom:8px}.gaming-profile-identity{margin:6px 0;gap:9px}.gaming-profile-identity .rank-avatar{width:56px;height:56px}}

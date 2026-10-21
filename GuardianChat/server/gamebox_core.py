@@ -1,8 +1,8 @@
 """Versioned Gamebox Studio and open-match workflows. Does not edit chat/media security."""
 import json,time,uuid,re,math,hashlib,base64
-DEFAULT={'accept_seconds':300,'checkin_seconds':600,'result_seconds':3600,'evidence_seconds':86400,'retention_seconds':259200,'reminder_seconds':900,'reschedules':1,'group_size':10,'round_days':3,'max_pair_daily':2,'rating_gap':400,'league_cup_slots':4,'open_cup_slots':4,'weekly_min_matches':5,'start_rating':1000,'k_provisional':40,'k_established':20,'provisional_matches':20,'abuse_pair_week':6,'gap_step':100,'weekly_min_opponents':3,'theme':{'accent':'#8e1b38','surface':'#2a0a10','paper':'#1b0709','ink':'#f7ecdd','radius':8,'tab_padding':12,'font_size':14,'font_family':'system-ui'},'layout':['stats','competitions','players','matches'],'announcement':'','show_stats':True}
-DEFAULT['presentation']={'chat_order':['search','tabs','gaming','list'],'game_tabs':['leagues','seasons','open','schedule','fixtures','players','live','table','card','profile','streams'],'custom_sections':[],'custom_games':{},'labels':{'brand':'X ORBIT','slogan':'Your world your connection','search':'Search X ORBIT','gaming':'Orbit Play'}}
-LIMITS={'accept_seconds':(60,1800),'checkin_seconds':(120,3600),'result_seconds':(1800,7200),'evidence_seconds':(3600,259200),'retention_seconds':(3600,2592000),'reminder_seconds':(60,3600),'reschedules':(0,1),'group_size':(6,16),'round_days':(1,14),'max_pair_daily':(1,3),'rating_gap':(100,800),'league_cup_slots':(0,8),'open_cup_slots':(0,8),'weekly_min_matches':(1,20),'weekly_min_opponents':(1,10),'start_rating':(500,2000),'k_provisional':(10,80),'k_established':(5,40),'provisional_matches':(5,50),'abuse_pair_week':(3,50),'gap_step':(0,400)}
+DEFAULT={'accept_seconds':300,'checkin_seconds':600,'result_seconds':3600,'evidence_seconds':86400,'retention_seconds':259200,'reminder_seconds':900,'open_schedule_seconds':604800,'reschedules':1,'group_size':10,'round_days':3,'max_pair_daily':2,'rating_gap':400,'league_cup_slots':4,'open_cup_slots':4,'weekly_min_matches':5,'weekly_min_opponents':3,'theme':{'accent':'#921b37','surface':'#252525','paper':'#101010','ink':'#f4f4f4','radius':8,'tab_padding':12,'font_size':14,'font_family':'system-ui'},'layout':['stats','competitions','players','matches'],'announcement':'','show_stats':True}
+DEFAULT['presentation']={'chat_order':['search','tabs','gaming','list'],'game_tabs':['leagues','seasons','open','schedule','fixtures','players','live','table','card','profile','streams'],'custom_sections':[],'custom_games':{},'labels':{'brand':'X ORBIT','slogan':'Your world your connection','search':'Search X ORBIT','gaming':'Gamebox'}}
+LIMITS={'accept_seconds':(60,1800),'checkin_seconds':(120,3600),'result_seconds':(1800,7200),'evidence_seconds':(3600,259200),'retention_seconds':(3600,2592000),'reminder_seconds':(60,3600),'open_schedule_seconds':(3600,1209600),'reschedules':(0,1),'group_size':(6,16),'round_days':(1,14),'max_pair_daily':(1,3),'rating_gap':(100,800),'league_cup_slots':(0,8),'open_cup_slots':(0,8),'weekly_min_matches':(1,20),'weekly_min_opponents':(1,10)}
 def init(server):
  with server.db() as d:
   d.executescript('''
@@ -16,19 +16,13 @@ def init(server):
   CREATE TABLE IF NOT EXISTS gb_qualified_cups(league TEXT PRIMARY KEY,version INTEGER,week INTEGER);
   CREATE TABLE IF NOT EXISTS gb_seasons(id TEXT PRIMARY KEY,name TEXT,game TEXT,tier INTEGER,opens INTEGER,closes INTEGER,state TEXT,owner TEXT,version INTEGER,rules TEXT);
   CREATE TABLE IF NOT EXISTS gb_season_entries(season TEXT,uid TEXT,game_id TEXT,availability TEXT,registered INTEGER,PRIMARY KEY(season,uid));
+  CREATE TABLE IF NOT EXISTS gb_season_availability(season TEXT,uid TEXT,snapshot TEXT NOT NULL,PRIMARY KEY(season,uid));
   CREATE TABLE IF NOT EXISTS gb_season_groups(season TEXT,league TEXT,number INTEGER,PRIMARY KEY(season,league));
   CREATE TABLE IF NOT EXISTS gb_versions(id INTEGER PRIMARY KEY,config TEXT,actor TEXT,reason TEXT,created INTEGER);
   CREATE TABLE IF NOT EXISTS gb_draft(id INTEGER PRIMARY KEY CHECK(id=1),base INTEGER,config TEXT);
   CREATE TABLE IF NOT EXISTS gb_game_ids(uid TEXT,game TEXT,game_id TEXT,region TEXT,tz TEXT,availability TEXT,reminders INTEGER DEFAULT 1,PRIMARY KEY(uid,game));
   CREATE TABLE IF NOT EXISTS gb_rating_events(fixture TEXT PRIMARY KEY,created INTEGER);
-  CREATE TABLE IF NOT EXISTS gb_rating_tx(id INTEGER PRIMARY KEY AUTOINCREMENT,ref TEXT,uid TEXT,game TEXT,before REAL,change REAL,after REAL,k INTEGER,expected REAL,opponent TEXT,opponent_rating REAL,outcome REAL,formula INTEGER DEFAULT 1,created INTEGER,UNIQUE(ref,uid));
-  CREATE TABLE IF NOT EXISTS gb_flags(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT,game TEXT,a TEXT,b TEXT,detail TEXT,created INTEGER,state TEXT DEFAULT 'open',reviewer TEXT,note TEXT);
-  CREATE TABLE IF NOT EXISTS gb_tier_config(game TEXT PRIMARY KEY,bounds TEXT);
-  CREATE TABLE IF NOT EXISTS gb_reliability(id INTEGER PRIMARY KEY AUTOINCREMENT,uid TEXT,kind TEXT,ref TEXT,created INTEGER);
-  CREATE TABLE IF NOT EXISTS gb_tier_history(id INTEGER PRIMARY KEY AUTOINCREMENT,uid TEXT,game TEXT,before TEXT,after TEXT,rating REAL,created INTEGER);
-  CREATE TRIGGER IF NOT EXISTS gb_rating_tx_no_update BEFORE UPDATE ON gb_rating_tx BEGIN SELECT RAISE(ABORT,'Rating history is immutable'); END;
-  CREATE TRIGGER IF NOT EXISTS gb_rating_tx_no_delete BEFORE DELETE ON gb_rating_tx BEGIN SELECT RAISE(ABORT,'Rating history is immutable'); END;
-  CREATE TABLE IF NOT EXISTS gb_ratings(uid TEXT,game TEXT,rating REAL DEFAULT 1000,played INTEGER DEFAULT 0,activity INTEGER DEFAULT 0,PRIMARY KEY(uid,game));
+  CREATE TABLE IF NOT EXISTS gb_ratings(uid TEXT,game TEXT,rating REAL DEFAULT 1500,played INTEGER DEFAULT 0,activity INTEGER DEFAULT 0,PRIMARY KEY(uid,game));
   CREATE TABLE IF NOT EXISTS gb_queue(uid TEXT PRIMARY KEY,game TEXT,region TEXT,priority INTEGER DEFAULT 0,created INTEGER);
   CREATE TABLE IF NOT EXISTS gb_matches(id TEXT PRIMARY KEY,game TEXT,a TEXT,b TEXT,gid_a TEXT,gid_b TEXT,state TEXT,created INTEGER,deadline INTEGER,accepted_a INTEGER DEFAULT 0,accepted_b INTEGER DEFAULT 0,ready_a INTEGER DEFAULT 0,ready_b INTEGER DEFAULT 0,score_a INTEGER,score_b INTEGER,version INTEGER,rules TEXT,verified INTEGER,rated INTEGER DEFAULT 0);
   CREATE TABLE IF NOT EXISTS gb_reports(match TEXT,uid TEXT,a INTEGER,b INTEGER,PRIMARY KEY(match,uid));
@@ -43,10 +37,8 @@ def init(server):
   if not d.execute('SELECT 1 FROM gb_versions').fetchone():d.execute('INSERT INTO gb_versions(config,actor,reason,created) VALUES(?,?,?,?)',(json.dumps(DEFAULT),'system','Initial supported defaults',int(time.time())))
   else:
    existing=row(d,'SELECT * FROM gb_versions ORDER BY id DESC LIMIT 1');old=json.loads(existing['config']);merged=dict(DEFAULT,**old);merged['theme']=dict(DEFAULT['theme'],**old.get('theme',{}));merged['presentation']=dict(DEFAULT['presentation'],**old.get('presentation',{}))
-   legacy={'accent':'#921b37','surface':'#252525','paper':'#101010','ink':'#f4f4f4'}
-   if all(merged['theme'].get(k)==v for k,v in legacy.items()):merged['theme'].update({k:DEFAULT['theme'][k] for k in legacy})
-   if merged['presentation'].get('labels',{}).get('gaming')=='Gamebox':merged['presentation']['labels']=dict(merged['presentation']['labels'],gaming='Orbit Play')
    if merged!=old:d.execute('INSERT INTO gb_versions(config,actor,reason,created) VALUES(?,?,?,?)',(json.dumps(merged),'migration','Add supported controls while preserving published customisations',int(time.time())))
+ __import__("competition_context").init(server)
 def row(d,sql,args=()):
  r=d.execute(sql,args).fetchone();return dict(r) if r else None
 def current(d):
@@ -107,37 +99,25 @@ def validate(c):
 def eligible(d,uid,game):
  import gaming
  if game not in gaming.GAMES:raise ValueError('Choose a supported game')
+ if __import__('match_scheduling').temporarily_unavailable(d,uid,game):raise ValueError('Your gaming availability is temporarily unavailable')
  if not d.execute('SELECT 1 FROM game_profiles WHERE uid=? AND adult=1',(uid,)).fetchone():raise ValueError('Create your adult gaming profile first')
  if d.execute('SELECT 1 FROM gb_sanctions WHERE uid=? AND game=? AND until>?',(uid,game,int(time.time()))).fetchone():raise ValueError('Gaming access is suspended; contact administration for review')
- return row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(uid,game))
+ identity=row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(uid,game))
+ if identity and (__import__('game_identities').meta(d,uid,game) or {}).get('state')!='active':raise ValueError('This game registration is inactive or needs review')
+ return identity
 def participant(d,uid,mid):
  m=row(d,'SELECT * FROM gb_matches WHERE id=?',(mid,))
  if not m or uid not in (m['a'],m['b']):raise PermissionError('Only the match participants may do this')
  return m
 
-def reliability(d,uid):
- n=d.execute('SELECT COUNT(*) FROM gb_reliability WHERE uid=? AND created>?',(uid,int(time.time())-90*86400)).fetchone()[0]
- return {'no_shows_90d':n,'score':max(0,100-15*n)}
-def is_admin(d,uid):
- try:authorised(d,uid);return True
- except Exception:return False
-def rating_cards(d,uid,cfg):
- cfg=dict(DEFAULT,**cfg);cards=[]
- for r in d.execute('SELECT * FROM gb_ratings WHERE uid=?',(uid,)):
-  tx=[dict(x) for x in d.execute('SELECT ref,before,change,after,opponent_rating,outcome,created FROM gb_rating_tx WHERE uid=? AND game=? ORDER BY id DESC LIMIT 10',(uid,r['game']))]
-  wdl=[0,0,0]
-  for x in d.execute('SELECT outcome FROM gb_rating_tx WHERE uid=? AND game=?',(uid,r['game'])):wdl[0 if x[0]==1 else 1 if x[0]==.5 else 2]+=1
-  rank=d.execute('SELECT COUNT(*)+1 FROM gb_ratings WHERE game=? AND played>0 AND rating>?',(r['game'],r['rating'])).fetchone()[0]
-  n=sum(wdl);cards.append({'game':r['game'],'rating':r['rating'],'tier':rating_tier(r['rating'],tier_bounds(d,r['game'])),'tier_bounds':tier_bounds(d,r['game']) or [x[1] for x in RATING_TIERS],'provisional':r['played']<cfg['provisional_matches'],'matches':r['played'],'rank':rank if r['played'] else None,'wins':wdl[0],'draws':wdl[1],'losses':wdl[2],'win_pct':round(100*wdl[0]/n) if n else 0,'history':tx})
- return cards
 def summary(server,uid):
  with server.db() as d:
   version=current(d);config=json.loads(version['config'])
   matches=[dict(r) for r in d.execute('SELECT m.*,pa.tag name_a,pb.tag name_b FROM gb_matches m JOIN game_profiles pa ON pa.uid=m.a JOIN game_profiles pb ON pb.uid=m.b WHERE a=? OR b=? ORDER BY created DESC LIMIT 30',(uid,uid))]
   for m in matches:
-   m.pop('rules',None);m['reports']=[dict(r) for r in d.execute('SELECT * FROM gb_reports WHERE match=?',(m['id'],))]
+   m.update(__import__('competition_context').decorate(d,m));m.pop('rules',None);m['reports']=[dict(r) for r in d.execute('SELECT * FROM gb_reports WHERE match=?',(m['id'],))]
    if m['state']=='awaiting_results' and not any(r['uid']==uid for r in m['reports']):m['reports']=[{'uid':r['uid'],'submitted':True} for r in m['reports']]
-  return {'seasons':[dict(r)|{'registered':d.execute('SELECT COUNT(*) FROM gb_season_entries WHERE season=?',(r['id'],)).fetchone()[0],'joined':bool(d.execute('SELECT 1 FROM gb_season_entries WHERE season=? AND uid=?',(r['id'],uid)).fetchone()),'groups':[x[0] for x in d.execute('SELECT league FROM gb_season_groups WHERE season=? ORDER BY number',(r['id'],))]} for r in d.execute('SELECT id,name,game,tier,opens,closes,state FROM gb_seasons ORDER BY closes DESC LIMIT 30')],'version':version['id'],'config':config,'ids':[dict(r) for r in d.execute('SELECT * FROM gb_game_ids WHERE uid=?',(uid,))],'ratings':[dict(r) for r in d.execute('SELECT * FROM gb_ratings WHERE uid=?',(uid,))],'rating_cards':rating_cards(d,uid,config),'reliability':reliability(d,uid),'flags':[dict(r) for r in d.execute("SELECT * FROM gb_flags WHERE state='open' ORDER BY id DESC LIMIT 50")] if is_admin(d,uid) else [],'queue':row(d,'SELECT * FROM gb_queue WHERE uid=?',(uid,)),'matches':matches,'notices':[dict(r) for r in d.execute('SELECT * FROM gb_notices WHERE uid=? AND seen=0 ORDER BY id DESC LIMIT 30',(uid,))]}
+  return {'seasons':[dict(r)|{'registered':d.execute('SELECT COUNT(*) FROM gb_season_entries WHERE season=?',(r['id'],)).fetchone()[0],'joined':bool(d.execute('SELECT 1 FROM gb_season_entries WHERE season=? AND uid=?',(r['id'],uid)).fetchone()),'groups':[x[0] for x in d.execute('SELECT league FROM gb_season_groups WHERE season=? ORDER BY number',(r['id'],))]} for r in d.execute('SELECT id,name,game,tier,opens,closes,state FROM gb_seasons ORDER BY closes DESC LIMIT 30')],'version':version['id'],'config':config,'ids':[dict(r) for r in d.execute("SELECT i.* FROM gb_game_ids i JOIN gb_identity_meta m ON m.uid=i.uid AND m.game=i.game WHERE i.uid=? AND m.state='active'",(uid,))],'ratings':[dict(r)|__import__('rankings').stats(d,uid,r['game']) for r in d.execute('SELECT * FROM gb_ratings WHERE uid=?',(uid,))],'queue':row(d,'SELECT * FROM gb_queue WHERE uid=?',(uid,)),'matches':matches,'notices':__import__('match_scheduling').visible_notices(d,uid)}
 def studio(server,uid):
  with server.db() as d:
   authorised(d,uid)
@@ -149,78 +129,49 @@ def studio(server,uid):
   return {'published':current(d),'draft':row(d,'SELECT * FROM gb_draft WHERE id=1'),'versions':[dict(r) for r in d.execute('SELECT id,actor,reason,created FROM gb_versions ORDER BY id DESC LIMIT 20')],'limits':LIMITS,'events':[dict(r) for r in d.execute('SELECT * FROM gb_events ORDER BY id DESC LIMIT 100')],'disputes':disputes,'sanctions':[dict(r) for r in d.execute('SELECT * FROM gb_sanctions')]}
 
 def pair(d,game,region):
- candidates=[dict(r) for r in d.execute('SELECT q.*,i.game_id,COALESCE(r.rating,1000) rating FROM gb_queue q JOIN gb_game_ids i ON i.uid=q.uid AND i.game=q.game LEFT JOIN gb_ratings r ON r.uid=q.uid AND r.game=q.game WHERE q.game=? AND q.region=? ORDER BY priority DESC,q.created',(game,region))];version=current(d);rules=json.loads(version['config'])
- now=int(time.time());options=[]
+ candidates=[dict(r) for r in d.execute('SELECT q.*,i.game_id,COALESCE(r.rating,1500) rating FROM gb_queue q JOIN gb_game_ids i ON i.uid=q.uid AND i.game=q.game LEFT JOIN gb_ratings r ON r.uid=q.uid AND r.game=q.game WHERE q.game=? AND q.region=? ORDER BY priority DESC,q.created,q.rowid',(game,region))];version=current(d);rules=json.loads(version['config'])
  for i,a in enumerate(candidates):
-  for b in candidates[i+1:]:
-   if a['game_id'].casefold()==b['game_id'].casefold():continue
-   waited=min(now-a['created'],now-b['created']);allowed=min(800,rules['rating_gap']+rules['gap_step']*(waited//300));diff=abs(a['rating']-b['rating'])
-   if diff>allowed:continue
-   recent=d.execute("SELECT COUNT(*) FROM gb_matches WHERE game=? AND state='verified' AND created>? AND ((a=? AND b=?) OR (a=? AND b=?))",(game,now-86400,a['uid'],b['uid'],b['uid'],a['uid'])).fetchone()[0]
-   if recent>=rules['max_pair_daily']:continue
-   options.append((recent,diff,a['created']+b['created'],a,b))
- options.sort(key=lambda o:o[:3])
- for recent,diff,_,a,b in options[:1]:
-  mid=uuid.uuid4().hex;d.execute('INSERT INTO gb_matches(id,game,a,b,gid_a,gid_b,state,created,deadline,version,rules) VALUES(?,?,?,?,?,?,?, ?,?,?,?)',(mid,game,a['uid'],b['uid'],a['game_id'],b['game_id'],'proposed',now,now+rules['accept_seconds'],version['id'],json.dumps(rules)))
-  d.execute('DELETE FROM gb_queue WHERE uid IN (?,?)',(a['uid'],b['uid']));event(d,mid,'system','match_proposed',new={'a':a['uid'],'b':b['uid'],'version':version['id'],'rating_gap':diff})
-  for u in (a['uid'],b['uid']):notice(d,u,'Opponent found. Both players must accept the proposed match.')
-  return mid
+  import competition_context, social, game_identities
+  if competition_context.busy(d,a['uid']):continue
+  try:
+   if not eligible(d,a['uid'],game):continue
+  except ValueError:continue
+  def priority(b):
+   try:return __import__('match_scheduling').overlap(d,a['uid'],b['uid'],game,int(time.time())+60,int(time.time())+604800) is None
+   except ValueError:return True
+  for b in sorted(candidates[i+1:],key=priority):
+   if competition_context.busy(d,b['uid']) or social.blocked(d,a['uid'],b['uid']):continue
+   try:
+    if not eligible(d,b['uid'],game):continue
+   except ValueError:continue
+   ap=(game_identities.meta(d,a['uid'],game) or {}).get('platform','unspecified');bp=(game_identities.meta(d,b['uid'],game) or {}).get('platform','unspecified')
+   if not __import__('sponsored_leagues').compatible(ap,bp):continue
+   low,high=sorted((a['uid'],b['uid']))
+   if d.execute('SELECT 1 FROM gb_match_cooldowns WHERE game=? AND low=? AND high=? AND until>?',(game,low,high,int(time.time()))).fetchone():continue
+   if a['game_id'].casefold()==b['game_id'].casefold() or abs(a['rating']-b['rating'])>rules['rating_gap']:continue
+   if d.execute("SELECT COUNT(*) FROM gb_matches WHERE id IN (SELECT match FROM gb_match_origins WHERE global_ranking_eligible=1) AND game=? AND state='verified' AND created>? AND ((a=? AND b=?) OR (a=? AND b=?))",(game,int(time.time())-86400,a['uid'],b['uid'],b['uid'],a['uid'])).fetchone()[0]>=rules['max_pair_daily']:continue
+   mid=uuid.uuid4().hex;now=int(time.time());d.execute('INSERT INTO gb_matches(id,game,a,b,gid_a,gid_b,state,created,deadline,version,rules) VALUES(?,?,?,?,?,?,?, ?,?,?,?)',(mid,game,a['uid'],b['uid'],a['game_id'],b['game_id'],'proposed',now,now+rules['accept_seconds'],version['id'],json.dumps(rules)))
+   d.execute('DELETE FROM gb_queue WHERE uid IN (?,?)',(a['uid'],b['uid']));event(d,mid,'system','match_proposed',new={'a':a['uid'],'b':b['uid'],'version':version['id']})
+   for u in (a['uid'],b['uid']):notice(d,u,'Opponent found. Both players must accept the proposed match.')
+   return mid
  return None
 
-
-RATING_TIERS=[('Bronze',0),('Silver',1000),('Gold',1200),('Platinum',1400),('Elite',1600)]
-def rating_tier(r,bounds=None):
- name='Bronze'
- for (n,lo),b in zip(RATING_TIERS,bounds or [x[1] for x in RATING_TIERS]):
-  if r>=b:name=n
- return name
-def tier_bounds(d,game):
- r=d.execute('SELECT bounds FROM gb_tier_config WHERE game=?',(game,)).fetchone()
- return json.loads(r[0]) if r else None
-def rating_change(own,opp,outcome,played,cfg):
- """Elo change from pre-match ratings. Rounded half away from zero so equal players are exactly symmetric."""
- k=cfg['k_provisional'] if played<cfg['provisional_matches'] else cfg['k_established']
- expected=1/(1+10**((opp-own)/400));raw=k*(outcome-expected)
- return (int(abs(raw)+.5)*(1 if raw>=0 else -1)),k,expected
-def apply_rating(d,ref,game,a,b,score_a,cfg):
- """Rates one verified result for both players once. Idempotent per (ref,player). Returns {uid:change}."""
- start=cfg['start_rating']
- for u in (a,b):d.execute('INSERT OR IGNORE INTO gb_ratings(uid,game,rating) VALUES(?,?,?)',(u,game,start))
- pre={u:row(d,'SELECT rating,played FROM gb_ratings WHERE uid=? AND game=?',(u,game)) for u in (a,b)};out={}
- for u,o,sc in ((a,b,score_a),(b,a,1-score_a)):
-  if d.execute('SELECT 1 FROM gb_rating_tx WHERE ref=? AND uid=?',(ref,u)).fetchone():continue
-  ch,k,e=rating_change(pre[u]['rating'],pre[o]['rating'],sc,pre[u]['played'],cfg);after=pre[u]['rating']+ch
-  d.execute('INSERT INTO gb_rating_tx(ref,uid,game,before,change,after,k,expected,opponent,opponent_rating,outcome,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',(ref,u,game,pre[u]['rating'],ch,after,k,round(e,4),o,pre[o]['rating'],sc,int(time.time())))
-  d.execute('UPDATE gb_ratings SET rating=?,played=played+1,activity=activity+1 WHERE uid=? AND game=?',(after,u,game));out[u]=ch
-  word='Match won' if sc==1 else 'Match drawn' if sc==.5 else 'Match lost'
-  notice(d,u,word+': rating '+str(round(pre[u]['rating']))+' → '+str(round(after))+' ('+('+' if ch>0 else '−' if ch<0 else '±')+str(abs(ch))+'). Open Orbit Play → Ratings for the breakdown.')
-  bd=tier_bounds(d,game);t0,t1=rating_tier(pre[u]['rating'],bd),rating_tier(after,bd)
-  if t0!=t1:
-   d.execute('INSERT INTO gb_tier_history(uid,game,before,after,rating,created) VALUES(?,?,?,?,?,?)',(u,game,t0,t1,after,int(time.time())))
-   notice(d,u,('Promoted to ' if RANK_ORDER[t1]>RANK_ORDER[t0] else 'Moved down to ')+t1+' in '+game+'. Open Orbit Play → Ratings.')
- if out:check_abuse(d,ref,game,a,b,cfg)
- return out
-RANK_ORDER={n:i for i,(n,_) in enumerate(RATING_TIERS)}
-def check_abuse(d,ref,game,a,b,cfg):
- """Flags for human review only; never changes ratings or accuses anyone."""
- now=int(time.time());rows=[dict(r) for r in d.execute('SELECT uid,outcome,created FROM gb_rating_tx WHERE game=? AND uid=? AND opponent=? AND created>? ORDER BY id DESC',(game,a,b,now-7*86400))]
- def flag(kind,detail):
-  if not d.execute('SELECT 1 FROM gb_flags WHERE kind=? AND game=? AND a=? AND b=? AND created>?',(kind,game,a,b,now-86400)).fetchone():d.execute('INSERT INTO gb_flags(kind,game,a,b,detail,created) VALUES(?,?,?,?,?,?)',(kind,game,a,b,detail,now))
- if len(rows)>=cfg['abuse_pair_week']:flag('frequent_pair',str(len(rows))+' rated matches between these accounts in 7 days')
- recent=[r['outcome'] for r in rows[:4]]
- if len(recent)==4 and all(x!=.5 for x in recent) and all(recent[i]!=recent[i+1] for i in range(3)):flag('reciprocal_pattern','Last four results alternate win and loss between the same two accounts')
 def verify(d,m,a,b,actor,reason='Matching independent typed reports'):
  if m['state']=='verified':raise ValueError('This result is already verified')
  d.execute("UPDATE gb_matches SET state='verified',score_a=?,score_b=?,verified=? WHERE id=?",(a,b,int(time.time()),m['id']))
- cfg=dict(DEFAULT,**json.loads(m['rules']));old={}
- for u in (m['a'],m['b']):
-  d.execute('INSERT OR IGNORE INTO gb_ratings(uid,game,rating) VALUES(?,?,?)',(u,m['game'],cfg['start_rating']));old[u]=row(d,'SELECT * FROM gb_ratings WHERE uid=? AND game=?',(u,m['game']))
- apply_rating(d,m['id'],m['game'],m['a'],m['b'],1 if a>b else .5 if a==b else 0,cfg);new={u:row(d,'SELECT rating FROM gb_ratings WHERE uid=? AND game=?',(u,m['game']))['rating'] for u in (m['a'],m['b'])}
- d.execute('UPDATE gb_matches SET rated=1 WHERE id=?',(m['id'],));event(d,m['id'],actor,'result_verified',old={'reports':[dict(r) for r in d.execute('SELECT * FROM gb_reports WHERE match=?',(m['id'],))],'ratings':old},new={'score':[a,b],'ratings':new},reason=reason)
+ import competition_context
+ league_match=not competition_context.is_global(d,m['id'])
+ if league_match:
+  __import__('sponsored_leagues').settle(d,m,a,b,actor);awarded=None
+ else:awarded=__import__('rankings').award(d,'open',m)
+ old=awarded['old'] if awarded else {};new=awarded['new'] if awarded else {}
+ d.execute('UPDATE gb_matches SET rated=? WHERE id=?',(0 if league_match else 1,m['id']));event(d,m['id'],actor,'result_verified',old={'reports':[dict(r) for r in d.execute('SELECT * FROM gb_reports WHERE match=?',(m['id'],))],'ratings':old},new={'score':[a,b],'ratings':new},reason=reason)
  rules=json.loads(m['rules']);d.execute('UPDATE gb_evidence SET expires=? WHERE match=?',(int(time.time())+rules['retention_seconds'],m['id']))
- for uid in (m['a'],m['b']):notice(d,uid,'Result verified. Skill rating and participation record updated.')
+ for uid in (m['a'],m['b']):notice(d,uid,'League result verified. League points updated; global rating unchanged.' if league_match else 'Result verified. Skill rating and participation record updated.')
 
 def post(server,uid,action,b):
+ if action in ('schedule_propose','schedule_confirm'):
+  return __import__('match_scheduling').post(server,uid,'propose' if action=='schedule_propose' else 'accept',dict(b,kind='fixture',match=b.get('fixture')))
  if action=='evidence':
   import gaming
   raw,mime=gaming.image(b);reading=gaming.scan(server,raw,mime);b=dict(b,reading=reading.get('text',''))
@@ -302,14 +253,16 @@ def post(server,uid,action,b):
    d.execute("UPDATE gb_seasons SET closes=?,state='enrolling' WHERE id=?",(closes,season['id']));event(d,season['id'],uid,'registration_extended',old={'closes':season['closes']},new={'closes':closes},reason=reason)
    for entry in d.execute('SELECT uid FROM gb_season_entries WHERE season=?',(season['id'],)):notice(d,entry['uid'],'Registration deadline changed for '+season['name']+'. '+reason)
    return {'ok':True}
-  if action in ('identity','invite','queue','season_register') and not d.execute('SELECT 1 FROM game_profiles WHERE uid=?',(uid,)).fetchone():raise ValueError('Register for Orbit Play first, then choose a game')
   if action in ('season_register','season_leave'):
    season=row(d,'SELECT * FROM gb_seasons WHERE id=?',(b.get('season'),))
    if not season or season['state']!='enrolling' or not season['opens']<=time.time()<season['closes']:raise ValueError('The season registration window is closed')
-   if action=='season_leave':d.execute('DELETE FROM gb_season_entries WHERE season=? AND uid=?',(season['id'],uid));event(d,season['id'],uid,'season_left');return {'ok':True}
+   if action=='season_leave':d.execute('DELETE FROM gb_season_availability WHERE season=? AND uid=?',(season['id'],uid));d.execute('DELETE FROM gb_season_entries WHERE season=? AND uid=?',(season['id'],uid));event(d,season['id'],uid,'season_left');return {'ok':True}
    identity=eligible(d,uid,season['game'])
-   if not identity or not json.loads(identity['availability']):raise ValueError('Register the official game ID and availability before joining a season')
+   if not identity:raise ValueError('Register the official game ID before joining a season')
+   availability=__import__('match_scheduling').availability(d,uid,season['game'])
+   if not availability['dated_windows'] and not any(availability['weekly'].values()):raise ValueError('Save weekly or dated playing availability before joining a season')
    if __import__('gaming').qualification(d,uid,season['game'])!=season['tier']:raise ValueError('This season is for a different qualified division')
+   d.execute('INSERT INTO gb_season_availability VALUES(?,?,?) ON CONFLICT(season,uid) DO UPDATE SET snapshot=excluded.snapshot',(season['id'],uid,json.dumps(availability)))
    old=row(d,'SELECT * FROM gb_season_entries WHERE season=? AND uid=?',(season['id'],uid));d.execute('INSERT INTO gb_season_entries VALUES(?,?,?,?,?) ON CONFLICT(season,uid) DO UPDATE SET game_id=excluded.game_id,availability=excluded.availability',(season['id'],uid,identity['game_id'],identity['availability'],int(time.time())));event(d,season['id'],uid,'season_registered',old=old,new={'game_id':identity['game_id']});return {'ok':True}
   if action=='simulate':
    authorised(d,uid);entrants=b.get('entrants');size=b.get('group_size');days=b.get('round_days')
@@ -324,30 +277,23 @@ def post(server,uid,action,b):
    if schedule['ready_a'] and schedule['ready_b']:raise ValueError('Both players checked in. This is not a no-show')
    winner=f['a'] if schedule['ready_a'] else f['b'] if schedule['ready_b'] else None
    d.execute('INSERT INTO gb_walkovers VALUES(?,?,?,?,?)',(f['id'],winner,reason,uid,int(time.time())))
-   [d.execute('INSERT INTO gb_reliability(uid,kind,ref,created) VALUES(?,?,?,?)',(p,'no_show',f['id'],int(time.time()))) for p,ready in ((f['a'],schedule['ready_a']),(f['b'],schedule['ready_b'])) if not ready];d.execute('UPDATE fixtures SET state=? WHERE id=?',('walkover' if winner else 'void',f['id']));event(d,f['id'],uid,'walkover_reviewed',old=schedule,new={'winner':winner,'no_rating_change':True},reason=reason);return {'ok':True}
-  if action=='identity':
-   game=b.get('game');eligible(d,uid,game);gid=str(b.get('game_id','')).strip();region=str(b.get('region','')).strip();tz=str(b.get('tz','')).strip();slots=b.get('availability',[])
-   if not 2<=len(gid)<=60 or not 1<=len(region)<=40 or not 1<=len(tz)<=60 or type(slots)!=list or len(slots)>14:raise ValueError('Enter game ID, region, time zone and availability')
-   from zoneinfo import ZoneInfo
-   try:ZoneInfo(tz)
-   except Exception:raise ValueError('Use a valid time-zone name')
-   for slot in slots:
-    if type(slot)!=dict or set(slot)!={'start','end'} or type(slot['start'])!=int or type(slot['end'])!=int or not time.time()<slot['start']<slot['end']<=time.time()+60*86400:raise ValueError('Availability must contain future start/end times')
-   prior=row(d,'SELECT game_id FROM gb_game_ids WHERE uid=? AND game=?',(uid,game))
-   if prior and prior['game_id']!=gid and d.execute("SELECT 1 FROM gb_matches WHERE game=? AND (a=? OR b=?) AND state NOT IN ('verified','cancelled')",(game,uid,uid)).fetchone():raise ValueError('Finish your active match before changing the game ID')
-   if d.execute('SELECT 1 FROM gb_game_ids WHERE game=? AND game_id=? COLLATE NOCASE AND uid!=?',(game,gid,uid)).fetchone():raise ValueError('This official game ID is registered to another account')
-   existing=row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(uid,game));d.execute('INSERT INTO gb_game_ids VALUES(?,?,?,?,?,?,?) ON CONFLICT(uid,game) DO UPDATE SET game_id=excluded.game_id,region=excluded.region,tz=excluded.tz,availability=excluded.availability,reminders=excluded.reminders',(uid,game,gid,region,tz,json.dumps(slots),int(b.get('reminders',True) is True)));event(d,'identity',uid,'game_identity_saved',old=existing,new={'game':game,'game_id':gid});return {'ok':True}
+   d.execute('UPDATE fixtures SET state=? WHERE id=?',('walkover' if winner else 'void',f['id']));event(d,f['id'],uid,'walkover_reviewed',old=schedule,new={'winner':winner,'no_rating_change':True},reason=reason);return {'ok':True}
+  if action=='identity':return __import__('game_identities').save(d,uid,b)
   if action=='invite':
    game=b.get('game');other=row(d,'SELECT id,name FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(b.get('identity'),str(b.get('identity','')).lstrip('@')))
    if not other or other['id']==uid:raise ValueError('Choose another registered player')
+   import social
+   social.ensure(d,uid,other['id'])
    a=eligible(d,uid,game);z=eligible(d,other['id'],game)
    if not a or not z:raise ValueError('Both players must register an official ID for this game')
+   ap=(__import__('game_identities').meta(d,uid,game) or {}).get('platform','unspecified');bp=(__import__('game_identities').meta(d,other['id'],game) or {}).get('platform','unspecified')
+   if not __import__('sponsored_leagues').compatible(ap,bp):raise ValueError('Choose a player with a compatible gaming platform')
    if a['game_id'].casefold()==z['game_id'].casefold():raise ValueError('Players need different official game IDs')
    if a['region']!=z['region']:raise ValueError('Choose a player in the same game region')
    if d.execute("SELECT 1 FROM gb_matches WHERE (a IN (?,?) OR b IN (?,?)) AND state NOT IN ('verified','cancelled')",(uid,other['id'],uid,other['id'])).fetchone():raise ValueError('A player already has an active invitation or match')
    version=current(d);rules=json.loads(version['config']);now=int(time.time())
    if d.execute('SELECT COUNT(*) FROM gb_events WHERE actor=? AND action=? AND created>?',(uid,'game_invited',now-3600)).fetchone()[0]>=10:raise ValueError('Invitation limit reached. Try again later')
-   if d.execute("SELECT COUNT(*) FROM gb_matches WHERE game=? AND state='verified' AND created>? AND ((a=? AND b=?) OR (a=? AND b=?))",(game,now-86400,uid,other['id'],other['id'],uid)).fetchone()[0]>=rules['max_pair_daily']:raise ValueError('Daily rated matches against this opponent reached')
+   if d.execute("SELECT COUNT(*) FROM gb_matches WHERE id IN (SELECT match FROM gb_match_origins WHERE global_ranking_eligible=1) AND game=? AND state='verified' AND created>? AND ((a=? AND b=?) OR (a=? AND b=?))",(game,now-86400,uid,other['id'],other['id'],uid)).fetchone()[0]>=rules['max_pair_daily']:raise ValueError('Daily rated matches against this opponent reached')
    mid=uuid.uuid4().hex;d.execute('INSERT INTO gb_matches(id,game,a,b,gid_a,gid_b,state,created,deadline,version,rules,accepted_a) VALUES(?,?,?,?,?,?,?,?,?,?,?,1)',(mid,game,uid,other['id'],a['game_id'],z['game_id'],'proposed',now,now+rules['accept_seconds'],version['id'],json.dumps(rules)))
    d.execute('DELETE FROM gb_queue WHERE uid IN (?,?)',(uid,other['id']));name=row(d,'SELECT name FROM users WHERE id=?',(uid,))['name'];notice(d,other['id'],name+' invited you to '+__import__('gaming').GAMES[game]+'. Open Gamebox → Find a match to accept or decline.');event(d,mid,uid,'game_invited',new={'recipient':other['id'],'game':game});return {'match':mid}
   if action=='queue':
@@ -361,31 +307,6 @@ def post(server,uid,action,b):
    authorised(d,uid);target=str(b.get('uid',''));game=b.get('game');reason=str(b.get('reason','')).strip();until=b.get('until')
    if not d.execute('SELECT 1 FROM game_profiles WHERE uid=?',(target,)).fetchone() or game not in __import__('gaming').GAMES or type(until)!=int or not int(time.time())<=until<=time.time()+30*86400 or len(reason)<5:raise ValueError('Choose player, game, expiry (up to 30 days) and reason')
    old=row(d,'SELECT * FROM gb_sanctions WHERE uid=? AND game=?',(target,game));d.execute('INSERT OR REPLACE INTO gb_sanctions VALUES(?,?,?,?)',(target,game,until,reason));d.execute('DELETE FROM gb_queue WHERE uid=?',(target,));event(d,'sanction',uid,'sanction_updated',old=old,new=b,reason=reason);notice(d,target,'Gaming eligibility changed: '+reason);return {'ok':True}
-  if action=='tier_config':
-   authorised(d,uid);game=b.get('game');bounds=b.get('bounds')
-   if game not in __import__('gaming').GAMES or type(bounds)!=list or len(bounds)!=5 or bounds[0]!=0 or any(type(v)!=int for v in bounds) or any(bounds[i]>=bounds[i+1] for i in range(4)) or bounds[4]>5000:raise ValueError('Give five ascending whole-number boundaries starting at 0')
-   old=tier_bounds(d,game);d.execute('INSERT INTO gb_tier_config VALUES(?,?) ON CONFLICT(game) DO UPDATE SET bounds=excluded.bounds',(game,json.dumps(bounds)));event(d,'tiers:'+game,uid,'tier_bounds_changed',old=old,new=bounds,reason='Applies to future results; history is not recalculated');return {'ok':True}
-  if action=='flag_review':
-   authorised(d,uid);f=row(d,'SELECT * FROM gb_flags WHERE id=?',(b.get('flag'),));note=str(b.get('note','')).strip();state=b.get('state')
-   if not f or f['state']!='open' or state not in ('cleared','confirmed') or len(note)<5:raise ValueError('Choose an open flag, a decision and a note')
-   d.execute('UPDATE gb_flags SET state=?,reviewer=?,note=? WHERE id=?',(state,uid,note,f['id']));event(d,'flag:'+str(f['id']),uid,'flag_reviewed',old=f,new={'state':state},reason=note);return {'ok':True}
-  if action=='rating_reverse':
-   authorised(d,uid);m=row(d,'SELECT * FROM gb_matches WHERE id=?',(b.get('match'),));reason=str(b.get('reason','')).strip();a,z=b.get('a'),b.get('b')
-   if not m or m['state']!='verified' or len(reason)<10:raise ValueError('Choose a verified match and give a reason of at least ten characters')
-   if uid in (m['a'],m['b']):raise PermissionError('An independent administrator must correct this result')
-   if d.execute("SELECT 1 FROM gb_rating_tx WHERE ref=?",('rev:'+m['id'],)).fetchone():raise ValueError('This match has already been reversed')
-   fix=a is not None or z is not None
-   if fix and any(type(v)!=int or not 0<=v<=99 for v in (a,z)):raise ValueError('Enter both corrected scores')
-   cfg=dict(DEFAULT,**json.loads(m['rules']))
-   for tx in [dict(r) for r in d.execute('SELECT * FROM gb_rating_tx WHERE ref=?',(m['id'],))]:
-    cur=row(d,'SELECT rating FROM gb_ratings WHERE uid=? AND game=?',(tx['uid'],tx['game']))['rating'];back=cur-tx['change']
-    d.execute('INSERT INTO gb_rating_tx(ref,uid,game,before,change,after,k,expected,opponent,opponent_rating,outcome,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',('rev:'+m['id'],tx['uid'],tx['game'],cur,-tx['change'],back,tx['k'],tx['expected'],tx['opponent'],tx['opponent_rating'],tx['outcome'],int(time.time())))
-    d.execute('UPDATE gb_ratings SET rating=?,played=MAX(0,played-1),activity=MAX(0,activity-1) WHERE uid=? AND game=?',(back,tx['uid'],tx['game']))
-    notice(d,tx['uid'],'An administrator reversed a verified result. Your rating was restored. Open Orbit Play → Ratings.')
-   event(d,m['id'],uid,'rating_reversed',old={'score':[m['score_a'],m['score_b']]},new={'score':[a,z]} if fix else None,reason=reason)
-   if fix:
-    d.execute('UPDATE gb_matches SET score_a=?,score_b=? WHERE id=?',(a,z,m['id']));apply_rating(d,'fix:'+m['id'],m['game'],m['a'],m['b'],1 if a>z else .5 if a==z else 0,cfg)
-   return {'ok':True,'corrected':fix}
   if action=='review':
    authorised(d,uid);m=row(d,'SELECT * FROM gb_matches WHERE id=?',(b.get('match'),))
    if not m or uid in (m['a'],m['b']) or m['state'] not in ('review','disputed'):raise PermissionError('Only an independent administrator may review this unresolved match')
@@ -393,36 +314,13 @@ def post(server,uid,action,b):
    reason=str(b.get('reason','')).strip();a,z=b.get('a'),b.get('b')
    if len(reason)<10 or any(type(v)!=int or not 0<=v<=99 for v in (a,z)):raise ValueError('Enter scores and a reason')
    verify(d,m,a,z,uid,reason);return {'ok':True}
-  if action in ('schedule_propose','schedule_confirm','fixture_checkin'):
+  if action=='fixture_checkin':
    f=row(d,'SELECT * FROM fixtures WHERE id=?',(b.get('fixture'),))
-   if not f or uid not in (f['a'],f['b']):raise PermissionError('Only scheduled opponents may agree this time')
-   if f['state'] in ('confirmed','void'):raise ValueError('This fixture is closed')
-   side='a' if uid==f['a'] else 'b';schedule=row(d,'SELECT * FROM gb_schedule WHERE fixture=?',(f['id'],));league=row(d,'SELECT * FROM leagues WHERE id=?',(f['league'],));rules=json.loads(league['policy_snapshot'] or current(d)['config'])
-   if action=='schedule_propose':
-    at=b.get('at')
-    if type(at)!=int or not max(time.time()+60,f['opens'])<=at<f['due']:raise ValueError('Choose a future time within the fixture window')
-    if schedule and schedule['scheduled'] and (schedule['reschedules']>=rules['reschedules'] or time.time()>schedule['scheduled']-rules['checkin_seconds']):raise ValueError('The reschedule limit or cutoff was reached')
-    league=row(d,'SELECT game FROM leagues WHERE id=?',(f['league'],))
-    for player in (f['a'],f['b']):
-     identity=row(d,'SELECT availability FROM gb_game_ids WHERE uid=? AND game=?',(player,league['game']))
-     if not identity or not any(slot['start']<=at<slot['end'] for slot in json.loads(identity['availability'])):raise ValueError('Both players must register overlapping availability for this time')
-    old=schedule
-    if not schedule:d.execute('INSERT INTO gb_schedule(fixture,proposer,proposed) VALUES(?,?,?)',(f['id'],uid,at))
-    else:d.execute('UPDATE gb_schedule SET proposer=?,proposed=?,confirmed_a=0,confirmed_b=0 WHERE fixture=?',(uid,at,f['id']))
-    d.execute('UPDATE gb_schedule SET confirmed_'+side+'=1 WHERE fixture=?',(f['id'],));event(d,f['id'],uid,'schedule_proposed',old=old,new={'at':at});notice(d,f['b'] if side=='a' else f['a'],'Your opponent proposed a time. Confirm it or propose another overlapping time.')
-   elif action=='schedule_confirm':
-    if not schedule or not schedule['proposed'] or time.time()>=schedule['proposed']:raise ValueError('No future proposal is available')
-    d.execute('UPDATE gb_schedule SET confirmed_'+side+'=1 WHERE fixture=?',(f['id'],));new=row(d,'SELECT * FROM gb_schedule WHERE fixture=?',(f['id'],))
-    if new['confirmed_a'] and new['confirmed_b']:
-     changes=1 if new['scheduled'] and new['scheduled']!=new['proposed'] else 0
-     if new['reschedules']+changes>rules['reschedules']:raise ValueError('Reschedule allowance exceeded')
-     d.execute('UPDATE gb_schedule SET scheduled=proposed,proposed=NULL,reschedules=reschedules+?,ready_a=0,ready_b=0,reminded=0 WHERE fixture=?',(changes,f['id']))
-     for player in (f['a'],f['b']):notice(d,player,'Match time agreed. Open Schedule to see kickoff and check in.')
-    event(d,f['id'],uid,'schedule_confirmed',old=schedule,new=new)
-   else:
-    if not schedule or not schedule['scheduled'] or not schedule['scheduled']-rules['checkin_seconds']<=time.time()<=schedule['scheduled']+rules['checkin_seconds']:raise ValueError('Check in near the mutually scheduled time')
-    d.execute('UPDATE gb_schedule SET ready_'+side+'=1 WHERE fixture=?',(f['id'],));event(d,f['id'],uid,'fixture_checked_in')
-   return {'ok':True}
+   if not f or uid not in (f['a'],f['b']):raise PermissionError('Only these opponents may check in')
+   if f['state'] in ('confirmed','void','walkover'):raise ValueError('This fixture is closed')
+   side='a' if uid==f['a'] else 'b';scheduled=row(d,'SELECT * FROM gb_schedule WHERE fixture=?',(f['id'],));league=row(d,'SELECT * FROM leagues WHERE id=?',(f['league'],));rules=json.loads(league['policy_snapshot'] or current(d)['config'])
+   if not scheduled or not scheduled['scheduled'] or not scheduled['scheduled']-rules['checkin_seconds']<=time.time()<=scheduled['scheduled']+rules['checkin_seconds']:raise ValueError('Check in near the mutually scheduled time')
+   d.execute('UPDATE gb_schedule SET ready_'+side+'=1 WHERE fixture=?',(f['id'],));event(d,f['id'],uid,'fixture_checked_in');return {'ok':True}
   m=participant(d,uid,b.get('match'));side='a' if uid==m['a'] else 'b';rules=json.loads(m['rules'])
   if action=='accept':
    if m['state']!='proposed' or time.time()>m['deadline']:raise ValueError('The acceptance window is closed')
@@ -431,6 +329,9 @@ def post(server,uid,action,b):
     d.execute("UPDATE gb_matches SET state='awaiting_checkin',deadline=? WHERE id=?",(int(time.time())+rules['checkin_seconds'],m['id']))
     for player in (m['a'],m['b']):notice(d,player,'Game invitation accepted. Open Find a match and check in when ready.')
   elif action=='checkin':
+   scheduled=row(d,'SELECT * FROM gb_open_schedule WHERE fixture=?',(m['id'],))
+   if scheduled and scheduled['scheduled'] and not scheduled['scheduled']-rules['checkin_seconds']<=time.time()<=scheduled['scheduled']+rules['checkin_seconds']:raise ValueError('Check in near the agreed kickoff')
+   if scheduled:d.execute('UPDATE gb_open_schedule SET ready_'+side+'=1 WHERE fixture=?',(m['id'],))
    if m['state']!='awaiting_checkin' or time.time()>m['deadline']:raise ValueError('Check-in is closed')
    d.execute('UPDATE gb_matches SET ready_'+side+'=1 WHERE id=?',(m['id'],));updated=row(d,'SELECT * FROM gb_matches WHERE id=?',(m['id'],))
    if updated['ready_a'] and updated['ready_b']:d.execute("UPDATE gb_matches SET state='in_progress',deadline=? WHERE id=?",(int(time.time())+4*3600,m['id']))
@@ -439,6 +340,8 @@ def post(server,uid,action,b):
    d.execute("UPDATE gb_matches SET state='awaiting_results',deadline=? WHERE id=?",(int(time.time())+rules['result_seconds'],m['id']))
    for u in (m['a'],m['b']):notice(d,u,'Enter scores in the fixed player order. Preserve the final result screen until both reports are accepted.')
   elif action=='report':
+   previous=row(d,'SELECT * FROM gb_reports WHERE match=? AND uid=?',(m['id'],uid))
+   if previous and (previous['a'],previous['b'])==(b.get('a'),b.get('b')):return {'ok':True,'already_submitted':True}
    if m['state']!='awaiting_results' or time.time()>m['deadline']:raise ValueError('This result needs review; the submission window is closed')
    a,z=b.get('a'),b.get('b')
    if any(type(v)!=int or not 0<=v<=99 for v in (a,z)):raise ValueError('Enter whole-number scores')
@@ -465,6 +368,10 @@ def post(server,uid,action,b):
    if m['state'] not in ('proposed','awaiting_checkin'):raise ValueError('Active matches cannot be silently cancelled')
    d.execute("UPDATE gb_matches SET state='cancelled' WHERE id=?",(m['id'],))
    notice(d,m['b'] if side=='a' else m['a'],'Game invitation declined or cancelled. No score or rating changed.')
+   __import__('sponsored_leagues').cancelled(d,m,int(time.time()),uid)
+   if __import__('competition_context').is_global(d,m['id']) and d.execute("SELECT 1 FROM gb_events WHERE match=? AND action='match_proposed'",(m['id'],)).fetchone():
+    other=m['b'] if side=='a' else m['a'];identity=row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(other,m['game']));low,high=sorted((uid,other));d.execute('INSERT OR REPLACE INTO gb_match_cooldowns VALUES(?,?,?,?)',(m['game'],low,high,int(time.time())+300))
+    if identity:d.execute('INSERT OR IGNORE INTO gb_queue VALUES(?,?,?,1,?)',(other,m['game'],identity['region'],int(time.time())))
   else:raise ValueError('Unknown match action')
   event(d,m['id'],uid,action,old={'state':m['state']},new={k:v for k,v in b.items() if k not in ('image','reading')});return {'ok':True}
 
@@ -475,7 +382,7 @@ def tick(server,now=None):
   d.execute('DELETE FROM game_stream_signals WHERE room IN (SELECT id FROM game_stream_rooms WHERE created<?)',(now-7200,));d.execute('DELETE FROM game_stream_rooms WHERE created<?',(now-7200,))
   for finished in d.execute("SELECT s.id FROM gb_seasons s WHERE s.state='active' AND EXISTS(SELECT 1 FROM gb_season_groups g WHERE g.season=s.id) AND NOT EXISTS(SELECT 1 FROM gb_season_groups g JOIN leagues l ON l.id=g.league WHERE g.season=s.id AND l.state!='finished')").fetchall():d.execute("UPDATE gb_seasons SET state='finished' WHERE id=?",(finished['id'],));event(d,finished['id'],'system','season_completed')
   for season in [dict(r) for r in d.execute("SELECT * FROM gb_seasons WHERE state='enrolling' AND closes<=?",(now,))]:
-   entries=[dict(r) for r in d.execute('SELECT e.*,COALESCE(r.rating,1000) rating FROM gb_season_entries e LEFT JOIN gb_ratings r ON r.uid=e.uid AND r.game=? WHERE season=? ORDER BY rating DESC,e.registered,e.uid',(season['game'],season['id']))]
+   entries=[dict(r) for r in d.execute('SELECT e.*,COALESCE(r.rating,1500) rating FROM gb_season_entries e LEFT JOIN gb_ratings r ON r.uid=e.uid AND r.game=? WHERE season=? ORDER BY rating DESC,e.registered,e.uid',(season['game'],season['id']))]
    rules=json.loads(season['rules']);size=rules['group_size'];groups=math.ceil(len(entries)/size) if entries else 0
    conflict=any(d.execute('SELECT 1 FROM gb_sanctions WHERE uid=? AND game=? AND until>?',(e['uid'],season['game'],now)).fetchone() or d.execute("SELECT 1 FROM league_members m JOIN leagues l ON l.id=m.league WHERE m.uid=? AND l.game=? AND l.state IN ('active','finals') AND l.format='league'",(e['uid'],season['game'])).fetchone() or __import__('gaming').qualification(d,e['uid'],season['game'])!=season['tier'] for e in entries)
    if not groups or len(entries)//groups<6 or conflict:
@@ -506,16 +413,10 @@ def tick(server,now=None):
      notice(d,u,'Match proposal expired. No rating change.')
      if ready:
       identity=row(d,'SELECT * FROM gb_game_ids WHERE uid=? AND game=?',(u,m['game']))
-      if identity:d.execute('INSERT OR IGNORE INTO gb_queue VALUES(?,?,?,1,?)',(u,m['game'],identity['region'],now))
+      if identity and __import__('competition_context').is_global(d,m['id']):d.execute('INSERT OR IGNORE INTO gb_queue VALUES(?,?,?,1,?)',(u,m['game'],identity['region'],now))
+   if m['state'] in ('proposed','awaiting_checkin'):__import__('sponsored_leagues').cancelled(d,m,now)
    event(d,m['id'],'system','deadline_processed',old=m['state'],new='review' if m['state'] in ('in_progress','awaiting_results') else 'cancelled')
   for group in d.execute('SELECT DISTINCT game,region FROM gb_queue').fetchall():pair(d,group['game'],group['region'])
-  for scheduled in [dict(r) for r in d.execute("SELECT s.*,f.a,f.b,l.game,l.policy_snapshot FROM gb_schedule s JOIN fixtures f ON f.id=s.fixture JOIN leagues l ON l.id=f.league WHERE s.reminded=0 AND s.scheduled IS NOT NULL AND f.state NOT IN ('confirmed','void','walkover')")]:
-   rules=json.loads(scheduled['policy_snapshot'] or current(d)['config'])
-   if scheduled['scheduled']-rules['reminder_seconds']>now:continue
-   for u in (scheduled['a'],scheduled['b']):
-    identity=row(d,'SELECT reminders FROM gb_game_ids WHERE uid=? AND game=?',(u,scheduled['game']))
-    if identity and identity['reminders']:notice(d,u,'Your mutually scheduled league match is approaching. Open its fixture to check in.')
-   d.execute('UPDATE gb_schedule SET reminded=1 WHERE fixture=?',(scheduled['fixture'],))
   for pending in [dict(r) for r in d.execute("SELECT f.id,f.a,f.b,l.policy_snapshot,MIN(a.time) submitted FROM fixtures f JOIN leagues l ON l.id=f.league JOIN game_audit a ON a.fixture=f.id AND a.action='submitted' WHERE f.state='pending' AND l.verification='typed' GROUP BY f.id")]:
    rules=json.loads(pending['policy_snapshot'] or current(d)['config'])
    if pending['submitted']+rules['result_seconds']<now:
@@ -528,10 +429,7 @@ def tick(server,now=None):
 
 def rate_competition_results(d,league):
  for f in [dict(r) for r in d.execute("SELECT * FROM fixtures WHERE league=? AND state='confirmed' AND id NOT IN (SELECT fixture FROM gb_rating_events)",(league['id'],))]:
-  game=league['game'];cfg=dict(DEFAULT,**json.loads(league['policy_snapshot'] or current(d)['config']));old={}
-  for uid in (f['a'],f['b']):
-   d.execute('INSERT OR IGNORE INTO gb_ratings(uid,game,rating) VALUES(?,?,?)',(uid,game,cfg['start_rating']));old[uid]=row(d,'SELECT * FROM gb_ratings WHERE uid=? AND game=?',(uid,game))
-  apply_rating(d,f['id'],game,f['a'],f['b'],1 if f['score_a']>f['score_b'] else .5 if f['score_a']==f['score_b'] else 0,cfg)
+  awarded=__import__('rankings').award(d,'fixture',f);old=awarded['old'] if awarded else {}
   d.execute('INSERT OR IGNORE INTO gb_comp_retention VALUES(?,?)',(f['id'],int(time.time())+json.loads(league['policy_snapshot'] or current(d)['config'])['retention_seconds']));d.execute('INSERT INTO gb_rating_events VALUES(?,?)',(f['id'],int(time.time())));event(d,f['id'],'system','competition_rating_updated',old=old,reason='Confirmed played result; no walkover rating')
 
 def dispatch_notices(server):
@@ -540,6 +438,8 @@ def dispatch_notices(server):
  with server.db() as d:
   d.execute('BEGIN IMMEDIATE')
   for n in [dict(r) for r in d.execute('SELECT n.* FROM gb_notices n LEFT JOIN gb_notice_delivery p ON p.id=n.id WHERE n.seen=0 AND n.created>? AND COALESCE(p.delivered,0)=0 AND COALESCE(p.attempts,0)<3 AND COALESCE(p.next_attempt,0)<=? ORDER BY n.id LIMIT 20',(now-3600,now))]:
+   if not __import__('match_scheduling').valid_notice(d,n,now):continue
+   n=__import__('match_scheduling').public_notice(d,n)
    targets=[r[0] for r in d.execute('SELECT token FROM push_devices p JOIN sessions s ON s.token_hash=p.session_hash AND s.user_id=p.user_id WHERE p.user_id=?',(n['uid'],))]
    if not targets:continue
    d.execute('INSERT INTO gb_notice_delivery(id,attempts,next_attempt) VALUES(?,1,?) ON CONFLICT(id) DO UPDATE SET attempts=attempts+1,next_attempt=excluded.next_attempt',(n['id'],now+300));pending.append((n,targets))
@@ -548,7 +448,10 @@ def dispatch_notices(server):
   for n,targets in pending:
    success=False
    for token in targets:
-    try:server.push.send(token,{'event':'gamebox_notice','notice_id':str(n['id']),'recipient':n['uid'],'expires_at':str(now+600)});success=True
+    try:
+     with server.db() as check:
+      if not __import__('match_scheduling').valid_notice(check,n):continue
+     server.push.send(token,{'event':'gamebox_notice','notice_id':str(n['id']),'recipient':n['uid'],'expires_at':str(min(n.get('expires',now+600),now+600))});success=True
     except Exception as error:print('Gamebox notice push failed: '+type(error).__name__,flush=True)
    if success:
     with server.db() as d:d.execute('UPDATE gb_notice_delivery SET delivered=1 WHERE id=?',(n['id'],))
@@ -557,7 +460,7 @@ def dispatch_notices(server):
 
 def weekly(d,game,week,rules):
  players={}
- for match in d.execute("SELECT * FROM gb_matches WHERE game=? AND state='verified' AND verified>=?",(game,week)):
+ for match in d.execute("SELECT * FROM gb_matches WHERE id IN (SELECT match FROM gb_match_origins WHERE global_ranking_eligible=1) AND game=? AND state='verified' AND verified>=?",(game,week)):
   for uid,opponent,own,other in [(match['a'],match['b'],match['score_a'],match['score_b']),(match['b'],match['a'],match['score_b'],match['score_a'])]:
    if uid not in players:players[uid]={'uid':uid,'matches':0,'wins':0,'points':0,'opponents':set()}
    player=players[uid];player['matches']+=1;player['wins']+=own>other;player['points']+=3 if own>other else 1 if own==other else 0;player['opponents'].add(opponent)

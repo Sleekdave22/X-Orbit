@@ -13,4 +13,4 @@ class PushGateway:
  def send(self,token,data):
   if not self.enabled:return
   from firebase_admin import messaging
-  messaging.send(messaging.Message(token=token,data=data,android=messaging.AndroidConfig(priority='high',ttl=timedelta(seconds=600 if data.get('event')=='gamebox_notice' else 45))),app=self.app)
+  messaging.send(messaging.Message(token=token,data=data,android=messaging.AndroidConfig(priority='high',ttl=timedelta(seconds=600 if data.get('event') in ('gamebox_notice','social_notice') else 45))),app=self.app)
