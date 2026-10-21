@@ -37,6 +37,26 @@ def public(d,viewer,target):
 def get(server,uid,action,q):
  with server.db() as d:
   target=q.get('id',[uid])[0]
+  if action=='search':
+   query=q.get('q',[''])[0].strip().removeprefix('@')
+   if not 2<=len(query)<=60:raise ValueError('Enter 2–60 characters to search')
+   offset=int(q.get('offset',['0'])[0])
+   if not 0<=offset<=10000:raise ValueError('Invalid search page')
+   literal=query.replace('\\','\\\\').replace('%','\\%').replace('_','\\_')
+   # Discovery is opt-in. Exact public identifiers also work for private accounts,
+   # exposing only their existing public card, never granting conversation access.
+   rows=d.execute('''SELECT u.id,u.name,u.nickname,u.avatar,u.avatar_mime,
+    EXISTS(SELECT 1 FROM contacts c WHERE c.owner=? AND c.peer=u.id) AS contact
+    FROM users u LEFT JOIN social_profiles p ON p.uid=u.id
+    WHERE u.id<>? AND NOT EXISTS(SELECT 1 FROM social_blocks b
+     WHERE (b.owner=? AND b.target=u.id) OR (b.owner=u.id AND b.target=?))
+    AND (u.id=? COLLATE NOCASE OR u.nickname=? COLLATE NOCASE OR
+     (p.discoverable=1 AND p.private=0 AND
+      (u.name LIKE ? ESCAPE '\\' OR u.nickname LIKE ? ESCAPE '\\')))
+    ORDER BY CASE WHEN u.id=? COLLATE NOCASE OR u.nickname=? COLLATE NOCASE THEN 0 ELSE 1 END,
+     u.name COLLATE NOCASE,u.id LIMIT 21 OFFSET ?''',
+    (uid,uid,uid,uid,query,query,'%'+literal+'%','%'+literal+'%',query,query,offset)).fetchall()
+   return {'users':[dict(r) for r in rows[:20]],'next_offset':offset+20 if len(rows)>20 else None}
   if action=='suggestions':
    rows=d.execute('SELECT u.id,u.name,u.nickname,u.avatar,u.avatar_mime FROM users u JOIN social_profiles p ON p.uid=u.id WHERE p.discoverable=1 AND p.private=0 AND u.id<>? ORDER BY u.id LIMIT 100',(uid,))
    return {'users':[dict(r) for r in rows if not blocked(d,uid,r['id']) and not d.execute("SELECT 1 FROM social_follows WHERE follower=? AND target=?",(uid,r['id'])).fetchone()][:20]}

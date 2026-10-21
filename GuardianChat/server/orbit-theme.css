@@ -80,3 +80,9 @@ nav button{min-width:0;min-height:36px;padding:7px 11px!important;font-size:12px
 nav button.group-start{margin-left:0}
 nav button.group-start:before{font-size:9px}
 @media(max-width:480px){nav{gap:5px;row-gap:10px}nav button{flex:0 1 auto;min-width:0;min-height:36px;padding:7px 10px!important}main{padding:10px}header{padding:12px;gap:10px}h1{font-size:24px}.card{padding:12px;margin-bottom:8px}.gaming-profile-identity{margin:6px 0;gap:9px}.gaming-profile-identity .rank-avatar{width:56px;height:56px}}
+
+/* Owner-supplied wallpaper: repeat at a bounded width on wide screens, never stretch. */
+body{--wallpaper-scrim:#1b070938;background-image:linear-gradient(var(--wallpaper-scrim),var(--wallpaper-scrim)),url('/branding/orbit-wallpaper.png')!important;background-size:cover,min(680px,100vw) auto!important;background-position:center top!important;background-repeat:no-repeat,repeat!important;background-attachment:fixed!important;min-height:100dvh}
+html[data-theme=bright] body{--wallpaper-scrim:#f7eee0eb}
+main,#contacts,#chat{background:transparent!important}
+#messages{background:transparent!important}

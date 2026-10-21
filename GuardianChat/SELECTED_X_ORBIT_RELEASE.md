@@ -5,6 +5,10 @@ Branch: `fix/separate-android-installer`; original branch head `7e9e33f`.
 Default branch inspected: `3b1209ef0ffc554981f3e8035a444a39d6014a37`.
 No merge into main.
 
+Latest incremental update: see `NAVIGATION_WALLPAPER_UPDATE.md` for version 7,
+global account search, bottom native tabs, Settings copyright and the supplied
+wallpaper. That update supersedes the earlier footer placement described below.
+
 ## Source and compatibility
 
 The owner selected this repository's existing oxblood/gold interface. Its PNGs,
