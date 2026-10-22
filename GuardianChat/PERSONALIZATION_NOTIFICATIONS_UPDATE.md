@@ -32,3 +32,10 @@ Message notification registration no longer depends solely on whether incoming c
 - Real-device background receipt and exact-message tapping require live verification on the S21 after installation. They are not claimed as end-to-end verified by a successful build.
 - This remains a local HTTPS test installation. The server must be reachable by the phone to retrieve previews. Android force-stop, disabled notifications, network loss or OS restrictions can prevent delivery; the app cannot override these conditions.
 - Deployment preserves runtime data and credentials and uses a database/file backup. No merge to main or real-money features are part of this update.
+
+## Local deployment — 22 October 2026
+
+- Version 9 installed successfully on the S21 over Wireless debugging. Android reports the expected application identity, version and granted notification permission. The existing account and shared league/match endpoints remain accessible.
+- The local HTTPS server serves the updated chat page, personalization script, stylesheet and wallpaper byte-for-byte. Its database integrity check passed and existing account/message counts were preserved.
+- The existing signed-in browser account was retained and refreshed. The live page shows Chats/Calls, the new wallpaper, 30% menu and six Personalization options. No real account's colour preference was changed during verification.
+- Background receipt and exact-message tapping are awaiting the user-operated S21 check; the implementation remains explicitly unverified for that end-to-end step.
