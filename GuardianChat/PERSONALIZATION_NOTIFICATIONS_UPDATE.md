@@ -29,7 +29,7 @@ Message notification registration no longer depends solely on whether incoming c
 - Backend integration checks cover push dispatch after commit, recipient/session permissions, private previews, duplicate sends, forwards, read/block/logout exclusions, preference validation and account isolation. Preset text contrast is tested.
 - Browser regression checks cover existing notification de-duplication, Calls refresh and account-search races. New tests cover stale account colour responses, logout and session changes. Inline browser scripts parse successfully.
 - Synthetic browser verification confirmed 30% drawer width, Chats/Calls navigation, successful colour saving, coloured outgoing bubbles, matching Orbit Play selected-button colour and the new wallpaper.
-- Real-device background receipt and exact-message tapping require live verification on the S21 after installation. They are not claimed as end-to-end verified by a successful build.
+- After version 9 installation, a user-operated S21 check passed: the app was left in the background, Mainfirst sent one authorized normal test message, and the user confirmed the notification showed its text and tapping opened the correct message. The server also recorded delivery and reading. Protected-content preview exclusions were covered by integration tests, not by a second live message.
 - This remains a local HTTPS test installation. The server must be reachable by the phone to retrieve previews. Android force-stop, disabled notifications, network loss or OS restrictions can prevent delivery; the app cannot override these conditions.
 - Deployment preserves runtime data and credentials and uses a database/file backup. No merge to main or real-money features are part of this update.
 
@@ -38,4 +38,4 @@ Message notification registration no longer depends solely on whether incoming c
 - Version 9 installed successfully on the S21 over Wireless debugging. Android reports the expected application identity, version and granted notification permission. The existing account and shared league/match endpoints remain accessible.
 - The local HTTPS server serves the updated chat page, personalization script, stylesheet and wallpaper byte-for-byte. Its database integrity check passed and existing account/message counts were preserved.
 - The existing signed-in browser account was retained and refreshed. The live page shows Chats/Calls, the new wallpaper, 30% menu and six Personalization options. No real account's colour preference was changed during verification.
-- Background receipt and exact-message tapping are awaiting the user-operated S21 check; the implementation remains explicitly unverified for that end-to-end step.
+- The user-operated S21 check confirmed background notification receipt and exact-message navigation. Android force-stop/offline delivery and additional device models were not exercised.
