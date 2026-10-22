@@ -72,3 +72,5 @@
  }
  search.onclick=openSearch;el('messages').addEventListener('scroll',()=>{const box=el('messages');if(box.scrollHeight-box.clientHeight-box.scrollTop<40)jumped=false});window.OrbitChatNavigation={sync,closeSearch,get viewingSearchResult(){return jumped}};sync();
 })();
+
+ document.getElementById("closeNavigation")?.addEventListener("click",()=>document.getElementById("menuToggle").click());

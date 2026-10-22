@@ -1,0 +1,8 @@
+[
+ {"id":"oxblood-gold","name":"Oxblood & gold","accent":"#6A1833","bubble":"#e8b84a","ink":"#24170a"},
+ {"id":"ocean","name":"Ocean","accent":"#205779","bubble":"#b8def3","ink":"#102635"},
+ {"id":"forest","name":"Forest","accent":"#256044","bubble":"#b9dfbd","ink":"#12291d"},
+ {"id":"violet","name":"Violet","accent":"#624280","bubble":"#dfc7f2","ink":"#2d183e"},
+ {"id":"rose","name":"Rose","accent":"#853951","bubble":"#f1c4ce","ink":"#351623"},
+ {"id":"slate","name":"Slate","accent":"#485568","bubble":"#d2dae5","ink":"#1d2632"}
+]

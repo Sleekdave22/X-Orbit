@@ -17,12 +17,18 @@ internal class LatestMessageScrollView(context: Context) : ScrollView(context) {
     private var downX = 0f
     private var userTouch = false
     private var positioning = false
+    private var messageTarget: View? = null
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
     private fun bottomOffset() = latestOffset(getChildAt(0)?.height ?: 0, height, paddingTop, paddingBottom)
     private val beforeDraw = ViewTreeObserver.OnPreDrawListener {
         // Android may restore descendant focus after onLayout. Position at the
         // final drawing boundary, and never interpret that focus scroll as a drag.
-        if (followingLatest) {
+        if (messageTarget != null && messageTarget?.isLaidOut == true) {
+            positioning = true
+            scrollTo(0, maxOf(0, messageTarget!!.top - 20))
+            positioning = false
+            messageTarget = null
+        } else if (followingLatest) {
             positioning = true
             scrollTo(0, bottomOffset())
             positioning = false
@@ -49,8 +55,18 @@ internal class LatestMessageScrollView(context: Context) : ScrollView(context) {
     }
 
     fun revealLatest() {
+        messageTarget = null
         followingLatest = true
         revealPending = true
+        requestLayout()
+        invalidate()
+    }
+
+    fun revealMessage(row: View) {
+        followingLatest = false
+        messageTarget = row
+        revealPending = true
+        alpha = 0f
         requestLayout()
         invalidate()
     }

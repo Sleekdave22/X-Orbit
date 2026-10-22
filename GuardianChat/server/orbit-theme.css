@@ -82,7 +82,7 @@ nav button.group-start:before{font-size:9px}
 @media(max-width:480px){nav{gap:5px;row-gap:10px}nav button{flex:0 1 auto;min-width:0;min-height:36px;padding:7px 10px!important}main{padding:10px}header{padding:12px;gap:10px}h1{font-size:24px}.card{padding:12px;margin-bottom:8px}.gaming-profile-identity{margin:6px 0;gap:9px}.gaming-profile-identity .rank-avatar{width:56px;height:56px}}
 
 /* Owner-supplied wallpaper: repeat at a bounded width on wide screens, never stretch. */
-body{--wallpaper-scrim:#1b070938;background-image:linear-gradient(var(--wallpaper-scrim),var(--wallpaper-scrim)),url('/branding/orbit-wallpaper.png')!important;background-size:cover,min(680px,100vw) auto!important;background-position:center top!important;background-repeat:no-repeat,repeat!important;background-attachment:fixed!important;min-height:100dvh}
+body{--wallpaper-scrim:#00000028;background-image:linear-gradient(var(--wallpaper-scrim),var(--wallpaper-scrim)),url('/branding/orbit-wallpaper-v2.png')!important;background-size:cover,min(680px,100vw) auto!important;background-position:center top!important;background-repeat:no-repeat,repeat!important;background-attachment:fixed!important;min-height:100dvh}
 html[data-theme=bright] body{--wallpaper-scrim:#f7eee0eb}
 main,#contacts,#chat{background:transparent!important}
 #messages{background:transparent!important}
@@ -112,3 +112,16 @@ button.selected:not(.call-answer):not(.call-end),nav button[aria-selected=true],
 .once-icon{background:#343034!important;color:var(--gold)!important;border:1px solid #615354!important}
 .once-icon:has(input:checked){background:var(--gold)!important;color:var(--ox-800)!important;border-color:var(--gold)!important}
 .view-once-mark{flex-shrink:0;vertical-align:middle}.view-once-note{display:flex;align-items:center;gap:7px}
+
+/* Personal colours belong to the signed-in account; medals and brand assets stay gold. */
+:root,html[data-theme=bright]{--accent:var(--personal-accent,#6A1833)}
+.social-panel{--profile-active:var(--personal-accent,#6A1833);--profile-badge:color-mix(in srgb,var(--personal-accent,#6A1833),white 15%)}
+#chat .message.own .message-body{background:var(--personal-bubble,#e8b84a)!important;color:var(--personal-ink,#24170a)!important;border-color:color-mix(in srgb,var(--personal-bubble,#e8b84a),white 25%)}
+#chat .message.own .message-body small{color:var(--personal-ink,#24170a)}
+button.primary,nav button.selected,nav button[aria-current=true],button[aria-pressed=true],button[aria-selected=true]{background:var(--personal-accent,#6A1833);color:#fff}
+#navigationMenu{top:0;bottom:0;right:0;width:30vw;max-width:none;min-width:0;height:100dvh;border-radius:0;overflow-y:auto;padding:max(12px,env(safe-area-inset-top)) 6px 16px;animation:drawer-in .23s ease-out}
+#navigationMenu button{padding:9px 4px!important;font-size:13px;white-space:normal;overflow-wrap:anywhere;min-width:0}
+#navigationMenu #myProfile{flex-direction:row;gap:6px}#navigationMenu #ownAvatar{width:32px;height:32px;flex-shrink:0}#navigationMenu #ownName{min-width:0;overflow-wrap:anywhere}#navigationMenu hr{border:0;border-top:1px solid var(--line);margin:8px 0}
+@keyframes drawer-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
+#personalizationDialog{background:var(--surface);color:var(--ink);border:1px solid var(--line);max-width:460px}.palette-preview{border-radius:14px;background:var(--personal-bubble,#e8b84a);color:var(--personal-ink,#24170a);padding:16px;margin:14px 0}
+@media(prefers-reduced-motion:reduce){#navigationMenu{animation:none}}

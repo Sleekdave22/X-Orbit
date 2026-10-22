@@ -63,6 +63,7 @@ class ChatServer(ThreadingHTTPServer):
             db.execute('CREATE TABLE IF NOT EXISTS chat_pins(owner TEXT NOT NULL,peer TEXT NOT NULL,PRIMARY KEY(owner,peer))')
             db.execute('CREATE TABLE IF NOT EXISTS chat_hidden(owner TEXT NOT NULL,peer TEXT NOT NULL,through_id INTEGER NOT NULL,PRIMARY KEY(owner,peer))')
         import social
+        __import__("account_preferences").init(self)
         social.init(self)
         __import__("social_spaces").init(self)
         gaming.init(self)
@@ -179,10 +180,10 @@ class Handler(BaseHTTPRequestHandler):
             parsed=urlparse(self.path)
             if parsed.path=='/orbit-icon.png':
                 data=(Path(__file__).parent/'orbit-icon.png').read_bytes();self.send_response(200);self.send_header('Content-Type','image/png');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
-            if parsed.path in ('/branding/XOrbit-app-icon-1024.png','/branding/XOrbit-logo-dark.png','/branding/XOrbit-logo-light.png','/branding/orbit-wallpaper.png'):
+            if parsed.path in ('/branding/XOrbit-app-icon-1024.png','/branding/XOrbit-logo-dark.png','/branding/XOrbit-logo-light.png','/branding/orbit-wallpaper.png','/branding/orbit-wallpaper-v2.png'):
                 data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','image/png');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
-            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js','/orbit-theme.js','/orbit-theme.css','/social.js','/profile-tabs.css','/social-spaces.js','/phase-b.js','/form-panels.js','/form-panels.css','/scheduling.js','/wallet.html','/wallet.js','/live-room-ui.js','/stream-relay-ui.js','/invitations.js','/join.js','/account-search.js','/sponsored-ui.js'):
-                data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
+            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js','/orbit-theme.js','/orbit-theme.css','/social.js','/profile-tabs.css','/social-spaces.js','/phase-b.js','/form-panels.js','/form-panels.css','/scheduling.js','/wallet.html','/wallet.js','/live-room-ui.js','/stream-relay-ui.js','/invitations.js','/join.js','/account-search.js','/sponsored-ui.js','/personalization.js','/personalization.json'):
+                data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','application/json' if parsed.path.endswith('.json') else 'text/javascript' if parsed.path.endswith('.js') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/guardianchat-ca.crt':
                 data=(Path(__file__).parent.parent/'chat/src/main/res/raw/guardianchat_local_ca.crt').read_bytes();self.send_response(200);self.send_header('Content-Type','application/x-x509-ca-cert');self.send_header('Content-Disposition','attachment; filename=guardianchat-ca.crt');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/join':
@@ -199,6 +200,12 @@ class Handler(BaseHTTPRequestHandler):
                 data=(Path(__file__).parent/'index.html').read_bytes()
                 self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(data);return
             uid=self.user()
+            if parsed.path=='/preferences':
+                self.reply(200,__import__('account_preferences').get(self.server,uid));return
+            if parsed.path=='/messages/notification':
+                try:self.reply(200,__import__('message_notifications').preview(self.server,uid,int(parse_qs(parsed.query).get('id',['0'])[0])))
+                except LookupError:self.reply(404,{'error':'Message unavailable'})
+                return
             if parsed.path=='/invitations/mine':
                 self.reply(200,__import__('account_invites').getown(self.server,uid));return
             if parsed.path=='/gaming/live-streams':
@@ -427,6 +434,8 @@ class Handler(BaseHTTPRequestHandler):
                 try:self.reply(200,__import__('social_spaces').post(self.server,uid,self.path.split('/')[-1],body))
                 except PermissionError as e:self.reply(403,{'error':str(e)})
                 return
+            if self.path=='/preferences':
+                self.reply(200,__import__('account_preferences').save(self.server,uid,body));return
             if self.path.startswith('/social/'):
                 import social
                 try:self.reply(200,social.post(self.server,uid,self.path.split('/')[-1],body))
@@ -588,7 +597,9 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:
                         if fid:self.server.file_path(fid,row['filename'],row['mime']).unlink(missing_ok=True)
                         raise
-                    self.reply(201,{'id':result.lastrowid});return
+                    forwarded_id=result.lastrowid
+                __import__('message_notifications').dispatch(self.server,forwarded_id)
+                self.reply(201,{'id':forwarded_id});return
             if self.path=='/contacts':
                 code=str(body.get('code','')).strip().lower().replace('-','');lookup=code.lstrip('@')
                 with self.server.db() as db:
@@ -673,6 +684,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     if fid:self.server.file_path(fid,filename,mime).unlink(missing_ok=True)
                     raise
+            __import__('message_notifications').dispatch(self.server,msgid)
             self.reply(201,{'id':msgid})
         except PermissionError as e:self.reply(401,{'error':str(e)})
         except (ValueError,KeyError,TypeError):self.reply(400,{'error':'Invalid message or attachment'})

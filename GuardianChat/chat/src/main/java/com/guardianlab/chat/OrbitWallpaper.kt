@@ -11,7 +11,7 @@ internal class OrbitWallpaper(private val bitmap:Bitmap,private val bright:()->B
   val width=bitmap.width*scale;val height=bitmap.height*scale
   val left=bounds.left+(bounds.width()-width)/2;val top=bounds.top+(bounds.height()-height)/2
   canvas.drawBitmap(bitmap,null,RectF(left,top,left+width,top+height),paint)
-  canvas.drawColor(if(bright())Color.argb(235,247,238,224) else Color.argb(55,27,7,9))
+  canvas.drawColor(if(bright())Color.argb(235,247,238,224) else Color.argb(40,0,0,0))
  }
  override fun setAlpha(alpha:Int){paint.alpha=alpha;invalidateSelf()}
  override fun setColorFilter(filter:ColorFilter?){paint.colorFilter=filter;invalidateSelf()}

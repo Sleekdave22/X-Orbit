@@ -2,7 +2,7 @@ plugins { alias(libs.plugins.android.application) }
 android {
  namespace = "com.guardianlab.chat"
  compileSdk { version = release(36) { minorApiLevel = 1 } }
- defaultConfig { applicationId = if(providers.gradleProperty("orbitComparison").orNull == "true") "com.guardianlab.chat.compare" else "com.guardianlab.chat"; minSdk = 29; targetSdk = 36; versionCode = 8; versionName = "0.8-x-orbit-chat-navigation"; buildConfigField("boolean", "COMPARISON_INTERFACE", "true"); buildConfigField("boolean", "BUNDLED_INTERFACE", (providers.gradleProperty("orbitComparison").orNull == "true").toString()); ndk { abiFilters += "arm64-v8a" } }
+ defaultConfig { applicationId = if(providers.gradleProperty("orbitComparison").orNull == "true") "com.guardianlab.chat.compare" else "com.guardianlab.chat"; minSdk = 29; targetSdk = 36; versionCode = 9; versionName = "0.9-x-orbit-personalization-notifications"; buildConfigField("boolean", "COMPARISON_INTERFACE", "true"); buildConfigField("boolean", "BUNDLED_INTERFACE", (providers.gradleProperty("orbitComparison").orNull == "true").toString()); ndk { abiFilters += "arm64-v8a" } }
  buildFeatures { buildConfig = true }
  sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/comparison-assets").get().asFile)
  compileOptions { sourceCompatibility = JavaVersion.VERSION_11; targetCompatibility = JavaVersion.VERSION_11 }
@@ -22,7 +22,7 @@ dependencies {
 // Package the fork's own interface; API calls still use the configured HTTPS server.
 val comparisonAssets = tasks.register<Sync>("packageComparisonInterface") {
  from(rootProject.file("server")) {
-  include("gaming.html", "gaming.js", "gaming.css", "orbit-theme.css", "orbit-theme.js",
+  include("gaming.html", "gaming.js", "gaming.css", "orbit-theme.css", "orbit-theme.js", "personalization.js", "personalization.json",
    "studio.js", "result-room.js", "orbit-icon.png", "roboto-0.ttf", "roboto-1.ttf",
    "sponsored-ui.js", "phase-b.js", "scheduling.js", "social.js", "social-spaces.js",
    "live-room-ui.js", "stream-relay-ui.js", "invitations.js", "profile-tabs.css", "form-panels.js", "form-panels.css")
