@@ -126,3 +126,16 @@ button.primary,nav button.selected,nav button[aria-current=true],button[aria-pre
 @keyframes drawer-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
 #personalizationDialog{background:var(--surface);color:var(--ink);border:1px solid var(--line);max-width:460px}.palette-preview{border-radius:14px;background:var(--personal-bubble,#e8b84a);color:var(--personal-ink,#24170a);padding:16px;margin:14px 0}
 @media(prefers-reduced-motion:reduce){#navigationMenu{animation:none}}
+
+/* Ordered colour pairs: first = sent/active theme; second = received/inactive. */
+:root,html[data-theme=bright]{--accent:var(--personal-accent,#e8b84a);--on-accent:var(--personal-ink,#24170a);--heading:var(--personal-heading-dark,#e8b84a)}
+html[data-theme=bright]{--heading:var(--personal-heading-light,#2a0d12)}
+.social-panel{--profile-inactive:var(--personal-received,#341923);--profile-active:var(--personal-accent,#e8b84a)}
+button:not(.call-answer):not(.call-end),#navigationMenu button,#contacts>.home-tabs button[aria-pressed=false]{background-color:var(--personal-received,#341923)!important;color:var(--personal-received-ink,#f4eee6)!important}
+button.primary:not(.call-answer):not(.call-end),button.selected:not(.call-answer):not(.call-end),button[aria-pressed=true]:not(.call-answer):not(.call-end),button[aria-selected=true]:not(.call-answer):not(.call-end),nav button[aria-current=true],button.pressed:not(.call-answer):not(.call-end),button:active:not(.call-answer):not(.call-end),#contacts>.home-tabs button[aria-pressed=true],#send,#gamingTab{background-color:var(--personal-accent,#e8b84a)!important;color:var(--personal-ink,#24170a)!important}
+#chat .message .message-body{background:var(--personal-received,#341923)!important;color:var(--personal-received-ink,#f4eee6)!important;border-color:color-mix(in srgb,var(--personal-received,#341923),var(--personal-received-ink,#f4eee6) 25%)}
+#chat .message.own .message-body{background:var(--personal-bubble,#e8b84a)!important;color:var(--personal-ink,#24170a)!important}
+#chat .message .message-body small{color:inherit}
+.once-icon{background:var(--personal-received,#341923)!important;color:var(--personal-received-ink,#f4eee6)!important}
+.once-icon:has(input:checked){background:var(--personal-accent,#e8b84a)!important;color:var(--personal-ink,#24170a)!important}
+.pair-preview{border:1px solid var(--line);border-radius:14px;padding:10px}.pair-preview .palette-preview{margin:8px 0;padding:12px;font-size:13px}.received-preview{margin-right:18px!important}.sent-preview{margin-left:18px!important}.pair-button-previews{display:flex;gap:8px;margin-top:12px}.pair-button-previews span{flex:1;border-radius:10px;padding:10px 8px;font-size:12px;text-align:center}
