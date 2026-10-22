@@ -1,8 +1,8 @@
 /* Orbit theme — oxblood + gold. Tokens first, then overrides for chat, Gamebox and calls.
    Contrast (WCAG): gold #E8B84A on Oxblood 950 #1B0709 = 10.6:1; cream #F7ECDD on Oxblood 900 #2A0A10 = 14.6:1;
    Light mode (ivory paper #F7EEE0, white-ivory cards #FFFCF7): ink #2A0D12 15.7:1, muted #6B4650 7.0:1, oxblood-700 headings 9.2:1, cream on oxblood-700 buttons 9.7:1, oxblood-950 on gold tabs 10.5:1. Oxblood is never used as text on dark. */
-:root{--ox-950:#1b0709;--ox-900:#2a0a10;--ox-800:#4a1020;--ox-700:#7a1630;--ox-600:#8e1b38;--gold:#e8b84a;--gold-deep:#b8841a;--cream:#f7ecdd;--cream-50:#fbf4ea;--sand:#d9c3a5;
---paper:var(--ox-950);--surface:var(--ox-900);--ink:var(--cream);--muted:#c9ae9c;--line:#5b2430;--accent:var(--ox-600);--heading:var(--gold);--on-accent:var(--cream);--focus:var(--gold);color-scheme:dark}
+:root{--ox-950:#1b0709;--ox-900:#2a0a10;--ox-800:#4a1020;--ox-700:#7a1630;--ox-600:#8e1b38;--gold:#e8b84a;--gold-deep:#b8841a;--cream:#f5f4f0;--cream-50:#f5f4f0;--sand:#d9c3a5;
+--paper:var(--ox-950);--surface:var(--ox-900);--ink:var(--cream);--muted:#d5d2d0;--line:#5b2430;--accent:var(--ox-600);--heading:var(--gold);--on-accent:var(--cream);--focus:var(--gold);color-scheme:dark}
 html[data-theme=bright]{--paper:#f7eee0;--surface:#fffcf7;--ink:#2a0d12;--muted:#6b4650;--line:#9c7a4f;--accent:var(--ox-700);--heading:var(--ox-700);--on-accent:var(--cream-50);--focus:var(--ox-700);color-scheme:light}
 @media(prefers-color-scheme:light){html:not([data-theme=dark]):not([data-theme=bright]){--paper:#f7eee0;--surface:#fffcf7;--ink:#2a0d12;--muted:#6b4650;--line:#9c7a4f;--accent:var(--ox-700);--heading:var(--ox-700);--on-accent:var(--cream-50);--focus:var(--ox-700);color-scheme:light}}
 body{background:var(--paper);color:var(--ink);font-family:Roboto,system-ui,sans-serif}
@@ -48,7 +48,7 @@ nav .tab-group>span{font-size:11px;letter-spacing:.14em;text-transform:uppercase
 @keyframes spin{to{transform:rotate(360deg)}}
 /* calls */
 .call-screen{background:radial-gradient(circle at 50% 20%,var(--ox-800),var(--ox-950) 75%);color:var(--cream)}
-.call-answer{background:#2e9a4a!important;color:#fff}.call-end{background:#c43540!important;color:#fff}
+.call-answer{background:#2e9a4a!important;color:#f5f4f0}.call-end{background:#c43540!important;color:#f5f4f0}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .stat-cell strong{color:var(--heading)}
 nav{flex-wrap:wrap;row-gap:26px}
@@ -128,14 +128,17 @@ button.primary,nav button.selected,nav button[aria-current=true],button[aria-pre
 @media(prefers-reduced-motion:reduce){#navigationMenu{animation:none}}
 
 /* Personal pairs colour bubbles only; navigation uses fixed oxblood and gold. */
-:root,html[data-theme=bright]{--accent:#6a1833;--on-accent:#e8b84a;--heading:#e8b84a}
+:root,html[data-theme=bright]{--accent:#6a1833;--on-accent:#f5f4f0;--heading:#f5f4f0}
 html[data-theme=bright]{--heading:#6a1833}
 .social-panel{--profile-inactive:#341923;--profile-active:#6a1833;--profile-badge:#8b3b52}
-button:not(.call-answer):not(.call-end),#navigationMenu button,#contacts>.home-tabs button[aria-pressed=false]{background-color:#6a1833!important;color:#e8b84a!important}
+button:not(.call-answer):not(.call-end),#navigationMenu button,#contacts>.home-tabs button[aria-pressed=false]{background-color:#6a1833!important;color:#f5f4f0!important}
 button.primary:not(.call-answer):not(.call-end),button.selected:not(.call-answer):not(.call-end),button[aria-pressed=true]:not(.call-answer):not(.call-end),button[aria-selected=true]:not(.call-answer):not(.call-end),nav button[aria-current=true],button.pressed:not(.call-answer):not(.call-end),button:active:not(.call-answer):not(.call-end),#contacts>.home-tabs button[aria-pressed=true],#send,#gamingTab{background-color:#e8b84a!important;color:#341923!important}
 #chat .message .message-body{background:var(--personal-received,#341923)!important;color:var(--personal-received-ink,#f4eee6)!important;border-color:color-mix(in srgb,var(--personal-received,#341923),var(--personal-received-ink,#f4eee6) 25%)}
 #chat .message.own .message-body{background:var(--personal-bubble,#e8b84a)!important;color:var(--personal-ink,#24170a)!important}
 #chat .message .message-body small{color:inherit}
-.once-icon{background:#6a1833!important;color:#e8b84a!important}
+.once-icon{background:#6a1833!important;color:#f5f4f0!important}
 .once-icon:has(input:checked){background:#e8b84a!important;color:#341923!important}
 .pair-preview{border:1px solid var(--line);border-radius:14px;padding:10px}.pair-preview .palette-preview{margin:8px 0;padding:12px;font-size:13px}.received-preview{margin-right:18px!important}.sent-preview{margin-left:18px!important}
+/* Near-white interface copy; message bubbles keep their contrast-aware pair text. */
+body,dialog,input,textarea{color:var(--ink)!important}
+.muted,#people button small{color:var(--muted)!important}
