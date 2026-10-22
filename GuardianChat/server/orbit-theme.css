@@ -101,7 +101,8 @@ button.selected:not(.call-answer):not(.call-end),nav button[aria-selected=true],
 #navigationMenu #myProfile{justify-content:flex-start;flex-direction:row-reverse}#navigationMenu #ownAvatar{width:44px;height:44px}
 @keyframes menu-out{from{opacity:0;transform:translateY(-8px) scale(.94)}to{opacity:1;transform:none}}
 #chat .message,#chat .message.own{background:transparent!important;border:0!important}
-#chat .message .message-body{background:#1d1a1c!important;color:#f4eee6!important;border:1px solid #4c4248}
+/* Current received surface + 30% approved oxblood (#6A1833), rounded to sRGB. */
+#chat .message .message-body{background:#341923!important;color:#f4eee6!important;border:1px solid #4c4248}
 #chat .message.own .message-body{background:#e8b84a!important;color:#24170a!important;border-color:#f4d084}
 #chat .message-body .reply-snippet{color:inherit;border-left-color:currentColor}
 #chat .message.own .message-body small{color:#49361c}

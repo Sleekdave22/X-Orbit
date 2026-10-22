@@ -4,5 +4,13 @@
  {"id":"forest","name":"Forest","accent":"#256044","bubble":"#b9dfbd","ink":"#12291d"},
  {"id":"violet","name":"Violet","accent":"#624280","bubble":"#dfc7f2","ink":"#2d183e"},
  {"id":"rose","name":"Rose","accent":"#853951","bubble":"#f1c4ce","ink":"#351623"},
- {"id":"slate","name":"Slate","accent":"#485568","bubble":"#d2dae5","ink":"#1d2632"}
+ {"id":"slate","name":"Slate","accent":"#485568","bubble":"#d2dae5","ink":"#1d2632"},
+ {"id":"crimson-gold","name":"Crimson & gold","accent":"#9e1b32","bubble":"#f4cf68","ink":"#352008"},
+ {"id":"royal-blue-gold","name":"Royal blue & gold","accent":"#2447a8","bubble":"#f4d35e","ink":"#242347"},
+ {"id":"navy-coral","name":"Navy & coral","accent":"#203a63","bubble":"#ffc0b4","ink":"#321b22"},
+ {"id":"crimson-sky","name":"Crimson & sky blue","accent":"#9b2438","bubble":"#c1d6ff","ink":"#162a50"},
+ {"id":"emerald-gold","name":"Emerald & gold","accent":"#16654a","bubble":"#f5d978","ink":"#233320"},
+ {"id":"teal-amber","name":"Teal & amber","accent":"#09656b","bubble":"#ffd38a","ink":"#213234"},
+ {"id":"amethyst-gold","name":"Amethyst & gold","accent":"#63318b","bubble":"#f2d06e","ink":"#352244"},
+ {"id":"cobalt-lemon","name":"Cobalt & lemon","accent":"#1b4f87","bubble":"#ffe49a","ink":"#192f50"}
 ]
