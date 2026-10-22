@@ -115,11 +115,11 @@ button.selected:not(.call-answer):not(.call-end),nav button[aria-selected=true],
 .view-once-mark{flex-shrink:0;vertical-align:middle}.view-once-note{display:flex;align-items:center;gap:7px}
 
 /* Personal colours belong to the signed-in account; medals and brand assets stay gold. */
-:root,html[data-theme=bright]{--accent:var(--personal-accent,#6A1833)}
-.social-panel{--profile-active:var(--personal-accent,#6A1833);--profile-badge:color-mix(in srgb,var(--personal-accent,#6A1833),white 15%)}
+:root,html[data-theme=bright]{--accent:#6a1833}
+.social-panel{--profile-active:#6a1833;--profile-badge:color-mix(in srgb,#6a1833,white 15%)}
 #chat .message.own .message-body{background:var(--personal-bubble,#e8b84a)!important;color:var(--personal-ink,#24170a)!important;border-color:color-mix(in srgb,var(--personal-bubble,#e8b84a),white 25%)}
 #chat .message.own .message-body small{color:var(--personal-ink,#24170a)}
-button.primary,nav button.selected,nav button[aria-current=true],button[aria-pressed=true],button[aria-selected=true]{background:var(--personal-accent,#6A1833);color:#fff}
+button.primary,nav button.selected,nav button[aria-current=true],button[aria-pressed=true],button[aria-selected=true]{background:#6a1833;color:#fff}
 #navigationMenu{top:0;bottom:0;right:0;width:30vw;max-width:none;min-width:0;height:100dvh;border-radius:0;overflow-y:auto;padding:max(12px,env(safe-area-inset-top)) 6px 16px;animation:drawer-in .23s ease-out}
 #navigationMenu button{padding:9px 4px!important;font-size:13px;white-space:normal;overflow-wrap:anywhere;min-width:0}
 #navigationMenu #myProfile{flex-direction:row;gap:6px}#navigationMenu #ownAvatar{width:32px;height:32px;flex-shrink:0}#navigationMenu #ownName{min-width:0;overflow-wrap:anywhere}#navigationMenu hr{border:0;border-top:1px solid var(--line);margin:8px 0}
@@ -127,15 +127,15 @@ button.primary,nav button.selected,nav button[aria-current=true],button[aria-pre
 #personalizationDialog{background:var(--surface);color:var(--ink);border:1px solid var(--line);max-width:460px}.palette-preview{border-radius:14px;background:var(--personal-bubble,#e8b84a);color:var(--personal-ink,#24170a);padding:16px;margin:14px 0}
 @media(prefers-reduced-motion:reduce){#navigationMenu{animation:none}}
 
-/* Ordered colour pairs: first = sent/active theme; second = received/inactive. */
-:root,html[data-theme=bright]{--accent:var(--personal-accent,#e8b84a);--on-accent:var(--personal-ink,#24170a);--heading:var(--personal-heading-dark,#e8b84a)}
-html[data-theme=bright]{--heading:var(--personal-heading-light,#2a0d12)}
-.social-panel{--profile-inactive:var(--personal-received,#341923);--profile-active:var(--personal-accent,#e8b84a)}
-button:not(.call-answer):not(.call-end),#navigationMenu button,#contacts>.home-tabs button[aria-pressed=false]{background-color:var(--personal-received,#341923)!important;color:var(--personal-received-ink,#f4eee6)!important}
-button.primary:not(.call-answer):not(.call-end),button.selected:not(.call-answer):not(.call-end),button[aria-pressed=true]:not(.call-answer):not(.call-end),button[aria-selected=true]:not(.call-answer):not(.call-end),nav button[aria-current=true],button.pressed:not(.call-answer):not(.call-end),button:active:not(.call-answer):not(.call-end),#contacts>.home-tabs button[aria-pressed=true],#send,#gamingTab{background-color:var(--personal-accent,#e8b84a)!important;color:var(--personal-ink,#24170a)!important}
+/* Personal pairs colour bubbles only; navigation uses fixed oxblood and gold. */
+:root,html[data-theme=bright]{--accent:#6a1833;--on-accent:#e8b84a;--heading:#e8b84a}
+html[data-theme=bright]{--heading:#6a1833}
+.social-panel{--profile-inactive:#341923;--profile-active:#6a1833;--profile-badge:#8b3b52}
+button:not(.call-answer):not(.call-end),#navigationMenu button,#contacts>.home-tabs button[aria-pressed=false]{background-color:#6a1833!important;color:#e8b84a!important}
+button.primary:not(.call-answer):not(.call-end),button.selected:not(.call-answer):not(.call-end),button[aria-pressed=true]:not(.call-answer):not(.call-end),button[aria-selected=true]:not(.call-answer):not(.call-end),nav button[aria-current=true],button.pressed:not(.call-answer):not(.call-end),button:active:not(.call-answer):not(.call-end),#contacts>.home-tabs button[aria-pressed=true],#send,#gamingTab{background-color:#e8b84a!important;color:#341923!important}
 #chat .message .message-body{background:var(--personal-received,#341923)!important;color:var(--personal-received-ink,#f4eee6)!important;border-color:color-mix(in srgb,var(--personal-received,#341923),var(--personal-received-ink,#f4eee6) 25%)}
 #chat .message.own .message-body{background:var(--personal-bubble,#e8b84a)!important;color:var(--personal-ink,#24170a)!important}
 #chat .message .message-body small{color:inherit}
-.once-icon{background:var(--personal-received,#341923)!important;color:var(--personal-received-ink,#f4eee6)!important}
-.once-icon:has(input:checked){background:var(--personal-accent,#e8b84a)!important;color:var(--personal-ink,#24170a)!important}
-.pair-preview{border:1px solid var(--line);border-radius:14px;padding:10px}.pair-preview .palette-preview{margin:8px 0;padding:12px;font-size:13px}.received-preview{margin-right:18px!important}.sent-preview{margin-left:18px!important}.pair-button-previews{display:flex;gap:8px;margin-top:12px}.pair-button-previews span{flex:1;border-radius:10px;padding:10px 8px;font-size:12px;text-align:center}
+.once-icon{background:#6a1833!important;color:#e8b84a!important}
+.once-icon:has(input:checked){background:#e8b84a!important;color:#341923!important}
+.pair-preview{border:1px solid var(--line);border-radius:14px;padding:10px}.pair-preview .palette-preview{margin:8px 0;padding:12px;font-size:13px}.received-preview{margin-right:18px!important}.sent-preview{margin-left:18px!important}

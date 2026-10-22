@@ -1,8 +1,8 @@
-/* A pair's first colour is sent/active; its second is received/inactive. */
+/* Account colours affect message bubbles only; navigation keeps the brand theme. */
 (()=>{
  let owner='',session='',choices=[],generation=0,lastFetch=0,busy=false,draft=null;
  const fallback={id:'oxblood-gold',roles:2,accent:'#e8b84a',bubble:'#e8b84a',ink:'#24170a',received:'#341923',receivedInk:'#f4eee6',headingDark:'#e8b84a',headingLight:'#2a0d12'};
- const variables={accent:'accent',bubble:'bubble',ink:'ink',received:'received','received-ink':'receivedInk','heading-dark':'headingDark','heading-light':'headingLight'};
+ const variables={bubble:'bubble',ink:'ink',received:'received','received-ink':'receivedInk'};
  function account(){try{return typeof GuardianGaming!=='undefined'?JSON.parse(GuardianGaming.session()):JSON.parse(localStorage.getItem('guardianchat-account')||'null')}catch(_){return null}}
  function apply(p){p=p?.roles===2?p:fallback;for(const [css,key] of Object.entries(variables))document.documentElement.style.setProperty('--personal-'+css,p[key]);document.documentElement.dataset.palette=p.id}
  function cached(id){try{return JSON.parse(localStorage.getItem('xorbit-palette-'+id))}catch(_){return null}}
@@ -19,13 +19,13 @@
   const a=account(),status=document.getElementById('paletteStatus');if(!a||a.id!==owner||busy)return;
   const palette=document.getElementById('paletteChoice').value,uid=owner,token=session,g=++generation;
   busy=true;draft=palette;render();status.textContent='Saving…';
-  try{const r=await fetch('/preferences',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({palette})});if(!r.ok)throw Error('Could not save. Try again.');const data=await r.json();if(g!==generation||account()?.id!==uid||account()?.token!==token)return;choices=data.choices;const p=choices.find(p=>p.id===data.palette);localStorage.setItem('xorbit-palette-'+uid,JSON.stringify(p));draft=null;apply(p);status.textContent='Saved for your account — chat and Orbit Play.'}catch(e){if(g===generation)status.textContent=e.message}finally{if(g===generation){busy=false;render()}}
+  try{const r=await fetch('/preferences',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({palette})});if(!r.ok)throw Error('Could not save. Try again.');const data=await r.json();if(g!==generation||account()?.id!==uid||account()?.token!==token)return;choices=data.choices;const p=choices.find(p=>p.id===data.palette);localStorage.setItem('xorbit-palette-'+uid,JSON.stringify(p));draft=null;apply(p);status.textContent='Message bubble colours saved for your account.'}catch(e){if(g===generation)status.textContent=e.message}finally{if(g===generation){busy=false;render()}}
  }
  function mount(){
   const settings=document.getElementById('settingsPanel');if(!settings)return;
-  const button=document.createElement('button');button.id='openPersonalization';button.type='button';button.textContent='Personalization';button.title='Choose a colour pair for chat and Orbit Play';settings.insertBefore(button,settings.querySelector('label[for=appearance]'));
+  const button=document.createElement('button');button.id='openPersonalization';button.type='button';button.textContent='Personalization';button.title='Choose sent and received message bubble colours';settings.insertBefore(button,settings.querySelector('label[for=appearance]'));
   const dialog=document.createElement('dialog');dialog.id='personalizationDialog';dialog.setAttribute('aria-label','Personalization');
-  dialog.innerHTML='<h2>Personalization</h2><p>First colour: your sent messages and active theme buttons.<br>Second colour: received messages and inactive buttons.</p><label for="paletteChoice">Colour pair — first / second</label><select id="paletteChoice"></select><div class="pair-preview"><div class="palette-preview received-preview" data-pair-role="second">Received message · second colour</div><div class="palette-preview sent-preview" data-pair-role="first">Your sent message · first colour</div><div class="pair-button-previews" aria-label="Button colour previews"><span data-pair-role="first">Active button</span><span data-pair-role="second">Inactive button</span></div></div><p id="paletteStatus" role="status"></p><div class="row"><button type="button" id="savePalette">Save colours</button><button type="button" id="closePalette">Close</button></div>';
+  dialog.innerHTML='<h2>Personalization</h2><p>First colour: your sent message bubbles.<br>Second colour: received message bubbles.<br>Buttons and Orbit Play keep the default oxblood and gold theme.</p><label for="paletteChoice">Colour pair — first / second</label><select id="paletteChoice"></select><div class="pair-preview"><div class="palette-preview received-preview" data-pair-role="second">Received message · second colour</div><div class="palette-preview sent-preview" data-pair-role="first">Your sent message · first colour</div></div><p id="paletteStatus" role="status"></p><div class="row"><button type="button" id="savePalette">Save colours</button><button type="button" id="closePalette">Close</button></div>';
   document.body.append(dialog);
   button.onclick=()=>{draft=null;document.getElementById('paletteStatus').textContent='';dialog.showModal();render();refresh(true)};
   document.getElementById('savePalette').onclick=save;document.getElementById('closePalette').onclick=()=>{draft=null;dialog.close()};

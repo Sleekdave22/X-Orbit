@@ -1,5 +1,15 @@
 # Ordered colour pairs
 
+## Current scope — version 12
+
+Personalization now changes **sent and received message bubbles only**. The first colour names sent bubbles; the second names received bubbles. The same nine pairs remain available and existing account selections are preserved.
+
+Chat controls and Orbit Play navigation use a fixed brand combination: oxblood `#6a1833` with gold `#e8b84a` text for normal buttons, and gold with dark oxblood `#341923` text for selected/primary controls. Headings and view-once controls also stay within this fixed theme. The preview and save confirmation explain the bubble-only scope. No backend or database changes are required; browser assets can update without a restart.
+
+Validation and deployment: account preference JavaScript checks and Android JVM tests passed; version 12 built and installed successfully on the S21. Live browser checks with Matte black / Sky blue confirmed the selected bubble fills alongside fixed oxblood/gold controls and Orbit Play tabs. The live settings dialog shows bubble-only previews and explanation. The existing @s21 account remains connected. Native visual appearance awaits user confirmation.
+
+The version 11 notes below describe the superseded full-theme behaviour.
+
 X_ORBIT version 11 (`0.11-x-orbit-colour-pairs`).
 
 Each visible option is named **first / second**. The first colour is both the sent-message fill and active theme/button colour. The second colour is both the received-message fill and inactive button colour. Each side has its own readable foreground text colour; light colours no longer force white text.

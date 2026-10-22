@@ -10,7 +10,7 @@ const reply=(n,id)=>requests[n].resolve({ok:true,json:async()=>({palette:id,choi
  store.set('guardianchat-account',JSON.stringify({id:'beta',token:'beta-session'}));
  const b=ctx.window.OrbitPersonalization.refresh(true);
  reply(0,'pink-matte-black');await a;assert.equal(styles['--personal-bubble'],'#e8b84a','Old account response is ignored');
- reply(1,'blue-gold');await b;assert.equal(styles['--personal-bubble'],'#2458bc');assert.equal(styles['--personal-accent'],styles['--personal-bubble']);assert.equal(styles['--personal-received'],'#e8b84a');assert.equal(styles['--personal-received-ink'],'#24170a');assert.equal(requests[1].opts.headers.Authorization,'Bearer beta-session');assert(!store.has('xorbit-palette-alpha'));
+ reply(1,'blue-gold');await b;assert.equal(styles['--personal-bubble'],'#2458bc');assert.equal(styles['--personal-accent'],undefined,'Theme accent is not controlled by bubble preferences');assert.equal(styles['--personal-received'],'#e8b84a');assert.equal(styles['--personal-received-ink'],'#24170a');assert.equal(requests[1].opts.headers.Authorization,'Bearer beta-session');assert(!store.has('xorbit-palette-alpha'));
  store.delete('guardianchat-account');await ctx.window.OrbitPersonalization.refresh(true);assert.equal(styles['--personal-bubble'],'#e8b84a','Logout clears the previous account colour');
  store.set('guardianchat-account',JSON.stringify({id:'beta',token:'new-session'}));const c=ctx.window.OrbitPersonalization.refresh(true);reply(2,'green-pink');await c;assert.equal(styles['--personal-bubble'],'#1d7148');assert.equal(styles['--personal-received'],'#f2c0d5');
  console.log('Account colours ignore stale responses, reset on logout and refresh with the correct session.');
