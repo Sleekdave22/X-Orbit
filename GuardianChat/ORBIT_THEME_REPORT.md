@@ -1,10 +1,13 @@
 # X ORBIT visual update report
 23 October 2026
 
+## Slim composer — version 18
+The message field is tagged as chat-draft so the generic theme refresh no longer paints a solid rectangular EditText background over the rounded composer. Only the outer pill supplies the fill, clipped to its outline. Normal bar height is 38dp/px with a 36dp/px text area; multiline input remains available. Composer glyphs are 18dp/px, view-once 20dp/px and the Send circle 36dp/px. Compact icon widths are 28dp/px, widening to 36 on larger layouts. This supersedes the earlier 32/44px dimensions below. The native voice-note icon also keeps its smaller size after recording ends.
+
 ## S21 chat header — version 17
 The chat header now matches the browser hierarchy: the upper bar has Orbit Chat, search and menu; a separate contact row has Back, the 40dp picture, an 18sp single-line name with ellipsis, presence and the voice/video actions. Call glyphs are 20dp inside 44dp targets; end padding keeps them away from the edge. The identity has a flexible width rather than competing with all five navigation actions in one row.
 
-The temporary localhost:8898 preview was an isolated test database in a fixed 390px iframe. Demo Owner had test-only admin rights; Tolu K. was the synthetic contact in its chat. Read-only verification found no demo IDs or Tolu K. account in the real database; Mainfirst (@sleekdavemain) was the sole game-admin account. The preview tab and test server were closed.
+The temporary localhost:8898 preview was an isolated test database in a fixed 390px iframe. Demo Owner had test-only admin rights; the synthetic sample contact was the synthetic contact in its chat. Read-only verification found no demo IDs or the synthetic sample contact account in the real database; the designated owner account was the sole game-admin account. The preview tab and test server were closed.
 
 The Android build and 4 chat tests passed, and all 22 browser checks passed. Version 17 is prepared for/installed through the existing S21 installation flow; the final phone walkthrough remains an owner check.
 
@@ -13,7 +16,7 @@ The final arrangement follows the owner's latest correction: emoji and + sit ins
 
 The camera is a new, explicitly requested function. Android opens the system camera using the existing scoped FileProvider and its existing CAMERA permission, normalizes photo orientation and opens the existing preview/send flow. Browser camera capture uses a local video preview, stops tracks on close/navigation/incoming calls and stages the captured photo in the existing attachment preview. Neither camera path automatically uploads or sends the photo. Cancelling discards the native temporary capture. Account/peer checks prevent a delayed capture from being staged in another conversation.
 
-Validation: the Android build and 4 chat unit tests passed; all 22 browser checks passed, including the new camera permission/cancel/stale-context and late-result tests. Browser layout was visually inspected at the normal viewport and in an isolated 390px frame; the one-line composer fits. Actual hardware photo capture and the new S21 visual arrangement still require the owner's walkthrough. Version 16 is installed; the existing @s21 account and direct Wi-Fi endpoint remain in use.
+Validation: the Android build and 4 chat unit tests passed; all 22 browser checks passed, including the new camera permission/cancel/stale-context and late-result tests. Browser layout was visually inspected at the normal viewport and in an isolated 390px frame; the one-line composer fits. Actual hardware photo capture and the new S21 visual arrangement still require the owner's walkthrough. Version 16 is installed; the existing the existing handset account account and direct Wi-Fi endpoint remain in use.
 
 ## Chat corrections — version 15
 The owner's follow-up changes are now included:
@@ -21,8 +24,8 @@ The owner's follow-up changes are now included:
 - Voice notes use blue/cyan waveform, play glyph and playhead accents. Their 10-second backward/forward buttons are removed in the inline and full audio viewer; play/pause and timeline seeking remain. Video skip controls remain.
 - Native call actions use centred 44dp image targets and explicit cyan tint, with a rounded camera symbol and header edge padding.
 - Emoji, attachment, dictation, view-once and recording controls have bare backgrounds and separate 44px/dp targets. A second composer row gives them space; a flexible gap separates recording from Send.
-- The S21 was saved against localhost after its ADB reverse route disappeared. The route was restored and the saved server changed to the already trusted direct Wi-Fi endpoint, https://192.168.1.171:8766. The matching CA, endpoint response and existing @s21 session were verified. Credentials/account data were retained.
-- @s21 had Blue / Gold saved, while Mainfirst had Red / Sky blue. Both accounts were switched through the existing preference service/UI to the requested violet/blue pair.
+- The S21 was saved against localhost after its ADB reverse route disappeared. The route was restored and the saved server changed to the already trusted direct Wi-Fi endpoint, the existing trusted Wi-Fi endpoint. The matching CA, endpoint response and existing the existing handset account session were verified. Credentials/account data were retained.
+- the existing handset account had Blue / Gold saved, while the owner account had Red / Sky blue. Both accounts were switched through the existing preference service/UI to the requested violet/blue pair.
 
 Follow-up checks: Android debug build and 4 chat unit tests passed; all 21 browser regression checks passed; 3 account-preference tests passed; 78 text/control/voice-wave contrast pairs passed. The previous full-suite legacy rating-test limitation below is unchanged. Managed-browser review confirmed purple/blue bubbles, cyan call icons and the spaced bare composer. A new phone visual walkthrough still needs owner confirmation; installation and saved account/API checks passed.
 
@@ -81,8 +84,8 @@ Apart from the explicitly requested camera capture and removed audio skip contro
 | Contrast script | 78 pairs, zero failures |
 | Diff whitespace check | Passed |
 | PNG/JPG/WebP/AndroidManifest diff | Empty |
-| Installed S21 package | versionCode 17, 0.17-x-orbit-chat-header |
-| Existing S21 account | @s21 retained; authenticated profile, leagues and match APIs respond |
+| Installed S21 package | versionCode 18, 0.18-x-orbit-slim-composer |
+| Existing S21 account | the existing handset account retained; authenticated profile, leagues and match APIs respond |
 | Live browser assets | Trusted HTTPS returns the exact updated CSS, gaming entry and 11-choice catalogue |
 
 The 13 server errors are in legacy test_rating.py, which expects removed helpers such as apply_rating, rating_change, rating_tier and tier_bounds, plus old configuration keys. They predate this visual change. They were not hidden or “fixed” by changing current competitive behaviour.
@@ -97,7 +100,7 @@ The requested complete 390px/1280px × dark/light screenshot matrix is not compl
 Unlike the handoff's cloud assumption, this Mac has Android Studio: the Android build and tests were actually run and passed.
 
 ## Deployment
-The browser now runs the selected X-Orbit source at https://localhost:8766/ with the existing database and TLS configuration. The database was backed up before restart. Original GuardianLab source was not overwritten. Version 17 was installed over the existing S21 app without uninstalling it. No accounts were reset and no real-money feature was enabled.
+The browser now runs the selected X-Orbit source at https://localhost:8766/ with the existing database and TLS configuration. The database was backed up before restart. Original GuardianLab source was not overwritten. Version 18 was installed over the existing S21 app without uninstalling it. No accounts were reset and no real-money feature was enabled.
 
 ## Owner check
 1. Refresh https://localhost:8766/ and reopen X_ORBIT on the S21.

@@ -22,7 +22,7 @@ internal class OnceToggle(context:Context):ToggleButton(context){
   invalidate()
  }
  override fun onDraw(canvas:Canvas){
-  val edge=minOf(width,height,(28*resources.displayMetrics.density).toInt())
+  val edge=minOf(width,height,(20*resources.displayMetrics.density).toInt())
   val left=(width-edge)/2;val top=(height-edge)/2
   symbol.setTint(if(isChecked)Color.parseColor("#A78BFA") else secondInk);symbol.setBounds(left,top,left+edge,top+edge);symbol.draw(canvas)
  }
