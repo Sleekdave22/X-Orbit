@@ -1,8 +1,23 @@
 # X ORBIT visual update report
 23 October 2026
 
+## Account pair picker and matching wallpapers — version 21
+Personalization now presents all eleven named pairs as two-half circular swatches: sent colour on the left, received colour on the right. Choosing a row changes only the dialog preview. Dark preview and Light preview show the coordinated wallpaper, sample bubbles and the two brand headings without changing the application's appearance mode. Select explicitly saves through the existing authenticated preference service. The confirmed choice shows Selected; Close or Escape discards an unconfirmed preview. Failed saves retain the last confirmed pair and allow retry. Selection controls are protected against duplicate submissions and stale account/session responses.
+
+Matching wallpapers use a deterministic three-stop colour layer over the existing supplied artwork at display time. Web CSS colour blending and Android BlendMode.COLOR use the same channel mixtures, with a cross-platform Blue/Gold golden check and a neutral-pair check. Default Orbit violet/Blue keeps the supplied images untinted. No PNG, logo or launcher file changed in this follow-up. Chat/arena wallpapers, right-side settings gradients and brand headings follow the confirmed account pair; ordinary text, buttons, presence/error/success colours and application functionality keep their existing fixed theme.
+
+The browser picker uses labelled radio choices, arrow/Home/End navigation, roving tab focus and a confirmation footer. Native rows expose radio-button selection semantics and a decorative split-circle swatch. The native dialog scrolls its content while keeping Select and Close available. Both clients use the same saved palette ID; no API contract, role, table or migration was added. Another device on the same account refreshes through the existing preference sync.
+
+Actual validation: Android debug build passed; 7 chat unit tests passed; 23 browser checks passed; 3 backend account-preference integration tests passed; 78 existing text/control contrast pairs passed. New checks cover preview cancellation, explicit save, duplicate selection, failure/retry, preview-mode isolation, stale account saves and matching colour recipes. The backend check initially received an automatic review rejection over the runtime path; read-only module resolution proved all test/application imports target XOrbitStandalone, after which the check ran successfully. The existing runtime was reused without changing original source.
+
+Managed-browser review confirmed split circles, named choices, light/dark wallpaper previews, an enabled Select for an unconfirmed choice, and reopening on the current confirmed pair after cancelling. Production account choices were not changed by this review. The full responsive screenshot matrix and physical handset visual walkthrough are not claimed. Existing PNG text/overlay contrast and custom settings backgrounds still need final owner visual review across preferences.
+
+Version 21 was installed over the existing handset package; its saved account and authenticated profile/league/match API checks passed. APK inspection confirmed the final CSS and JavaScript. The running browser serves these static files directly, so no server restart was needed.
+
+Owner check: open Settings → Personalization, tap a pair, compare Dark preview and Light preview, then press Select. Close without pressing Select to keep the current choice. Check the same account on another device after its next preference refresh.
+
 ## Arena full-viewport wallpaper follow-up
-OrbitPlay's body now has a viewport-height minimum, uses one cover background instead of desktop tiling, and keeps its header transparent. Cards retain their reading surfaces. Managed-browser measurements changed from a 778.45px body under an 804px viewport to an 804px body; the header changed from opaque navy to transparent. Background size is cover, repeat is disabled and no horizontal overflow was observed. This is shared arena CSS, so the current server-backed Android arena receives it on reopening; no native logic changed. Matching wallpaper variants and a split-circle colour picker are a design proposal, not implemented in this follow-up.
+OrbitPlay's body now has a viewport-height minimum, uses one cover background instead of desktop tiling, and keeps its header transparent. Cards retain their reading surfaces. Managed-browser measurements changed from a 778.45px body under an 804px viewport to an 804px body; the header changed from opaque navy to transparent. Background size is cover, repeat is disabled and no horizontal overflow was observed. This is shared arena CSS, so the current server-backed Android arena receives it on reopening; no native logic changed. Matching wallpaper variants and a split-circle colour picker were a proposal at that point and are now implemented in version 21 above.
 
 ## Header, settings gradients and supplied icons — version 20
 The owner's neon trophy/chat artwork is now the launcher icon and the default web app icon. Its light counterpart is used by the Orbit Play entry/header icon in light mode; dark mode uses the neon artwork. Original PNG bytes are retained. One density-independent launcher resource replaces the old density-specific icons; the package identity and manifest are unchanged.
@@ -109,7 +124,7 @@ Apart from the explicitly requested camera capture and removed audio skip contro
 | Contrast script | 78 pairs, zero failures |
 | Diff whitespace check | Passed |
 | Artwork / manifest | Only explicitly supplied wallpapers and icons changed; logos and manifest unchanged |
-| Installed S21 package | versionCode 20, 0.20-x-orbit-personal-headings |
+| Installed S21 package | versionCode 21, 0.21-x-orbit-palette-picker |
 | Existing S21 account | the existing handset account retained; authenticated profile, leagues and match APIs respond |
 | Live browser assets | Trusted HTTPS returns the exact updated CSS, gaming entry and 11-choice catalogue |
 

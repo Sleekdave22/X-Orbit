@@ -18,9 +18,9 @@ html[data-theme=bright]{
  --cyan-text:#0e7490;--mint:#047857;--coral:#be123c;--amber-text:#8a5a00;color-scheme:light
 }
 *{box-sizing:border-box}
-html{--orbit-wallpaper:url('/branding/orbit-wallpaper.png?v=19');--orbit-settings-wallpaper:url('/branding/settings-dark.png?v=20');--orbit-play-icon:url('/orbit-icon.png?v=20');--brand-heading:var(--personal-heading-dark,var(--cyan-text));background:var(--bg);scrollbar-color:var(--control-line) var(--card)}
-html[data-theme=bright]{--orbit-wallpaper:url('/branding/orbit-wallpaper-v2.png?v=19');--orbit-settings-wallpaper:url('/branding/settings-light.png?v=20');--orbit-play-icon:url('/branding/orbit-icon-light.png?v=20');--brand-heading:var(--personal-heading-light,var(--cyan-text))}
-body{margin:0;background:var(--bg) var(--orbit-wallpaper) center top/cover fixed!important;color:var(--ink)!important;font-family:var(--body)!important;line-height:1.5}
+html{--orbit-wallpaper:url('/branding/orbit-wallpaper.png?v=19');--orbit-settings-wallpaper:url('/branding/settings-dark.png?v=20');--orbit-play-icon:url('/orbit-icon.png?v=20');--pair-wallpaper:var(--personal-wallpaper-dark,linear-gradient(transparent,transparent));--brand-heading:var(--personal-heading-dark,var(--cyan-text));background:var(--bg);scrollbar-color:var(--control-line) var(--card)}
+html[data-theme=bright]{--orbit-wallpaper:url('/branding/orbit-wallpaper-v2.png?v=19');--orbit-settings-wallpaper:url('/branding/settings-light.png?v=20');--orbit-play-icon:url('/branding/orbit-icon-light.png?v=20');--pair-wallpaper:var(--personal-wallpaper-light,linear-gradient(transparent,transparent));--brand-heading:var(--personal-heading-light,var(--cyan-text))}
+body{margin:0;background:var(--bg)!important;background-image:var(--pair-wallpaper),var(--orbit-wallpaper)!important;background-position:center top!important;background-size:cover!important;background-attachment:fixed!important;background-blend-mode:color,normal;color:var(--ink)!important;font-family:var(--body)!important;line-height:1.5}
 @media(min-width:700px){body{background-size:560px auto!important;background-repeat:repeat!important}}
 /* Arena artwork covers the viewport even when the current tab has little content. */
 body:has(#gamingBrand){min-height:100vh;min-height:100dvh;background-size:cover!important;background-repeat:no-repeat!important}
@@ -104,7 +104,7 @@ nav.locked [data-tab=admin]:not([hidden]),nav.locked [data-tab=studio]:not([hidd
 .auth-welcome{padding-top:12px}
 .auth-choices button{background:var(--card2)!important;color:var(--muted)!important;border-color:transparent!important}
 .auth-choices button.selected{background:var(--violet)!important;color:#fff!important;border-color:var(--violet)!important}
-#welcome,#orbitIntro{background:linear-gradient(#0b1520b8,#0b1520b8),var(--orbit-wallpaper) center/cover!important;color:#f1f5f9!important}
+#welcome,#orbitIntro{background:linear-gradient(#0b1520b8,#0b1520b8),var(--pair-wallpaper),var(--orbit-wallpaper) center/cover!important;background-blend-mode:normal,color,normal;color:#f1f5f9!important}
 #welcome :is(strong,p),#orbitIntro :is(strong,p,small){color:#f1f5f9!important}
 #welcome .ring{position:relative;width:132px;height:132px;margin-bottom:24px;display:grid;place-items:center}
 #welcome .ring::before{content:'';position:absolute;inset:0;border-radius:50%;border:3px solid var(--violet);border-top-color:var(--cyan)}
@@ -237,7 +237,7 @@ button.orbit-back-control,button[aria-label="Back"],button[aria-label^="Back to 
 .brand-header h1,#gamingBrand{color:var(--brand-heading)!important;text-shadow:0 1px 2px #000}
 html[data-theme=bright] :is(.brand-header h1,#gamingBrand){text-shadow:0 1px 2px #fff}
 #gamingTab img,body>header h1 img{content:var(--orbit-play-icon);object-fit:contain}
-#navigationMenu,#settingsPanel{--muted:var(--ink);background:var(--bg) var(--orbit-settings-wallpaper) center top/cover!important}
+#navigationMenu,#settingsPanel{--muted:var(--ink);background:var(--bg)!important;background-image:var(--pair-wallpaper),var(--orbit-settings-wallpaper)!important;background-position:center top!important;background-size:cover!important;background-blend-mode:color,normal}
 
 /* Compact identity at the arena's top right, with the public handle outside the card. */
 body:has(#gamingBrand)>header{display:flex;align-items:flex-start;gap:10px}
@@ -251,3 +251,24 @@ body:has(#gamingBrand)>header>div:not(#topGamingProfile){flex:1;min-width:0}
 #topGamingProfile strong{font-size:13px;color:var(--ink)}
 #topGamingProfile .muted{font-size:11px}
 @media(max-width:600px){#topGamingProfile{flex-basis:42%}body:has(#gamingBrand)>header h1{font-size:20px;white-space:nowrap}body:has(#gamingBrand)>header h1 img{width:22px;height:22px}#topGamingProfile .gaming-profile-identity{grid-template-columns:30px minmax(0,1fr);gap:2px 5px;padding:5px!important}#topGamingProfile .rank-avatar{width:30px;height:30px}.gaming-account-handle{font-size:10px}body:has(#gamingBrand)>header{gap:5px}}
+
+#personalizationDialog{width:min(560px,calc(100vw - 24px));max-width:none;max-height:90dvh;overflow:auto;padding:18px}
+#personalizationDialog>h2{font-size:21px;margin:0 0 8px}
+#personalizationDialog>p{font-size:12px;margin:8px 0;color:var(--muted)}
+.palette-mode{display:flex;gap:8px;margin:10px 0}
+.palette-mode button{flex:1;font-size:12px}
+.palette-scene{border-radius:16px;padding:14px;background-image:var(--preview-tint),var(--preview-art);background-size:cover;background-position:center;background-blend-mode:color,normal;min-height:160px}
+.palette-scene>strong{font-family:var(--display);font-size:18px;text-shadow:0 1px 2px #000}
+.palette-scene[data-mode=bright]>strong{text-shadow:0 1px 2px #fff}
+.palette-scene .palette-preview{font-size:13px;padding:8px 12px;width:fit-content;max-width:90%;margin-block:12px}
+.palette-scene .sent-preview{margin-left:auto;margin-right:0}
+#paletteOptions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:240px;overflow:auto;margin-top:14px;padding:2px}
+#personalizationDialog .palette-option{display:flex;align-items:center;gap:8px;text-align:left;padding:8px!important;min-width:0;background:var(--card2)!important;color:var(--ink)!important;border:1px solid transparent!important}
+#personalizationDialog .palette-option[aria-checked=true]{background:var(--violet)!important;color:#fff!important}
+.pair-swatch{display:inline-block;flex:0 0 30px;width:30px;height:30px;border-radius:50%;border:1px solid #94a3b880;box-shadow:0 0 0 2px #0002}
+.palette-label{flex:1;min-width:0;font-size:12px;line-height:1.3}
+.pair-selected-mark{visibility:hidden;font-size:16px}
+[aria-checked=true]>.pair-selected-mark{visibility:visible}
+.palette-footer{display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:-18px;background:var(--card);padding:12px 0 6px;margin-top:6px}
+#paletteStatus{min-height:18px}
+@media(max-width:420px){#paletteOptions{grid-template-columns:1fr;max-height:210px}#personalizationDialog{padding:14px}.palette-footer{bottom:-14px}}

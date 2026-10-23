@@ -143,10 +143,11 @@ class MainActivity:ComponentActivity(){
 
  private val wallpaperBitmap by lazy {BitmapFactory.decodeResource(resources,R.drawable.orbit_wallpaper)}
  private val lightWallpaperBitmap by lazy {BitmapFactory.decodeResource(resources,R.drawable.orbit_wallpaper_light)}
- private fun wallpaper()=OrbitWallpaper(wallpaperBitmap,lightWallpaperBitmap){bright}
+ private fun wallpaperColors(p:JSONObject,isBright:Boolean)=if(p.optString("id")=="orbit-cyan-navy")null else PairWallpaper.colors(Color.parseColor(p.getString("bubble")),Color.parseColor(p.getString("received")),isBright)
+ private fun wallpaper()=OrbitWallpaper(wallpaperBitmap,lightWallpaperBitmap,tint={wallpaperColors(palette,it)}){bright}
  private val settingsDarkBitmap by lazy {BitmapFactory.decodeResource(resources,R.drawable.orbit_settings_dark)}
  private val settingsLightBitmap by lazy {BitmapFactory.decodeResource(resources,R.drawable.orbit_settings_light)}
- private fun settingsWallpaper()=OrbitWallpaper(settingsDarkBitmap,settingsLightBitmap){bright}
+ private fun settingsWallpaper()=OrbitWallpaper(settingsDarkBitmap,settingsLightBitmap,tint={wallpaperColors(palette,it)}){bright}
  private fun orbitPlayIcon()=resources.getDrawable(if(bright)R.drawable.orbit_play_light else R.mipmap.ic_launcher_orbit,theme).mutate().apply {setBounds(0,0,dp(26),dp(26))}
  private fun headerAction(icon:Int,label:String,action:(View)->Unit)=ImageView(this).apply {
   tag="pair-icon";background=null;setImageResource(icon);imageTintList=android.content.res.ColorStateList.valueOf(themeIdleInk);contentDescription=label;isFocusable=true;setPadding(dp(10),dp(10),dp(10),dp(10));layoutParams=LinearLayout.LayoutParams(dp(44),dp(44));setOnClickListener {action(it)}
@@ -167,6 +168,7 @@ class MainActivity:ComponentActivity(){
   scroll.translationX=resources.displayMetrics.widthPixels*.30f;scroll.animate().translationX(0f).setDuration(motion(230L)).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
  }
  private fun refreshPaletteViews(view:View,oldAccent:Int?=null){
+  if(view.background is OrbitWallpaper)view.background.invalidateSelf()
   if(view is TextView&&view.tag=="personal-heading"){
    view.setTextColor(Color.parseColor(palette.optString(if(bright)"headingLight" else "headingDark",if(bright)OrbitPalette.LIGHT_CYAN else OrbitPalette.CYAN)))
    view.setShadowLayer(dp(2).toFloat(),0f,dp(1).toFloat(),if(bright)Color.WHITE else Color.BLACK)
@@ -195,16 +197,82 @@ class MainActivity:ComponentActivity(){
  }
  private fun showPersonalization(){
   val owner=prefs.getString("id","")!!;val token=prefs.getString("token","")!!;val base=prefs.getString("server","")!!;if(owner.isEmpty())return
-  val options=AccountPalette.choices(this);var choice=options.indexOfFirst {it.getString("id")==palette.getString("id")}.coerceAtLeast(0)
-  val dialog=android.app.Dialog(this);val panel=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(18),dp(18),dp(18));setBackgroundColor(surface)}
-  panel.addView(text("Personalization",22f));panel.addView(text("First colour: sent message bubbles. Second colour: received message bubbles. The OrbitChat and OrbitPlay headings follow your pair; other text and buttons keep the app theme.",14f))
-  val receivedSample=text("Received message · second colour",16f).apply {setPadding(dp(14),dp(12),dp(14),dp(12))}
-  val sample=text("Your sent message · first colour",16f).apply {setPadding(dp(14),dp(12),dp(14),dp(12))}
-  fun preview(){val p=options[choice];for((v,first) in listOf(sample to true,receivedSample to false)){v.background=GradientDrawable().apply {setColor(Color.parseColor(p.getString(if(first)"bubble" else "received")));cornerRadius=dp(14).toFloat()};v.setTextColor(Color.parseColor(p.getString(if(first)"ink" else "receivedInk")))}}
-  val spinner=Spinner(this).apply {adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,options.map {it.getString("name")});setSelection(choice);onItemSelectedListener=object:AdapterView.OnItemSelectedListener{override fun onNothingSelected(parent:AdapterView<*>?){};override fun onItemSelected(parent:AdapterView<*>?,v:View?,position:Int,id:Long){choice=position;preview()}}};panel.addView(spinner);panel.addView(receivedSample);panel.addView(sample);preview()
-  val feedback=text("",13f);panel.addView(feedback);var saving=false
-  panel.addView(button("Save colours"){if(!saving){saving=true;preferenceRevision++;feedback.text="Saving…";val selected=options[choice].getString("id");net.execute {try{val result=ChatApi(base,token).request("/preferences",JSONObject().put("palette",selected));main.post {if(prefs.getString("id","")==owner&&prefs.getString("token","")==token){preferenceRevision++;rememberPalette(owner,result.getString("palette"));dialog.dismiss();toast("Message bubble colours saved")}}}catch(_:Exception){main.post {feedback.text="Could not save. Try again."}}finally{main.post {saving=false}}}}})
-  panel.addView(button("Close"){dialog.dismiss()});dialog.setContentView(panel);dialog.show();dialog.window?.setLayout((resources.displayMetrics.widthPixels*.9f).toInt(),-2)
+  val options=AccountPalette.choices(this)
+  var choice=options.indexOfFirst {it.getString("id")==palette.getString("id")}.coerceAtLeast(0)
+  var previewBright=bright;var saving=false
+  val dialog=android.app.Dialog(this)
+  val panel=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(dp(14),dp(14),dp(14),dp(14));setBackgroundColor(surface)}
+  val body=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
+  panel.addView(ScrollView(this).apply {addView(body)},LinearLayout.LayoutParams(-1,0,1f))
+  body.addView(text("Choose your colour pair",22f))
+  body.addView(text("Left half: sent messages. Right half: received messages. Preview a pair, then press Select to save it.",13f))
+  val mode=LinearLayout(this);body.addView(mode)
+  val scene=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(8),dp(12),dp(8));background=OrbitWallpaper(wallpaperBitmap,lightWallpaperBitmap,tint={wallpaperColors(options[choice],it)}){previewBright}}
+  val heading=text("OrbitChat · OrbitPlay",18f).apply {setPadding(0,dp(4),0,dp(4))}
+  val received=text("A message for you",14f).apply {setPadding(dp(12),dp(8),dp(12),dp(8))}
+  val sent=text("Your reply",14f).apply {setPadding(dp(12),dp(8),dp(12),dp(8))}
+  scene.addView(heading)
+  scene.addView(received,LinearLayout.LayoutParams(-2,-2).apply {topMargin=dp(8)})
+  scene.addView(sent,LinearLayout.LayoutParams(-2,-2).apply {gravity=Gravity.END;topMargin=dp(8)})
+  body.addView(scene,LinearLayout.LayoutParams(-1,dp(160)).apply {topMargin=dp(8);bottomMargin=dp(10)})
+  val list=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};body.addView(list)
+  val feedback=text("",13f);panel.addView(feedback)
+  val footer=LinearLayout(this);panel.addView(footer)
+  val close=button("Close"){dialog.dismiss()}
+  val select=button("Select"){}.apply {tag="pair-active"}
+  footer.addView(close,LinearLayout.LayoutParams(0,-2,1f).apply {marginEnd=dp(8)})
+  footer.addView(select,LinearLayout.LayoutParams(0,-2,1f))
+  val rows=mutableListOf<LinearLayout>();val labels=mutableListOf<TextView>();val marks=mutableListOf<TextView>()
+  lateinit var darkButton:Button;lateinit var lightButton:Button
+  fun render(){
+   if(prefs.getString("id","")!=owner||prefs.getString("token","")!=token){dialog.dismiss();return}
+   val p=options[choice]
+   scene.background.invalidateSelf()
+   heading.setTextColor(Color.parseColor(p.getString(if(previewBright)"headingLight" else "headingDark")))
+   heading.setShadowLayer(dp(2).toFloat(),0f,dp(1).toFloat(),if(previewBright)Color.WHITE else Color.BLACK)
+   for((v,first) in listOf(sent to true,received to false)){
+    v.background=GradientDrawable().apply {setColor(Color.parseColor(p.getString(if(first)"bubble" else "received")));cornerRadius=dp(14).toFloat()}
+    v.setTextColor(Color.parseColor(p.getString(if(first)"ink" else "receivedInk")))
+   }
+   darkButton.isSelected=!previewBright;lightButton.isSelected=previewBright;styleControl(darkButton);styleControl(lightButton)
+   for(i in rows.indices){val chosen=i==choice;rows[i].isSelected=chosen;rows[i].isEnabled=!saving;rows[i].alpha=if(saving).5f else 1f
+    rows[i].contentDescription=options[i].getString("name")+if(chosen)", selected for preview" else ""
+    rows[i].background=GradientDrawable().apply {setColor(if(chosen)accent else inputPaper);cornerRadius=dp(12).toFloat()}
+    labels[i].setTextColor(if(chosen)Color.WHITE else ink);marks[i].setTextColor(if(chosen)Color.WHITE else muted);marks[i].text=if(chosen)"✓" else ""
+   }
+   val unchanged=p.getString("id")==palette.getString("id")
+   select.text=if(saving)"Selecting…" else if(unchanged)"Selected" else "Select"
+   select.isEnabled=!saving&&!unchanged;close.isEnabled=!saving;dialog.setCancelable(!saving);styleControl(select)
+  }
+  darkButton=button("Dark preview"){previewBright=false;render()}
+  lightButton=button("Light preview"){previewBright=true;render()}
+  mode.addView(darkButton,LinearLayout.LayoutParams(0,-2,1f).apply {marginEnd=dp(8)})
+  mode.addView(lightButton,LinearLayout.LayoutParams(0,-2,1f))
+  for(i in options.indices){
+   val p=options[i];val row=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL;setPadding(dp(8),dp(6),dp(8),dp(6));isFocusable=true}
+   row.accessibilityDelegate=object:View.AccessibilityDelegate(){override fun onInitializeAccessibilityNodeInfo(host:View,info:android.view.accessibility.AccessibilityNodeInfo){super.onInitializeAccessibilityNodeInfo(host,info);info.className="android.widget.RadioButton";info.isCheckable=true;info.isChecked=host.isSelected}}
+   row.addView(PairSwatch(this,Color.parseColor(p.getString("bubble")),Color.parseColor(p.getString("received"))),LinearLayout.LayoutParams(dp(34),dp(34)))
+   val label=text(p.getString("name"),14f);row.addView(label,LinearLayout.LayoutParams(0,-2,1f))
+   val mark=text("",18f).apply {gravity=Gravity.CENTER;setPadding(0,0,0,0)};row.addView(mark,LinearLayout.LayoutParams(dp(24),dp(34)))
+   rows.add(row);labels.add(label);marks.add(mark)
+   row.setOnClickListener {if(!saving){choice=i;feedback.text="Preview only — press Select to apply.";render()}}
+   list.addView(row,LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(6)})
+  }
+  select.setOnClickListener {
+   if(prefs.getString("id","")!=owner||prefs.getString("token","")!=token){dialog.dismiss();return@setOnClickListener}
+   if(!saving&&options[choice].getString("id")!=palette.getString("id")){
+    saving=true;preferenceRevision++;feedback.text="Selecting…";val selected=options[choice].getString("id");render()
+    net.execute {
+     try{
+      val result=ChatApi(base,token).request("/preferences",JSONObject().put("palette",selected))
+      main.post {if(prefs.getString("id","")==owner&&prefs.getString("token","")==token){preferenceRevision++;rememberPalette(owner,result.getString("palette"));if(dialog.isShowing)feedback.text=options[choice].getString("name")+" selected for your account."}}
+     }catch(_:Exception){main.post {if(dialog.isShowing)feedback.text="Could not save. Your current colours are unchanged. Try again."}}
+     finally{main.post {saving=false;if(dialog.isShowing)render()}}
+    }
+   }
+  }
+  render();dialog.setContentView(panel);dialog.show()
+  dialog.window?.setLayout((resources.displayMetrics.widthPixels*.94f).toInt(),(resources.displayMetrics.heightPixels*.88f).toInt())
  }
  private fun tintMessageText(view:View,color:Int){if(view is VoiceNoteView){view.setInk(color);return};if(view is TextView)view.setTextColor(color);if(view is Button&&view.background!=null){view.backgroundTintList=null;view.background=GradientDrawable().apply {setColor(Color.TRANSPARENT);setStroke(dp(1),color);cornerRadius=dp(12).toFloat()}};if(view is android.view.ViewGroup)for(i in 0 until view.childCount)tintMessageText(view.getChildAt(i),color)}
  private fun showConversationSearch(){
