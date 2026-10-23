@@ -187,3 +187,19 @@ html[data-palette=orbit-cyan-navy] #chat .message.own .message-body{background:v
 .voice-note{--voice-accent:#22D3EE}
 html[data-theme=bright] .message:not(.own) .voice-note{--voice-accent:#0E7490}
 #chat .message-body .voice-note-play{color:var(--voice-accent)!important}
+
+/* One-line composer: emoji and + inside; view-once, mic, camera, voice note and Send outside. */
+#composer{--composer-icon:32px}
+#composer .composer-line{flex-direction:row!important;align-items:center!important;gap:4px!important}
+#composer .composer-box{flex:1 1 0!important;min-width:0!important;width:0!important;gap:0!important;background:var(--card2)!important;border:1px solid var(--control-line)!important;border-radius:22px!important;padding:0 3px!important}
+#composer #draft{background:transparent!important;border:0!important;min-width:0!important;padding:10px 4px!important;font-size:14px!important}
+#composer .composer-outside{flex:0 0 auto!important;width:auto!important;gap:2px!important;padding:0!important}
+#composer .composer-tools{gap:2px!important}
+#composer :is(#emojiButton,#attach,#dictate,#recordVoice,#chatCameraButton,.once-icon){width:var(--composer-icon)!important;min-width:var(--composer-icon)!important;flex:0 0 var(--composer-icon)!important;height:44px!important;min-height:44px!important;margin:0!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;color:var(--cyan-text)!important;display:grid;place-items:center}
+#composer :is(#emojiButton,#attach){font-size:23px!important}
+#composer #recordVoice{margin-right:0!important}
+#composer #send{width:40px!important;min-width:40px!important;flex:0 0 40px!important;height:40px!important;min-height:40px!important;margin-left:3px!important}
+#chatCameraDialog{width:min(94vw,620px);padding:16px}
+#chatCameraPreview{display:block;width:100%;max-height:62dvh;object-fit:contain;border-radius:16px;background:var(--bg)}
+#captureChatPhoto{background:var(--violet)!important;color:#fff!important}
+@media(min-width:600px){#composer{--composer-icon:40px}}

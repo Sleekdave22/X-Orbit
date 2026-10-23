@@ -1,6 +1,20 @@
 # X ORBIT visual update report
 23 October 2026
 
+## S21 chat header — version 17
+The chat header now matches the browser hierarchy: the upper bar has Orbit Chat, search and menu; a separate contact row has Back, the 40dp picture, an 18sp single-line name with ellipsis, presence and the voice/video actions. Call glyphs are 20dp inside 44dp targets; end padding keeps them away from the edge. The identity has a flexible width rather than competing with all five navigation actions in one row.
+
+The temporary localhost:8898 preview was an isolated test database in a fixed 390px iframe. Demo Owner had test-only admin rights; Tolu K. was the synthetic contact in its chat. Read-only verification found no demo IDs or Tolu K. account in the real database; Mainfirst (@sleekdavemain) was the sole game-admin account. The preview tab and test server were closed.
+
+The Android build and 4 chat tests passed, and all 22 browser checks passed. Version 17 is prepared for/installed through the existing S21 installation flow; the final phone walkthrough remains an owner check.
+
+## Compact composer and camera — version 16
+The final arrangement follows the owner's latest correction: emoji and + sit inside the message field on the left; view-once, dictation mic, camera, voice-note waveform and Send sit outside on the right, all on one line. Native/mobile icons use compact 32px/dp-wide, 44px/dp-high hit regions so the message field keeps space; the Send circle is 40px/dp. Wider web screens use 40px icon widths. This intentionally supersedes the earlier separate toolbar described below.
+
+The camera is a new, explicitly requested function. Android opens the system camera using the existing scoped FileProvider and its existing CAMERA permission, normalizes photo orientation and opens the existing preview/send flow. Browser camera capture uses a local video preview, stops tracks on close/navigation/incoming calls and stages the captured photo in the existing attachment preview. Neither camera path automatically uploads or sends the photo. Cancelling discards the native temporary capture. Account/peer checks prevent a delayed capture from being staged in another conversation.
+
+Validation: the Android build and 4 chat unit tests passed; all 22 browser checks passed, including the new camera permission/cancel/stale-context and late-result tests. Browser layout was visually inspected at the normal viewport and in an isolated 390px frame; the one-line composer fits. Actual hardware photo capture and the new S21 visual arrangement still require the owner's walkthrough. Version 16 is installed; the existing @s21 account and direct Wi-Fi endpoint remain in use.
+
 ## Chat corrections — version 15
 The owner's follow-up changes are now included:
 - Sent default bubbles match the Orbit Play violet button, with white text. Received default bubbles use blue #202546 (light-mode equivalent #E8EDF6). The stable palette ID remains orbit-cyan-navy for account compatibility; its displayed name is Orbit violet / Blue.
@@ -53,7 +67,7 @@ Existing account-specific message colour choices remain available to preserve fu
 The separate app/ShieldController.kt and second app theme file listed in the handoff do not exist in this selected repository. No files were invented or changed in the original GuardianLab repository.
 
 ## Functional boundaries
-This change does not implement or alter ratings, league rules, matchmaking, payments, result verification, moderation permissions, message routing, notification links, capture/protection rules or account data. Existing handlers, registration gates, Play / Compete / Me / Admin grouping, streaming overlays and navigation are retained.
+Apart from the explicitly requested camera capture and removed audio skip controls described above, this change does not implement or alter ratings, league rules, matchmaking, payments, result verification, moderation permissions, message routing, notification links, capture/protection rules or account data. Existing handlers, registration gates, Play / Compete / Me / Admin grouping, streaming overlays and navigation are retained.
 
 ## Actual verification
 | Check | Result |
@@ -67,7 +81,7 @@ This change does not implement or alter ratings, league rules, matchmaking, paym
 | Contrast script | 78 pairs, zero failures |
 | Diff whitespace check | Passed |
 | PNG/JPG/WebP/AndroidManifest diff | Empty |
-| Installed S21 package | versionCode 15, 0.15-x-orbit-chat-controls |
+| Installed S21 package | versionCode 17, 0.17-x-orbit-chat-header |
 | Existing S21 account | @s21 retained; authenticated profile, leagues and match APIs respond |
 | Live browser assets | Trusted HTTPS returns the exact updated CSS, gaming entry and 11-choice catalogue |
 
@@ -83,7 +97,7 @@ The requested complete 390px/1280px × dark/light screenshot matrix is not compl
 Unlike the handoff's cloud assumption, this Mac has Android Studio: the Android build and tests were actually run and passed.
 
 ## Deployment
-The browser now runs the selected X-Orbit source at https://localhost:8766/ with the existing database and TLS configuration. The database was backed up before restart. Original GuardianLab source was not overwritten. Version 15 was installed over the existing S21 app without uninstalling it. No accounts were reset and no real-money feature was enabled.
+The browser now runs the selected X-Orbit source at https://localhost:8766/ with the existing database and TLS configuration. The database was backed up before restart. Original GuardianLab source was not overwritten. Version 17 was installed over the existing S21 app without uninstalling it. No accounts were reset and no real-money feature was enabled.
 
 ## Owner check
 1. Refresh https://localhost:8766/ and reopen X_ORBIT on the S21.

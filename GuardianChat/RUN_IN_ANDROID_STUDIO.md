@@ -35,3 +35,4 @@ Your phone and computer must be on the same Wi-Fi network.
 
 ## If the build fails
 Copy the first error from the Build tab (the lines starting with `e:`) and send it back. Only visual tokens, fonts, control shapes, focus and motion are changed. Protection, view-once, notification routing and match rules retain their existing workflows.
+\nChat follow-up: check the single-line composer (emoji/+ inside, view-once/mic/camera/voice note/Send outside). Tap the camera, allow access if asked, capture a photo, review it and cancel first. A photo must only be sent after pressing Send. Audio has play/pause and seeking without 10-second skips.\n
