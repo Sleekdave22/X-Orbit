@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 PALETTES = json.loads(Path(__file__).with_name('personalization.json').read_text())
-DEFAULT = 'oxblood-gold'
+DEFAULT = 'orbit-cyan-navy'
 
 def canonical(value):
     return next((p['id'] for p in PALETTES if value == p['id'] or value in p.get('aliases', [])), None)

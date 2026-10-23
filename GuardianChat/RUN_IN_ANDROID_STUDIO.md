@@ -1,6 +1,6 @@
 # Run X ORBIT from Android Studio
 
-This repo was redesigned in the oxblood and gold style. The Android changes have not been compiled by the person who wrote them, so the first build is also the first test.
+This branch applies the Orbit navy, violet and cyan visual theme. Build and device verification results are recorded in ORBIT_THEME_REPORT.md.
 
 ## 1. Open the project
 1. Install Android Studio and open the **repository root** (the folder with `settings.gradle.kts`), not `GuardianChat/chat`.
@@ -28,10 +28,10 @@ Your phone and computer must be on the same Wi-Fi network.
 3. Sign up with the invitation code, or sign in.
 
 ## 5. What to check first
-- Intro screen shows the app icon and a gold X ORBIT title.
-- Chat bubbles: yours oxblood, theirs on a bordered surface.
-- Open **Orbit Play** from the chat screen: the new entry screen, then the tabs grouped Play / Compete / Me / Admin.
+- Intro screen shows the unchanged app icon, a cyan/violet ring and a soft-white X ORBIT title.
+- Default chat bubbles: yours cyan with navy text, theirs on a bordered navy surface (pale blue in light mode). Existing saved bubble colour pairs remain selectable.
+- Open **Orbit Play** from the chat screen: the navy entry screen, then the existing Play / Compete / Me / Admin groups. Selected tabs are violet with white text; secondary actions use a cyan outline.
 - Sign in as the admin account (Mainfirst) to see Administration and Admin Studio.
 
 ## If the build fails
-Copy the first error from the Build tab (the lines starting with `e:`) and send it back. The Android edits were small: default colours and the intro screen in `chat/.../MainActivity.kt`.
+Copy the first error from the Build tab (the lines starting with `e:`) and send it back. Only visual tokens, fonts, control shapes, focus and motion are changed. Protection, view-once, notification routing and match rules retain their existing workflows.

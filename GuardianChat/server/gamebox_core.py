@@ -1,7 +1,8 @@
 """Versioned Gamebox Studio and open-match workflows. Does not edit chat/media security."""
 import json,time,uuid,re,math,hashlib,base64
-DEFAULT={'accept_seconds':300,'checkin_seconds':600,'result_seconds':3600,'evidence_seconds':86400,'retention_seconds':259200,'reminder_seconds':900,'open_schedule_seconds':604800,'reschedules':1,'group_size':10,'round_days':3,'max_pair_daily':2,'rating_gap':400,'league_cup_slots':4,'open_cup_slots':4,'weekly_min_matches':5,'weekly_min_opponents':3,'theme':{'accent':'#921b37','surface':'#252525','paper':'#101010','ink':'#f4f4f4','radius':8,'tab_padding':12,'font_size':14,'font_family':'system-ui'},'layout':['stats','competitions','players','matches'],'announcement':'','show_stats':True}
+DEFAULT={'accept_seconds':300,'checkin_seconds':600,'result_seconds':3600,'evidence_seconds':86400,'retention_seconds':259200,'reminder_seconds':900,'open_schedule_seconds':604800,'reschedules':1,'group_size':10,'round_days':3,'max_pair_daily':2,'rating_gap':400,'league_cup_slots':4,'open_cup_slots':4,'weekly_min_matches':5,'weekly_min_opponents':3,'theme':{'accent':'#7C3AED','surface':'#131932','paper':'#0B1520','ink':'#F1F5F9','radius':16,'tab_padding':12,'font_size':14,'font_family':'system-ui'},'layout':['stats','competitions','players','matches'],'announcement':'','show_stats':True}
 DEFAULT['presentation']={'chat_order':['search','tabs','gaming','list'],'game_tabs':['leagues','seasons','open','schedule','fixtures','players','live','table','card','profile','streams'],'custom_sections':[],'custom_games':{},'labels':{'brand':'X ORBIT','slogan':'Your world your connection','search':'Search X ORBIT','gaming':'Gamebox'}}
+LEGACY_DEFAULT_THEME={'accent': '#921b37', 'surface': '#252525', 'paper': '#101010', 'ink': '#f4f4f4', 'radius': 8, 'tab_padding': 12, 'font_size': 14, 'font_family': 'system-ui'}
 LIMITS={'accept_seconds':(60,1800),'checkin_seconds':(120,3600),'result_seconds':(1800,7200),'evidence_seconds':(3600,259200),'retention_seconds':(3600,2592000),'reminder_seconds':(60,3600),'open_schedule_seconds':(3600,1209600),'reschedules':(0,1),'group_size':(6,16),'round_days':(1,14),'max_pair_daily':(1,3),'rating_gap':(100,800),'league_cup_slots':(0,8),'open_cup_slots':(0,8),'weekly_min_matches':(1,20),'weekly_min_opponents':(1,10)}
 def init(server):
  with server.db() as d:
@@ -37,6 +38,7 @@ def init(server):
   if not d.execute('SELECT 1 FROM gb_versions').fetchone():d.execute('INSERT INTO gb_versions(config,actor,reason,created) VALUES(?,?,?,?)',(json.dumps(DEFAULT),'system','Initial supported defaults',int(time.time())))
   else:
    existing=row(d,'SELECT * FROM gb_versions ORDER BY id DESC LIMIT 1');old=json.loads(existing['config']);merged=dict(DEFAULT,**old);merged['theme']=dict(DEFAULT['theme'],**old.get('theme',{}));merged['presentation']=dict(DEFAULT['presentation'],**old.get('presentation',{}))
+   if old.get('theme')==LEGACY_DEFAULT_THEME:merged['theme']=dict(DEFAULT['theme'])
    if merged!=old:d.execute('INSERT INTO gb_versions(config,actor,reason,created) VALUES(?,?,?,?)',(json.dumps(merged),'migration','Add supported controls while preserving published customisations',int(time.time())))
  __import__("competition_context").init(server)
 def row(d,sql,args=()):

@@ -1,0 +1,83 @@
+# X ORBIT visual update report
+23 October 2026
+
+## Delivered
+The selected Compare interface in Sleekdave22/X-Orbit now uses the supplied navy, violet and cyan theme. Chat, Orbit Play, calls, settings, profiles, forms and Admin Studio share the new colours, bundled Sora headings and Inter body type, rounded cards and buttons, visible focus states and reduced-motion support.
+
+Repository: Sleekdave22/X-Orbit. Review branch: style/orbit-navy-violet-cyan. Base: fix/separate-android-installer at 582c42b. This base keeps the review focused on styling rather than including earlier, already functioning application work. Main is not merged or changed.
+
+The app icon, PNGs, wallpaper files and launcher artwork are unchanged. Entry pages show the real app icon in a violet/cyan ring. Its existing red/black artwork is still recognizable beside the label, but does not match the new cyan/violet palette; it was deliberately retained.
+
+## Implemented colours
+| Role | Dark | Light |
+|---|---|---|
+| Screen | #0B1520 | #F4F7FB |
+| Card | #131932 | #FFFFFF |
+| Raised surface / received default bubble | #202546 | #E8EDF6 |
+| Decorative border | #2E3560 | #C5CEE0 |
+| Main text | #F1F5F9 | #0B1520 |
+| Secondary text | #94A3B8 | #4A5878 |
+| Primary action fill, white text | #7C3AED | #6D28D9 |
+| Violet text | #A78BFA | #6D28D9 |
+| Cyan text / outline | #22D3EE | #0E7490 |
+| Own default bubble / send, navy text | #22D3EE | #22D3EE |
+| Success | #34D399 | #047857 |
+| Warning fill, navy text | #FFB822 | #FFB822 |
+| Warning text | #FFB822 | #8A5A00 |
+| Error / loss | #FF7185 | #BE123C |
+| Strong control edge | #64759A | #78859F |
+
+Cards use 16px corners, buttons 12px, and main controls at least 44px/dp. Light controls use a stronger edge than the handoff example: its suggested #8793AE failed the 3:1 target on raised surfaces. The implemented #78859F passes at 3.16:1. Medals retain gold, silver and bronze.
+
+Existing account-specific message colour choices remain available to preserve functionality and saved preferences. Orbit cyan / Navy is the new default; Charcoal / Black is also available. Consequently, old colour literals remain intentionally in the optional personal palette catalogue, exact legacy-default migration and related regression fixtures. They are not the fixed application chrome. Existing admin custom theme values are not overwritten. The old wallpaper asset remains in the repository but is not painted in the new default theme.
+
+## Changes by area
+- Web: orbit-theme.css supplies shared tokens, embedded offline WOFF2 fonts and visual overrides. Related chat, gaming, profile and call styles use matching role colours. Entry markup and rank/contact-card drawing use the new visual language.
+- Android: OrbitPalette.kt centralizes dark/light tokens. MainActivity's existing visual helpers, intro, bubble rendering, system bars, wallpaper renderer and small vector tints use them. Sora/Inter TTF files and font licences are included. Package identity stays com.guardianlab.chat.
+- Protection UI: only panel/text/button colours changed in GuardianProtection.kt and ProtectionNotice.kt. Protection and view-once logic are unchanged.
+- Server: only the presentation default and its exact-match migration changed in gamebox_core.py; account_preferences.py changes the default personal palette ID. The migration preserves the exact theme key set, custom themes, policy values and unpublished drafts.
+- Documentation/tests: Android Studio instructions, presentation assertions, two integration migration tests and contrast evidence.
+
+The separate app/ShieldController.kt and second app theme file listed in the handoff do not exist in this selected repository. No files were invented or changed in the original GuardianLab repository.
+
+## Functional boundaries
+This change does not implement or alter ratings, league rules, matchmaking, payments, result verification, moderation permissions, message routing, notification links, capture/protection rules or account data. Existing handlers, registration gates, Play / Compete / Me / Admin grouping, streaming overlays and navigation are retained.
+
+## Actual verification
+| Check | Result |
+|---|---|
+| Android debug build | Passed: :chat:assembleDebug |
+| Android unit tests | Passed: 4 chat + 5 guardianlab-ui tests |
+| Browser JavaScript regression checks | 21 of 21 passed |
+| Backend unittest discovery | 192 run: 179 passed, 13 errors |
+| Legacy-error baseline | Same 13 errors reproduced against unchanged gamebox_core.py from 582c42b |
+| Theme migration integration tests | Passed: exact old default, custom preservation and repeat startup |
+| Contrast script | 74 pairs, zero failures |
+| Diff whitespace check | Passed |
+| PNG/JPG/WebP/AndroidManifest diff | Empty |
+| Installed S21 package | versionCode 14, 0.14-x-orbit-navy-theme |
+| Existing S21 account | @s21 retained; authenticated profile, leagues and match APIs respond |
+| Live browser assets | Trusted HTTPS returns the exact updated CSS, gaming entry and 11-choice catalogue |
+
+The 13 server errors are in legacy test_rating.py, which expects removed helpers such as apply_rating, rating_change, rating_tier and tier_bounds, plus old configuration keys. They predate this visual change. They were not hidden or “fixed” by changing current competitive behaviour.
+
+Contrast evidence lists every checked pair in artifacts/orbit-theme/CONTRAST.md and contrast.json. Text pairs meet 4.5:1; tested control edges meet 3:1. These measurements verify the defined pairs, not every possible video frame or administrator-defined custom colour.
+
+## Visual review and limits
+Managed-browser inline review covered mobile dark chat, Orbit Play home, registration and global rankings; desktop light Orbit Play and Admin Studio; and the deployed chat list. Forms, navigation and dialogs opened during that review.
+
+The requested complete 390px/1280px × dark/light screenshot matrix is not complete. The isolated Playwright browser aborted at launch under the sandbox; the managed-browser screenshot-file write was also denied. Inline screenshots were inspected, but no saved screenshot set is claimed. Calls, every league table state and every settings panel therefore still need final visual review. The S21 installation and account were verified through package/API checks; a new on-device visual walkthrough has not been supplied by the owner.
+
+Unlike the handoff's cloud assumption, this Mac has Android Studio: the Android build and tests were actually run and passed.
+
+## Deployment
+The browser now runs the selected X-Orbit source at https://localhost:8766/ with the existing database and TLS configuration. The database was backed up before restart. Original GuardianLab source was not overwritten. Version 14 was installed over the existing S21 app without uninstalling it. No accounts were reset and no real-money feature was enabled.
+
+## Owner check
+1. Refresh https://localhost:8766/ and reopen X_ORBIT on the S21.
+2. Check dark/light mode, a chat's own/received bubbles, Calls and Settings.
+3. Open Orbit Play: inspect registration, rankings, a league table and Admin Studio.
+4. Check existing personal bubble colour selections remain selectable.
+5. Confirm the app icon, notifications and protected/view-once actions still behave as expected.
+
+GitHub review contains this visual-only change; deployment is a local test update, not a production-readiness claim.

@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.XOrbit" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#1b0709</item>
-        <item name="android:colorPrimary">#7a1630</item>
-        <item name="android:colorAccent">#e8b84a</item>
-        <item name="android:statusBarColor">#1b0709</item>
-        <item name="android:navigationBarColor">#1b0709</item>
-    </style>
+ <style name="Theme.XOrbit" parent="android:Theme.Material.NoActionBar">
+  <item name="android:windowBackground">#0B1520</item>
+  <item name="android:colorPrimary">#7C3AED</item>
+  <item name="android:colorAccent">#22D3EE</item>
+  <item name="android:textColorPrimary">#F1F5F9</item>
+  <item name="android:textColorSecondary">#94A3B8</item>
+  <item name="android:statusBarColor">#0B1520</item>
+  <item name="android:navigationBarColor">#0B1520</item>
+  <item name="android:fontFamily">@font/orbit_body</item>
+  <item name="android:colorControlHighlight">#3322D3EE</item>
+ </style>
 </resources>

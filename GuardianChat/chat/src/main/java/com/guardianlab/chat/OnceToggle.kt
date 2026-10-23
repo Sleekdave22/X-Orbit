@@ -10,7 +10,7 @@ import android.widget.ToggleButton
 /** A single-use “1” and broken orbit, with the usual accessible checked state. */
 internal class OnceToggle(context:Context):ToggleButton(context){
  private val symbol=context.getDrawable(R.drawable.ic_view_once)!!.mutate()
- private var first=Color.parseColor("#e8b84a");private var firstInk=Color.parseColor("#24170a");private var second=Color.parseColor("#341923");private var secondInk=Color.parseColor("#f4eee6")
+ private var first=Color.parseColor("#22D3EE");private var firstInk=Color.parseColor("#0B1520");private var second=Color.parseColor("#202546");private var secondInk=Color.parseColor("#F1F5F9")
  init {
   textOn="";textOff="";text="";contentDescription="Send as view once"
   minWidth=0;minimumWidth=0;minHeight=0;minimumHeight=0;setPadding(0,0,0,0);backgroundTintList=null

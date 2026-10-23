@@ -41,8 +41,8 @@ const unknown = vm.runInContext('compactProfileHeader({name:"Unknown presence"})
 assert.deepEqual(unknown.children[0].children[1].children, ['Last seen unavailable']);
 vm.runInNewContext(fs.readFileSync('server/orbit-theme.js', 'utf8') + `
 for (const legacy of ['#921b37','#b72b51','#e64570','#651426']) {
-  if (OrbitTheme.color(legacy) !== '#6A1833') throw Error('Wrong button shade');
+  if (OrbitTheme.color(legacy) !== legacy) throw Error('A custom published colour must be preserved');
 }
-if (OrbitTheme.tokens.lightAction !== '#6A1833') throw Error('Wrong light action shade');
+if (OrbitTheme.tokens.lightAction !== '#0E7490') throw Error('Wrong light action shade');
 `);
 console.log('Presence boundaries, compact identity, unknown presence, theme migration and browser script syntax passed');
