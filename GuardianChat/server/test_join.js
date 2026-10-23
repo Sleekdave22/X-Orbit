@@ -18,7 +18,7 @@ function page({existing=null,check=response(200,{valid:true}),register=null,sear
  return {context,elements,calls,writes,replaced,storage,events,fill,submit};
 }
 (async()=>{
- assert.match(html,/<meta name="referrer" content="no-referrer">/);assert.match(html,/id="joinForm" hidden/);assert.match(html,/src="\/branding\/XOrbit-app-icon-1024.png"/);
+ assert.match(html,/<meta name="referrer" content="no-referrer">/);assert.match(html,/id="joinForm" hidden/);assert.match(html,/src="\/branding\/XOrbit-app-icon-1024.png\?v=20"/);
  const valid=page();assert.equal(valid.elements.joinForm.hidden,true,'never expose signup before invite validation');await settle();assert.equal(valid.elements.joinForm.hidden,false);assert.equal(valid.elements.joinSubmit.disabled,true);valid.fill();assert.equal(valid.elements.joinSubmit.disabled,false);assert.equal(valid.calls[0].options.referrerPolicy,'no-referrer');assert.equal(valid.calls[0].options.credentials,'omit');assert.equal(valid.calls[0].options.cache,'no-store');assert.equal(valid.calls[0].options.headers.Authorization,undefined);
  valid.elements.showJoinPassword.onclick();assert.equal(valid.elements.joinPassword.type,'text');assert.equal(valid.elements.showJoinPassword.attributes['aria-pressed'],'true');valid.elements.showJoinPassword.onclick();assert.equal(valid.elements.joinPassword.type,'password');
  valid.fill({confirm:'different-password'});assert.equal(valid.elements.joinSubmit.disabled,true);await valid.submit();assert.match(valid.elements.joinStatus.textContent,/do not match/);assert.equal(valid.calls.filter(c=>c.path==='/register').length,0);

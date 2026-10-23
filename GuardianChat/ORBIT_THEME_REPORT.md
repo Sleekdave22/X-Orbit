@@ -1,6 +1,19 @@
 # X ORBIT visual update report
 23 October 2026
 
+## Header, settings gradients and supplied icons — version 20
+The owner's neon trophy/chat artwork is now the launcher icon and the default web app icon. Its light counterpart is used by the Orbit Play entry/header icon in light mode; dark mode uses the neon artwork. Original PNG bytes are retained. One density-independent launcher resource replaces the old density-specific icons; the package identity and manifest are unchanged.
+
+The OrbitChat top strip and its search/menu button fills are transparent. The right navigation drawer and Settings use the supplied Deep Purple to Midnight image in dark mode and Lavender to Cyan image in light mode. Both are packaged for Android; three exact public branding paths are added to the server's existing static image allowlist. They contain only the supplied artwork. Existing protection, authentication and API rules are unchanged.
+
+Personalization now supplies heading-dark/heading-light variables only to the OrbitChat heading and the arena's OrbitPlay heading. The native chat title reads the same account palette fields. Other text, buttons, ratings, standings and interaction handlers retain the fixed app theme. Preference requests still ignore stale accounts/sessions and reset on logout. A regression assertion checks the heading values without introducing a global personal accent.
+
+The arena's compact contact card sits at the top right, with its public handle on a separate line outside the card and the names inside. Opening the card still opens the same profile dialog; full profile details retain their existing information.
+
+Actual checks: Android debug build passed; 5 chat unit tests passed; 22 browser regression checks passed; 78 defined contrast pairs passed. APK inspection confirmed both settings backgrounds, the light icon and final interface assets. Trusted HTTPS returned exact deployed bytes for the updated assets. Managed-browser review confirmed transparent chat/header controls, both settings gradients and icon variants, the separate handle/right-aligned card, and no horizontal overflow at the reviewed 680px and 1280px widths. The requested 390px viewport override did not take effect in the managed review tab and was reset; no successful 390px review is claimed. Physical phone visual/camera walkthroughs remain owner checks.
+
+Version 20 was installed over the existing handset package without resetting its account. Package metadata and authenticated profile, league and match API checks passed. The browser server was restarted after an integrity-checked database backup; existing accounts/data and TLS material were retained. Earlier wallpaper/control work was separately committed as 85c5c70.
+
 ## Wallpaper and control refinement — version 19
 The two newly supplied wallpapers replace only the previous wallpaper assets: Purple-to-Navy Tech Doodle for dark mode, Neon White-Line Tech Travel Doodle for light mode. The source PNG bytes are copied unchanged into web and Android assets. The native renderer centre-crops without stretching; the web layout uses cover on small screens and repeats proportional 560px-wide artwork on wider screens. Chat reading surfaces and the gaming content area have a translucent theme surface for text contrast; the composer has a quiet solid surface for its bare icons. Live video remains unobscured.
 
@@ -43,7 +56,7 @@ The selected Compare interface in Sleekdave22/X-Orbit now uses the supplied navy
 
 Repository: Sleekdave22/X-Orbit. Review branch: style/orbit-navy-violet-cyan. Base: fix/separate-android-installer at 582c42b. This base keeps the review focused on styling rather than including earlier, already functioning application work. Main is not merged or changed.
 
-The app icon, logos and launcher artwork are unchanged. Version 19 replaces only the wallpapers at the owner’s explicit request. Entry pages show the real app icon in a violet/cyan ring. Its existing red/black artwork is still recognizable beside the label, but does not match the new cyan/violet palette; it was deliberately retained.
+Version 19 replaced only the wallpapers at the owner’s explicit request. Version 20 additionally replaces the app/launcher icon with the supplied neon artwork and adds its light counterpart for Orbit Play. Logos remain unchanged. Entry pages continue to show the app icon in the existing ring.
 
 ## Implemented colours
 | Role | Dark | Light |
@@ -67,7 +80,7 @@ The app icon, logos and launcher artwork are unchanged. Version 19 replaces only
 
 Cards use 16px corners, buttons 12px, and main controls at least 44px/dp. Light controls use a stronger edge than the handoff example: its suggested #8793AE failed the 3:1 target on raised surfaces. The implemented #78859F passes at 3.16:1. Medals retain gold, silver and bronze.
 
-Existing account-specific message colour choices remain available to preserve functionality and saved preferences. Orbit violet / Blue is the new default; Charcoal / Black is also available. Consequently, old colour literals remain intentionally in the optional personal palette catalogue, exact legacy-default migration and related regression fixtures. They are not the fixed application chrome. Existing admin custom theme values are not overwritten. Version 19 uses the newly supplied dark/light wallpaper artwork, as described above.
+Existing account-specific message colour choices remain available to preserve functionality and saved preferences; version 20 also applies their heading shades to the two brand headings. Orbit violet / Blue is the new default; Charcoal / Black is also available. Consequently, old colour literals remain intentionally in the optional personal palette catalogue, exact legacy-default migration and related regression fixtures. They are not the fixed application chrome. Existing admin custom theme values are not overwritten. Version 19 uses the newly supplied dark/light wallpaper artwork, as described above.
 
 ## Changes by area
 - Web: orbit-theme.css supplies shared tokens, embedded offline WOFF2 fonts and visual overrides. Related chat, gaming, profile and call styles use matching role colours. Entry markup and rank/contact-card drawing use the new visual language.
@@ -92,8 +105,8 @@ Apart from the explicitly requested camera capture and removed audio skip contro
 | Theme migration integration tests | Passed: exact old default, custom preservation and repeat startup |
 | Contrast script | 78 pairs, zero failures |
 | Diff whitespace check | Passed |
-| Artwork / manifest | Only the explicitly requested wallpaper PNGs changed in version 19; icon, logo and manifest unchanged |
-| Installed S21 package | versionCode 18, 0.18-x-orbit-slim-composer |
+| Artwork / manifest | Only explicitly supplied wallpapers and icons changed; logos and manifest unchanged |
+| Installed S21 package | versionCode 20, 0.20-x-orbit-personal-headings |
 | Existing S21 account | the existing handset account retained; authenticated profile, leagues and match APIs respond |
 | Live browser assets | Trusted HTTPS returns the exact updated CSS, gaming entry and 11-choice catalogue |
 
@@ -109,7 +122,7 @@ The requested complete 390px/1280px × dark/light screenshot matrix is not compl
 Unlike the handoff's cloud assumption, this Mac has Android Studio: the Android build and tests were actually run and passed.
 
 ## Deployment
-The browser now runs the selected X-Orbit source at https://localhost:8766/ with the existing database and TLS configuration. The database was backed up before restart. Original GuardianLab source was not overwritten. Version 18 was installed over the existing S21 app without uninstalling it. No accounts were reset and no real-money feature was enabled.
+The browser now runs the selected X-Orbit source at https://localhost:8766/ with the existing database and TLS configuration. The database was backed up before restart. Original GuardianLab source was not overwritten. Version 20 was installed over the existing S21 app without uninstalling it. No accounts were reset and no real-money feature was enabled.
 
 ## Owner check
 1. Refresh https://localhost:8766/ and reopen X_ORBIT on the S21.

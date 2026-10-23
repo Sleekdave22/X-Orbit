@@ -8,7 +8,8 @@ internal class ComparisonAssetPolicy(base: String) {
  private val files = setOf("gaming.html", "gaming.js", "gaming.css", "orbit-theme.css",
   "studio.js", "result-room.js", "orbit-icon.png", "roboto-0.ttf", "roboto-1.ttf", "orbit-theme.js", "sponsored-ui.js", "phase-b.js", "scheduling.js", "social.js", "social-spaces.js",
   "live-room-ui.js", "stream-relay-ui.js", "invitations.js", "profile-tabs.css", "form-panels.js", "form-panels.css",
-  "branding/orbit-wallpaper.png", "branding/orbit-wallpaper-v2.png")
+  "branding/orbit-wallpaper.png", "branding/orbit-wallpaper-v2.png",
+  "branding/settings-dark.png", "branding/settings-light.png", "branding/orbit-icon-light.png")
  private fun port(uri: URI) = if (uri.port == -1) 443 else uri.port
  fun asset(method: String, address: String): String? = try {
   val uri = URI(address)

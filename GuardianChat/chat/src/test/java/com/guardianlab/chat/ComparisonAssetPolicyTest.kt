@@ -10,7 +10,7 @@ class ComparisonAssetPolicyTest {
   assertEquals("comparison-web/orbit-theme.css", policy.asset("GET", "https://192.168.1.171:8766/orbit-theme.css"))
  }
  @Test fun wallpaperAssetsRemainStaticAndOriginBound() {
-  for (file in listOf("orbit-wallpaper.png", "orbit-wallpaper-v2.png")) {
+  for (file in listOf("orbit-wallpaper.png", "orbit-wallpaper-v2.png", "settings-dark.png", "settings-light.png", "orbit-icon-light.png")) {
    assertEquals("comparison-web/branding/"+file, policy.asset("GET", "https://192.168.1.171:8766/branding/"+file+"?v=19"))
    assertNull(policy.asset("GET", "https://example.com:8766/branding/"+file))
    assertNull(policy.asset("GET", "https://192.168.1.171:8766/branding/../branding/"+file))
