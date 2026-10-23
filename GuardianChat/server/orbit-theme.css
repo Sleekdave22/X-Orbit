@@ -18,13 +18,14 @@ html[data-theme=bright]{
  --cyan-text:#0e7490;--mint:#047857;--coral:#be123c;--amber-text:#8a5a00;color-scheme:light
 }
 *{box-sizing:border-box}
-html{background:var(--bg);scrollbar-color:var(--control-line) var(--card)}
-body{margin:0;background:radial-gradient(ellipse at 50% -200px,#7c3aed13,transparent 720px),var(--bg)!important;background-attachment:fixed!important;color:var(--ink)!important;font-family:var(--body)!important;line-height:1.5}
-html[data-theme=bright] body{background:var(--bg)!important}
+html{--orbit-wallpaper:url('/branding/orbit-wallpaper.png?v=19');background:var(--bg);scrollbar-color:var(--control-line) var(--card)}
+html[data-theme=bright]{--orbit-wallpaper:url('/branding/orbit-wallpaper-v2.png?v=19')}
+body{margin:0;background:var(--bg) var(--orbit-wallpaper) center top/cover fixed!important;color:var(--ink)!important;font-family:var(--body)!important;line-height:1.5}
+@media(min-width:700px){body{background-size:560px auto!important;background-repeat:repeat!important}}
 button,input,select,textarea{font-family:var(--body)!important}
 h1,h2,h3,h4,.brand-header h1,header h1,#welcome strong,#orbitIntro strong{font-family:var(--display)!important;color:var(--ink)!important;letter-spacing:-.025em;line-height:1.2;font-weight:600}
 h1{font-size:clamp(23px,3vw,30px)}h2{font-size:22px}h3{font-size:17px}h4{font-size:15px}
-button{min-height:44px;padding:10px 16px!important;border:1.5px solid var(--cyan-text)!important;border-radius:12px!important;background:transparent!important;color:var(--cyan-text)!important;font-size:13px;font-weight:600;line-height:1.3;cursor:pointer;transition:background-color .15s,border-color .15s,filter .15s}
+button{min-height:44px;padding:10px 16px!important;border:1.5px solid transparent!important;border-radius:12px!important;background:var(--card2)!important;color:var(--muted)!important;font-size:13px;font-weight:600;line-height:1.3;cursor:pointer;transition:background-color .15s,border-color .15s,filter .15s}
 button:hover{background:color-mix(in srgb,var(--cyan-text) 8%,transparent)!important}
 button:disabled{opacity:.5;cursor:default}
 button.primary,button.orbit-primary,button[type=submit],button.selected,button[aria-selected=true],button[aria-pressed=true],nav button[aria-current=true],.auth-choices button.selected,#contacts>.home-tabs button[aria-pressed=true]{background:var(--violet)!important;color:#fff!important;border-color:var(--violet)!important}
@@ -48,10 +49,10 @@ header p{font-size:12px;color:var(--muted)}
 .brand-header{border:0}
 .brand-header h1{font-size:25px}
 .header-actions{display:flex;align-items:center;gap:6px;margin-left:auto}
-.header-actions button{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;min-height:44px;padding:10px!important;border:1px solid var(--control-line)!important;color:var(--cyan-text)!important;background:var(--card2)!important}
+.header-actions button{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;min-height:44px;padding:10px!important;border:1px solid transparent!important;color:var(--cyan-text)!important;background:var(--card2)!important}
 .header-actions #homeBack{font-size:30px}
 #contacts>.home-tabs{padding:6px!important;background:var(--card)!important;border:1px solid var(--line)!important;border-radius:16px}
-#contacts>.home-tabs button[aria-pressed=false],nav button,.social-panel .profile-nav-tab{background:var(--card2)!important;color:var(--muted)!important;border-color:var(--control-line)!important}
+#contacts>.home-tabs button[aria-pressed=false],nav button,.social-panel .profile-nav-tab{background:var(--card2)!important;color:var(--muted)!important;border-color:transparent!important}
 #contacts>.home-tabs button[aria-pressed=true],nav button.selected,.social-panel .profile-nav-tab.selected{background:var(--violet)!important;color:#fff!important;border-color:var(--violet)!important}
 nav{display:flex;flex-wrap:wrap;gap:7px;row-gap:12px;overflow:visible;padding:14px 0 18px!important}
 nav button{flex:0 1 auto;min-width:0;min-height:44px;padding:9px 12px!important;font-size:12px!important;white-space:normal;line-height:1.3}
@@ -75,7 +76,7 @@ nav.locked [data-tab=admin]:not([hidden]),nav.locked [data-tab=studio]:not([hidd
 #chat .message.own .message-body{background:var(--personal-bubble,var(--cyan))!important;color:var(--personal-ink,#0b1520)!important;border-color:transparent!important;border-radius:16px 16px 5px 16px!important}
 #chat .message .message-body small{color:inherit!important}
 .message-body .reply-snippet{color:inherit!important;border-left-color:currentColor}
-#chat .message-body button{background:transparent!important;color:inherit!important;border-color:currentColor!important;min-height:44px}
+#chat .message-body button{background:transparent!important;color:inherit!important;border-color:transparent!important;min-height:44px}
 #chat .row,#outgoing .row{background:var(--card2)!important;border:1px solid var(--control-line)!important;border-radius:24px!important}
 #draft{color:var(--ink)!important;border:0!important;background:transparent!important;padding:10px!important}
 #send,#sendMedia{background:var(--cyan)!important;color:#0b1520!important;border:0!important;border-radius:50%!important;flex:0 0 44px!important;width:44px!important;min-width:44px!important;min-height:44px!important;height:44px!important;font-size:20px!important;padding:0!important;display:grid;place-items:center}
@@ -98,9 +99,10 @@ nav.locked [data-tab=admin]:not([hidden]),nav.locked [data-tab=studio]:not([hidd
 .profile-tab-content{background:var(--card2)!important}
 .auth-welcome img,#welcome .ring img{border:2px solid var(--cyan);outline:5px solid #7c3aed26;outline-offset:4px;border-radius:24px!important}
 .auth-welcome{padding-top:12px}
-.auth-choices button{background:transparent!important;color:var(--cyan-text)!important;border-color:var(--cyan-text)!important}
+.auth-choices button{background:var(--card2)!important;color:var(--muted)!important;border-color:transparent!important}
 .auth-choices button.selected{background:var(--violet)!important;color:#fff!important;border-color:var(--violet)!important}
-#welcome,#orbitIntro{background:radial-gradient(circle at 50% 35%,#202546,var(--bg) 65%)!important;color:var(--ink)!important}
+#welcome,#orbitIntro{background:linear-gradient(#0b1520b8,#0b1520b8),var(--orbit-wallpaper) center/cover!important;color:#f1f5f9!important}
+#welcome :is(strong,p),#orbitIntro :is(strong,p,small){color:#f1f5f9!important}
 #welcome .ring{position:relative;width:132px;height:132px;margin-bottom:24px;display:grid;place-items:center}
 #welcome .ring::before{content:'';position:absolute;inset:0;border-radius:50%;border:3px solid var(--violet);border-top-color:var(--cyan)}
 #welcome .bar{width:min(280px,70vw);height:5px;background:var(--card2);border-radius:99px;overflow:hidden;margin:20px 0}
@@ -217,3 +219,13 @@ html[data-theme=bright] .message:not(.own) .voice-note{--voice-accent:#0E7490}
 @media(min-width:600px){#composer{--composer-icon:36px}}
 
 #composer :is(#emojiButton,#attach){height:36px!important;min-height:36px!important}
+
+/* Keep the single composer pill; focusing its text must not draw a second box. */
+#composer #draft:focus,#composer #draft:focus-visible{outline:none!important;box-shadow:none!important}
+/* Quiet reading surfaces keep timestamps and bare composer icons legible over the artwork. */
+#messages{background:color-mix(in srgb,var(--card) 76%,transparent)!important}
+#view:not(.live-room){background:color-mix(in srgb,var(--card) 76%,transparent)!important;border-radius:16px;padding:14px}
+#composer .composer-line{background:var(--card)!important;border-radius:22px!important}
+/* Back controls keep their existing targets and handlers, with only the arrow visible. */
+button.orbit-back-control,button[aria-label="Back"],button[aria-label^="Back to "],
+#back,#homeBack,#profileBack,#walletBack,#previewBack{background:transparent!important;border-color:transparent!important;box-shadow:none!important;color:var(--cyan-text)!important}

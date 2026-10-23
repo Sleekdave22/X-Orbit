@@ -1,6 +1,15 @@
 # X ORBIT visual update report
 23 October 2026
 
+## Wallpaper and control refinement — version 19
+The two newly supplied wallpapers replace only the previous wallpaper assets: Purple-to-Navy Tech Doodle for dark mode, Neon White-Line Tech Travel Doodle for light mode. The source PNG bytes are copied unchanged into web and Android assets. The native renderer centre-crops without stretching; the web layout uses cover on small screens and repeats proportional 560px-wide artwork on wider screens. Chat reading surfaces and the gaming content area have a translucent theme surface for text contrast; the composer has a quiet solid surface for its bare icons. Live video remains unobscured.
+
+Inactive buttons now use the same raised neutral fill and muted text as Calls, without blue borders. Primary actions and selected tabs retain their violet fill. Back arrows have transparent backgrounds and borders, with their existing tap targets and handlers. Only the chat draft loses its inner focus outline; typing, caret, selection and keyboard focus on other controls remain available.
+
+Both wallpapers are also included in the optional bundled WebView interface through its exact, same-origin static-asset allowlist. No API, media, authentication or TLS allowlist rules are broadened. Existing wallpaper routes are reused, so the live browser receives the new assets without a server restart.
+
+Validation: 22 browser regression checks passed; 78 defined contrast pairs passed. Trusted HTTPS returned exactly the updated CSS, scripts and both PNGs. Managed-browser review confirmed dark/light wallpaper selection, a focused draft with no outline or shadow, a bare Back control, transparent borders on inactive gaming tabs and no horizontal overflow in the reviewed layout. The new static-asset test also rejects foreign origins, traversal and unknown image paths. These checks do not certify contrast on every wallpaper pixel or all custom themes. The phone visual walkthrough remains an owner check.
+
 ## Slim composer — version 18
 The message field is tagged as chat-draft so the generic theme refresh no longer paints a solid rectangular EditText background over the rounded composer. Only the outer pill supplies the fill, clipped to its outline. Normal bar height is 38dp/px with a 36dp/px text area; multiline input remains available. Composer glyphs are 18dp/px, view-once 20dp/px and the Send circle 36dp/px. Compact icon widths are 28dp/px, widening to 36 on larger layouts. This supersedes the earlier 32/44px dimensions below. The native voice-note icon also keeps its smaller size after recording ends.
 
@@ -34,7 +43,7 @@ The selected Compare interface in Sleekdave22/X-Orbit now uses the supplied navy
 
 Repository: Sleekdave22/X-Orbit. Review branch: style/orbit-navy-violet-cyan. Base: fix/separate-android-installer at 582c42b. This base keeps the review focused on styling rather than including earlier, already functioning application work. Main is not merged or changed.
 
-The app icon, PNGs, wallpaper files and launcher artwork are unchanged. Entry pages show the real app icon in a violet/cyan ring. Its existing red/black artwork is still recognizable beside the label, but does not match the new cyan/violet palette; it was deliberately retained.
+The app icon, logos and launcher artwork are unchanged. Version 19 replaces only the wallpapers at the owner’s explicit request. Entry pages show the real app icon in a violet/cyan ring. Its existing red/black artwork is still recognizable beside the label, but does not match the new cyan/violet palette; it was deliberately retained.
 
 ## Implemented colours
 | Role | Dark | Light |
@@ -58,7 +67,7 @@ The app icon, PNGs, wallpaper files and launcher artwork are unchanged. Entry pa
 
 Cards use 16px corners, buttons 12px, and main controls at least 44px/dp. Light controls use a stronger edge than the handoff example: its suggested #8793AE failed the 3:1 target on raised surfaces. The implemented #78859F passes at 3.16:1. Medals retain gold, silver and bronze.
 
-Existing account-specific message colour choices remain available to preserve functionality and saved preferences. Orbit violet / Blue is the new default; Charcoal / Black is also available. Consequently, old colour literals remain intentionally in the optional personal palette catalogue, exact legacy-default migration and related regression fixtures. They are not the fixed application chrome. Existing admin custom theme values are not overwritten. The old wallpaper asset remains in the repository but is not painted in the new default theme.
+Existing account-specific message colour choices remain available to preserve functionality and saved preferences. Orbit violet / Blue is the new default; Charcoal / Black is also available. Consequently, old colour literals remain intentionally in the optional personal palette catalogue, exact legacy-default migration and related regression fixtures. They are not the fixed application chrome. Existing admin custom theme values are not overwritten. Version 19 uses the newly supplied dark/light wallpaper artwork, as described above.
 
 ## Changes by area
 - Web: orbit-theme.css supplies shared tokens, embedded offline WOFF2 fonts and visual overrides. Related chat, gaming, profile and call styles use matching role colours. Entry markup and rank/contact-card drawing use the new visual language.
@@ -76,14 +85,14 @@ Apart from the explicitly requested camera capture and removed audio skip contro
 | Check | Result |
 |---|---|
 | Android debug build | Passed: :chat:assembleDebug |
-| Android unit tests | Passed: 4 chat + 5 guardianlab-ui tests |
-| Browser JavaScript regression checks | 21 of 21 passed |
+| Android unit tests | Passed: 5 chat tests; previous 5 guardianlab-ui tests unchanged |
+| Browser JavaScript regression checks | 22 of 22 passed |
 | Backend unittest discovery | 192 run: 179 passed, 13 errors |
 | Legacy-error baseline | Same 13 errors reproduced against unchanged gamebox_core.py from 582c42b |
 | Theme migration integration tests | Passed: exact old default, custom preservation and repeat startup |
 | Contrast script | 78 pairs, zero failures |
 | Diff whitespace check | Passed |
-| PNG/JPG/WebP/AndroidManifest diff | Empty |
+| Artwork / manifest | Only the explicitly requested wallpaper PNGs changed in version 19; icon, logo and manifest unchanged |
 | Installed S21 package | versionCode 18, 0.18-x-orbit-slim-composer |
 | Existing S21 account | the existing handset account retained; authenticated profile, leagues and match APIs respond |
 | Live browser assets | Trusted HTTPS returns the exact updated CSS, gaming entry and 11-choice catalogue |

@@ -80,12 +80,13 @@ class MainActivity:ComponentActivity(){
   styleControl(this)
  }
  private fun styleControl(view:Button){
-  if(view.tag=="bare-icon"){view.backgroundTintList=null;view.background=null;view.setTextColor(accentText);view.compoundDrawables.filterNotNull().forEach {it.setTint(accentText)};view.foreground=OrbitPalette.focus(this,bright);return}
+  val back=Regex("^(?:[‹←⟵]|Back(?:$| to\\b))",RegexOption.IGNORE_CASE).containsMatchIn(view.text.toString().trim())
+  if(view.tag=="bare-icon"||back){view.backgroundTintList=null;view.background=null;view.setTextColor(accentText);view.compoundDrawables.filterNotNull().forEach {it.setTint(accentText)};view.foreground=OrbitPalette.focus(this,bright);return}
   val send=view.contentDescription in listOf("Send","Send message")
   val primary=view.isSelected||view.tag=="pair-active"
-  val fill=if(send)Color.parseColor(OrbitPalette.CYAN) else if(primary)accent else Color.TRANSPARENT
-  val textColor=if(send)Color.parseColor(OrbitPalette.BG) else if(primary)Color.WHITE else accentText
-  view.backgroundTintList=null;view.background=GradientDrawable().apply {setColor(fill);cornerRadius=dp(if(send)50 else 12).toFloat();if(!send&&!primary)setStroke(dp(1),accentText)}
+  val fill=if(send)Color.parseColor(OrbitPalette.CYAN) else if(primary)accent else inputPaper
+  val textColor=if(send)Color.parseColor(OrbitPalette.BG) else if(primary)Color.WHITE else muted
+  view.backgroundTintList=null;view.background=GradientDrawable().apply {setColor(fill);cornerRadius=dp(if(send)50 else 12).toFloat()}
   view.setTextColor(textColor);view.foreground=OrbitPalette.focus(this,bright)
  }
 
@@ -113,11 +114,12 @@ class MainActivity:ComponentActivity(){
  private fun showContent(view:View){setShowWhenLocked(screen=="call");setTurnScreenOn(screen=="call");if(viewOnceId!=null||protectedSessionId!=null||openingOnce)window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);setContentView(view);applyAppearance(view);refreshPaletteViews(view);if(viewOnceId==null&&protectedSessionId==null&&!openingOnce)window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)}
  private fun applyAppearance(view:View){
   if(view.background is OrbitWallpaper)view.background.invalidateSelf()
-  if(view.hasOnClickListeners()||view is EditText){view.isFocusable=true;view.foreground=OrbitPalette.focus(this,bright)}
+  if(view.hasOnClickListeners()||view is EditText){view.isFocusable=true;view.foreground=if(view.tag=="chat-draft")null else OrbitPalette.focus(this,bright)}
   val bg=view.background
   val color=when(bg){is GradientDrawable->bg.color?.defaultColor;is android.graphics.drawable.ColorDrawable->bg.color;else->null}
   val replacement=when{
    view.tag=="message-body"||view.tag=="chat-draft"->null
+   view.tag=="chat-reading-surface"->(surface and 0x00ffffff) or (194 shl 24)
    view is EditText->inputPaper
    color in listOf(Color.rgb(24,24,24),Color.rgb(250,250,250),Color.parseColor(OrbitPalette.BG),Color.parseColor(OrbitPalette.LIGHT_BG))->paper
    color in listOf(Color.rgb(48,48,48),Color.rgb(231,231,231),Color.rgb(50,50,50),Color.rgb(36,36,36),Color.parseColor(OrbitPalette.CARD),Color.parseColor(OrbitPalette.LIGHT_CARD))->surface
@@ -138,7 +140,8 @@ class MainActivity:ComponentActivity(){
  }
 
  private val wallpaperBitmap by lazy {BitmapFactory.decodeResource(resources,R.drawable.orbit_wallpaper)}
- private fun wallpaper()=OrbitWallpaper(wallpaperBitmap){bright}
+ private val lightWallpaperBitmap by lazy {BitmapFactory.decodeResource(resources,R.drawable.orbit_wallpaper_light)}
+ private fun wallpaper()=OrbitWallpaper(wallpaperBitmap,lightWallpaperBitmap){bright}
  private fun headerAction(icon:Int,label:String,action:(View)->Unit)=ImageView(this).apply {
   tag="pair-icon";background=GradientDrawable().apply {setColor(themeIdle);cornerRadius=dp(12).toFloat()};setImageResource(icon);imageTintList=android.content.res.ColorStateList.valueOf(themeIdleInk);contentDescription=label;isFocusable=true;setPadding(dp(10),dp(10),dp(10),dp(10));layoutParams=LinearLayout.LayoutParams(dp(44),dp(44));setOnClickListener {action(it)}
  }
@@ -332,6 +335,7 @@ class MainActivity:ComponentActivity(){
   header.addView(callAction(R.drawable.ic_video_call,"Video call",true),LinearLayout.LayoutParams(dp(44),dp(44)))
   header.addView(callAction(R.drawable.ic_call_handset,"Voice call",false),LinearLayout.LayoutParams(dp(44),dp(44)))
   root.addView(header,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(4);bottomMargin=dp(4)});scroller=LatestMessageScrollView(this).apply {alpha=0f};messages=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};scroller!!.addView(messages);scroller!!.background=boundary().apply {setColor(Color.TRANSPARENT)};scroller!!.setPadding(dp(6),0,dp(6),0);scroller!!.viewTreeObserver.addOnScrollChangedListener {inlineVideos.forEach {if(!inlineVisible(it))it.pause()}}
+  scroller!!.tag="chat-reading-surface";scroller!!.background=boundary().apply {setColor((surface and 0x00ffffff) or (194 shl 24))}
   root.addView(scroller,LinearLayout.LayoutParams(-1,0,1f))
   val iconWidth=if(resources.configuration.screenWidthDp<600)28 else 36
   val iconPadding=(iconWidth-18)/2
@@ -341,7 +345,7 @@ class MainActivity:ComponentActivity(){
   row.addView(draft,LinearLayout.LayoutParams(0,-2,1f))
   fun compact(label:String,description:String,action:()->Unit)=button(label,action).apply {contentDescription=description;tag="bare-icon";textSize=20f;includeFontPadding=false;gravity=Gravity.CENTER;minWidth=0;minimumWidth=0;minHeight=0;minimumHeight=0;setPadding(0,0,0,0);styleControl(this)}
   row.addView(compact("☺","Open emoji keyboard"){toggleEmoji()}.apply {backgroundTintList=null;background=null;textSize=20f},0,LinearLayout.LayoutParams(dp(iconWidth),dp(38)))
-  val top=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL};val bottom=top
+  val top=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL;background=GradientDrawable().apply {setColor(surface);cornerRadius=dp(22).toFloat()}};val bottom=top
   fun addControl(target:LinearLayout,view:View){target.addView(view,LinearLayout.LayoutParams(dp(iconWidth),dp(38)).apply {marginEnd=dp(2)})}
   onceChoice=onceToggle(false){};addControl(top,onceChoice!!);addControl(top,compact("","Voice typing"){voiceType()}.apply {val icon=getDrawable(R.drawable.ic_microphone)!!.mutate().apply {setTint(accentText);setBounds(0,0,dp(18),dp(18))};setCompoundDrawables(icon,null,null,null);setPadding(dp(iconPadding),0,dp(iconPadding),0)})
   row.addView(compact("＋","Attach media or file"){if(!sending){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply {type="*/*";addCategory(Intent.CATEGORY_OPENABLE)};startActivityForResult(intent,20)}}.apply {backgroundTintList=null;background=null;textSize=20f},1,LinearLayout.LayoutParams(dp(iconWidth),dp(38)))

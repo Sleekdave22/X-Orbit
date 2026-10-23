@@ -30,9 +30,10 @@ Your phone and computer must be on the same Wi-Fi network.
 ## 5. What to check first
 - Intro screen shows the unchanged app icon, a cyan/violet ring and a soft-white X ORBIT title.
 - Default chat bubbles: yours cyan with navy text, theirs on a bordered navy surface (pale blue in light mode). Existing saved bubble colour pairs remain selectable.
-- Open **Orbit Play** from the chat screen: the navy entry screen, then the existing Play / Compete / Me / Admin groups. Selected tabs are violet with white text; secondary actions use a cyan outline.
+- Open **Orbit Play** from the chat screen: the wallpaper entry screen, then the existing Play / Compete / Me / Admin groups. Selected tabs are violet with white text; inactive actions use a neutral fill without a blue border. Back arrows have no box.
 - Sign in as the admin account (Mainfirst) to see Administration and Admin Studio.
 
 ## If the build fails
 Copy the first error from the Build tab (the lines starting with `e:`) and send it back. Only visual tokens, fonts, control shapes, focus and motion are changed. Protection, view-once, notification routing and match rules retain their existing workflows.
 \nChat follow-up: check the single-line composer (emoji/+ inside, view-once/mic/camera/voice note/Send outside). Tap the camera, allow access if asked, capture a photo, review it and cancel first. A photo must only be sent after pressing Send. Audio has play/pause and seeking without 10-second skips.\n
+Version 19 uses the supplied purple/navy dark wallpaper and neon white-line light wallpaper. Switch appearance in chat Settings to check both. Focus the message field: it should keep the single outer pill without an inner typing boundary. Keyboard focus remains visible on other controls.
