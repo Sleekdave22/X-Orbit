@@ -1,6 +1,9 @@
 # X ORBIT visual update report
 23 October 2026
 
+## Arena full-viewport wallpaper follow-up
+OrbitPlay's body now has a viewport-height minimum, uses one cover background instead of desktop tiling, and keeps its header transparent. Cards retain their reading surfaces. Managed-browser measurements changed from a 778.45px body under an 804px viewport to an 804px body; the header changed from opaque navy to transparent. Background size is cover, repeat is disabled and no horizontal overflow was observed. This is shared arena CSS, so the current server-backed Android arena receives it on reopening; no native logic changed. Matching wallpaper variants and a split-circle colour picker are a design proposal, not implemented in this follow-up.
+
 ## Header, settings gradients and supplied icons — version 20
 The owner's neon trophy/chat artwork is now the launcher icon and the default web app icon. Its light counterpart is used by the Orbit Play entry/header icon in light mode; dark mode uses the neon artwork. Original PNG bytes are retained. One density-independent launcher resource replaces the old density-specific icons; the package identity and manifest are unchanged.
 

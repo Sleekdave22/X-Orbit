@@ -22,6 +22,9 @@ html{--orbit-wallpaper:url('/branding/orbit-wallpaper.png?v=19');--orbit-setting
 html[data-theme=bright]{--orbit-wallpaper:url('/branding/orbit-wallpaper-v2.png?v=19');--orbit-settings-wallpaper:url('/branding/settings-light.png?v=20');--orbit-play-icon:url('/branding/orbit-icon-light.png?v=20');--brand-heading:var(--personal-heading-light,var(--cyan-text))}
 body{margin:0;background:var(--bg) var(--orbit-wallpaper) center top/cover fixed!important;color:var(--ink)!important;font-family:var(--body)!important;line-height:1.5}
 @media(min-width:700px){body{background-size:560px auto!important;background-repeat:repeat!important}}
+/* Arena artwork covers the viewport even when the current tab has little content. */
+body:has(#gamingBrand){min-height:100vh;min-height:100dvh;background-size:cover!important;background-repeat:no-repeat!important}
+body:has(#gamingBrand)>header{background:transparent!important}
 button,input,select,textarea{font-family:var(--body)!important}
 h1,h2,h3,h4,.brand-header h1,header h1,#welcome strong,#orbitIntro strong{font-family:var(--display)!important;color:var(--ink)!important;letter-spacing:-.025em;line-height:1.2;font-weight:600}
 h1{font-size:clamp(23px,3vw,30px)}h2{font-size:22px}h3{font-size:17px}h4{font-size:15px}
