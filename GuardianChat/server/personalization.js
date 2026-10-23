@@ -1,7 +1,7 @@
 /* Account colours affect message bubbles only; navigation keeps the brand theme. */
 (()=>{
  let owner='',session='',choices=[],generation=0,lastFetch=0,busy=false,draft=null;
- const fallback={id:'orbit-cyan-navy',roles:2,accent:'#22D3EE',bubble:'#22D3EE',ink:'#0B1520',received:'#202546',receivedInk:'#F1F5F9',headingDark:'#22D3EE',headingLight:'#0E7490'};
+ const fallback={id:'orbit-cyan-navy',roles:2,accent:'#7C3AED',bubble:'#7C3AED',ink:'#FFFFFF',received:'#202546',receivedInk:'#F1F5F9',headingDark:'#22D3EE',headingLight:'#0E7490'};
  const variables={bubble:'bubble',ink:'ink',received:'received','received-ink':'receivedInk'};
  function account(){try{return typeof GuardianGaming!=='undefined'?JSON.parse(GuardianGaming.session()):JSON.parse(localStorage.getItem('guardianchat-account')||'null')}catch(_){return null}}
  function apply(p){p=p?.roles===2?p:fallback;for(const [css,key] of Object.entries(variables))document.documentElement.style.setProperty('--personal-'+css,p[key]);document.documentElement.dataset.palette=p.id}

@@ -18,13 +18,12 @@ internal class OnceToggle(context:Context):ToggleButton(context){
  }
  fun setPair(primary:Int,primaryInk:Int,secondary:Int,secondaryInk:Int){
   first=primary;firstInk=primaryInk;second=secondary;secondInk=secondaryInk
-  fun shape(color:Int)=GradientDrawable().apply {setColor(color);cornerRadius=10*resources.displayMetrics.density}
-  background=StateListDrawable().apply {addState(intArrayOf(android.R.attr.state_checked),shape(first));addState(intArrayOf(),shape(second))}
+  background=null
   invalidate()
  }
  override fun onDraw(canvas:Canvas){
   val edge=minOf(width,height,(28*resources.displayMetrics.density).toInt())
   val left=(width-edge)/2;val top=(height-edge)/2
-  symbol.setTint(if(isChecked)firstInk else secondInk);symbol.setBounds(left,top,left+edge,top+edge);symbol.draw(canvas)
+  symbol.setTint(if(isChecked)Color.parseColor("#A78BFA") else secondInk);symbol.setBounds(left,top,left+edge,top+edge);symbol.draw(canvas)
  }
 }

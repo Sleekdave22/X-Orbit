@@ -177,11 +177,27 @@
   },
   {
     "mode": "Dark",
-    "role": "Send / own bubble",
+    "role": "Send button",
     "foreground": "#0b1520",
     "background": "#22d3ee",
     "ratio": 10.17,
     "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "Own default bubble",
+    "foreground": "#ffffff",
+    "background": "#7c3aed",
+    "ratio": 5.7,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "Voice-note waveform on sent bubble",
+    "foreground": "#22d3ee",
+    "background": "#7c3aed",
+    "ratio": 3.15,
+    "minimum": 3
   },
   {
     "mode": "Dark",
@@ -385,11 +401,27 @@
   },
   {
     "mode": "Light",
-    "role": "Send / own bubble",
+    "role": "Send button",
     "foreground": "#0b1520",
     "background": "#22d3ee",
     "ratio": 10.17,
     "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "Own default bubble",
+    "foreground": "#ffffff",
+    "background": "#6d28d9",
+    "ratio": 7.1,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "Voice-note waveform on sent bubble",
+    "foreground": "#22d3ee",
+    "background": "#6d28d9",
+    "ratio": 3.93,
+    "minimum": 3
   },
   {
     "mode": "Light",
@@ -417,15 +449,15 @@
   },
   {
     "mode": "Personal pair",
-    "role": "Orbit cyan / Navy sent",
-    "foreground": "#0B1520",
-    "background": "#22D3EE",
-    "ratio": 10.17,
+    "role": "Orbit violet / Blue sent",
+    "foreground": "#FFFFFF",
+    "background": "#7C3AED",
+    "ratio": 5.7,
     "minimum": 4.5
   },
   {
     "mode": "Personal pair",
-    "role": "Orbit cyan / Navy received",
+    "role": "Orbit violet / Blue received",
     "foreground": "#F1F5F9",
     "background": "#202546",
     "ratio": 13.55,

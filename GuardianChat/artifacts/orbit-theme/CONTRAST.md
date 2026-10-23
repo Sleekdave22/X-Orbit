@@ -22,7 +22,9 @@
 | Dark | coral on card2 | #ff7185 | #202546 | 5.62:1 | 4.5:1 |
 | Dark | amber-text on card2 | #ffb822 | #202546 | 8.58:1 | 4.5:1 |
 | Dark | Primary button | #ffffff | #7c3aed | 5.7:1 | 4.5:1 |
-| Dark | Send / own bubble | #0b1520 | #22d3ee | 10.17:1 | 4.5:1 |
+| Dark | Send button | #0b1520 | #22d3ee | 10.17:1 | 4.5:1 |
+| Dark | Own default bubble | #ffffff | #7c3aed | 5.7:1 | 4.5:1 |
+| Dark | Voice-note waveform on sent bubble | #22d3ee | #7c3aed | 3.15:1 | 3:1 |
 | Dark | Amber action | #0b1520 | #ffb822 | 10.62:1 | 4.5:1 |
 | Dark | Input edge on raised surface | #64759a | #202546 | 3.22:1 | 3:1 |
 | Dark | Input edge on card | #64759a | #131932 | 3.75:1 | 3:1 |
@@ -48,12 +50,14 @@
 | Light | coral on card2 | #be123c | #e8edf6 | 5.35:1 | 4.5:1 |
 | Light | amber-text on card2 | #8a5a00 | #e8edf6 | 5.05:1 | 4.5:1 |
 | Light | Primary button | #ffffff | #6d28d9 | 7.1:1 | 4.5:1 |
-| Light | Send / own bubble | #0b1520 | #22d3ee | 10.17:1 | 4.5:1 |
+| Light | Send button | #0b1520 | #22d3ee | 10.17:1 | 4.5:1 |
+| Light | Own default bubble | #ffffff | #6d28d9 | 7.1:1 | 4.5:1 |
+| Light | Voice-note waveform on sent bubble | #22d3ee | #6d28d9 | 3.93:1 | 3:1 |
 | Light | Amber action | #0b1520 | #ffb822 | 10.62:1 | 4.5:1 |
 | Light | Input edge on raised surface | #78859f | #e8edf6 | 3.16:1 | 3:1 |
 | Light | Input edge on card | #78859f | #ffffff | 3.71:1 | 3:1 |
-| Personal pair | Orbit cyan / Navy sent | #0B1520 | #22D3EE | 10.17:1 | 4.5:1 |
-| Personal pair | Orbit cyan / Navy received | #F1F5F9 | #202546 | 13.55:1 | 4.5:1 |
+| Personal pair | Orbit violet / Blue sent | #FFFFFF | #7C3AED | 5.7:1 | 4.5:1 |
+| Personal pair | Orbit violet / Blue received | #F1F5F9 | #202546 | 13.55:1 | 4.5:1 |
 | Personal pair | Gold / Oxblood sent | #24170a | #e8b84a | 9.47:1 | 4.5:1 |
 | Personal pair | Gold / Oxblood received | #f4eee6 | #341923 | 13.91:1 | 4.5:1 |
 | Personal pair | Oxblood / Gold sent | #fff5f7 | #6a1833 | 10.97:1 | 4.5:1 |

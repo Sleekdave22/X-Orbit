@@ -1,11 +1,11 @@
 [
   {
     "id": "orbit-cyan-navy",
-    "name": "Orbit cyan / Navy",
+    "name": "Orbit violet / Blue",
     "roles": 2,
-    "accent": "#22D3EE",
-    "bubble": "#22D3EE",
-    "ink": "#0B1520",
+    "accent": "#7C3AED",
+    "bubble": "#7C3AED",
+    "ink": "#FFFFFF",
     "received": "#202546",
     "receivedInk": "#F1F5F9",
     "headingDark": "#22D3EE",

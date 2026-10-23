@@ -1,6 +1,17 @@
 # X ORBIT visual update report
 23 October 2026
 
+## Chat corrections — version 15
+The owner's follow-up changes are now included:
+- Sent default bubbles match the Orbit Play violet button, with white text. Received default bubbles use blue #202546 (light-mode equivalent #E8EDF6). The stable palette ID remains orbit-cyan-navy for account compatibility; its displayed name is Orbit violet / Blue.
+- Voice notes use blue/cyan waveform, play glyph and playhead accents. Their 10-second backward/forward buttons are removed in the inline and full audio viewer; play/pause and timeline seeking remain. Video skip controls remain.
+- Native call actions use centred 44dp image targets and explicit cyan tint, with a rounded camera symbol and header edge padding.
+- Emoji, attachment, dictation, view-once and recording controls have bare backgrounds and separate 44px/dp targets. A second composer row gives them space; a flexible gap separates recording from Send.
+- The S21 was saved against localhost after its ADB reverse route disappeared. The route was restored and the saved server changed to the already trusted direct Wi-Fi endpoint, https://192.168.1.171:8766. The matching CA, endpoint response and existing @s21 session were verified. Credentials/account data were retained.
+- @s21 had Blue / Gold saved, while Mainfirst had Red / Sky blue. Both accounts were switched through the existing preference service/UI to the requested violet/blue pair.
+
+Follow-up checks: Android debug build and 4 chat unit tests passed; all 21 browser regression checks passed; 3 account-preference tests passed; 78 text/control/voice-wave contrast pairs passed. The previous full-suite legacy rating-test limitation below is unchanged. Managed-browser review confirmed purple/blue bubbles, cyan call icons and the spaced bare composer. A new phone visual walkthrough still needs owner confirmation; installation and saved account/API checks passed.
+
 ## Delivered
 The selected Compare interface in Sleekdave22/X-Orbit now uses the supplied navy, violet and cyan theme. Chat, Orbit Play, calls, settings, profiles, forms and Admin Studio share the new colours, bundled Sora headings and Inter body type, rounded cards and buttons, visible focus states and reduced-motion support.
 
@@ -20,7 +31,8 @@ The app icon, PNGs, wallpaper files and launcher artwork are unchanged. Entry pa
 | Primary action fill, white text | #7C3AED | #6D28D9 |
 | Violet text | #A78BFA | #6D28D9 |
 | Cyan text / outline | #22D3EE | #0E7490 |
-| Own default bubble / send, navy text | #22D3EE | #22D3EE |
+| Own default bubble, white text | #7C3AED | #6D28D9 |
+| Send button, navy text | #22D3EE | #22D3EE |
 | Success | #34D399 | #047857 |
 | Warning fill, navy text | #FFB822 | #FFB822 |
 | Warning text | #FFB822 | #8A5A00 |
@@ -29,7 +41,7 @@ The app icon, PNGs, wallpaper files and launcher artwork are unchanged. Entry pa
 
 Cards use 16px corners, buttons 12px, and main controls at least 44px/dp. Light controls use a stronger edge than the handoff example: its suggested #8793AE failed the 3:1 target on raised surfaces. The implemented #78859F passes at 3.16:1. Medals retain gold, silver and bronze.
 
-Existing account-specific message colour choices remain available to preserve functionality and saved preferences. Orbit cyan / Navy is the new default; Charcoal / Black is also available. Consequently, old colour literals remain intentionally in the optional personal palette catalogue, exact legacy-default migration and related regression fixtures. They are not the fixed application chrome. Existing admin custom theme values are not overwritten. The old wallpaper asset remains in the repository but is not painted in the new default theme.
+Existing account-specific message colour choices remain available to preserve functionality and saved preferences. Orbit violet / Blue is the new default; Charcoal / Black is also available. Consequently, old colour literals remain intentionally in the optional personal palette catalogue, exact legacy-default migration and related regression fixtures. They are not the fixed application chrome. Existing admin custom theme values are not overwritten. The old wallpaper asset remains in the repository but is not painted in the new default theme.
 
 ## Changes by area
 - Web: orbit-theme.css supplies shared tokens, embedded offline WOFF2 fonts and visual overrides. Related chat, gaming, profile and call styles use matching role colours. Entry markup and rank/contact-card drawing use the new visual language.
@@ -52,10 +64,10 @@ This change does not implement or alter ratings, league rules, matchmaking, paym
 | Backend unittest discovery | 192 run: 179 passed, 13 errors |
 | Legacy-error baseline | Same 13 errors reproduced against unchanged gamebox_core.py from 582c42b |
 | Theme migration integration tests | Passed: exact old default, custom preservation and repeat startup |
-| Contrast script | 74 pairs, zero failures |
+| Contrast script | 78 pairs, zero failures |
 | Diff whitespace check | Passed |
 | PNG/JPG/WebP/AndroidManifest diff | Empty |
-| Installed S21 package | versionCode 14, 0.14-x-orbit-navy-theme |
+| Installed S21 package | versionCode 15, 0.15-x-orbit-chat-controls |
 | Existing S21 account | @s21 retained; authenticated profile, leagues and match APIs respond |
 | Live browser assets | Trusted HTTPS returns the exact updated CSS, gaming entry and 11-choice catalogue |
 
@@ -71,7 +83,7 @@ The requested complete 390px/1280px × dark/light screenshot matrix is not compl
 Unlike the handoff's cloud assumption, this Mac has Android Studio: the Android build and tests were actually run and passed.
 
 ## Deployment
-The browser now runs the selected X-Orbit source at https://localhost:8766/ with the existing database and TLS configuration. The database was backed up before restart. Original GuardianLab source was not overwritten. Version 14 was installed over the existing S21 app without uninstalling it. No accounts were reset and no real-money feature was enabled.
+The browser now runs the selected X-Orbit source at https://localhost:8766/ with the existing database and TLS configuration. The database was backed up before restart. Original GuardianLab source was not overwritten. Version 15 was installed over the existing S21 app without uninstalling it. No accounts were reset and no real-money feature was enabled.
 
 ## Owner check
 1. Refresh https://localhost:8766/ and reopen X_ORBIT on the S21.

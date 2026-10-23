@@ -163,3 +163,27 @@ html[data-theme=bright][data-palette=orbit-cyan-navy] #chat .message:not(.own) .
 
 .orbit-entry-ring{width:112px;height:112px;padding:4px;background:linear-gradient(135deg,var(--violet),var(--cyan));border-radius:30px;display:grid;place-items:center;margin-bottom:24px}
 .orbit-entry-ring img{display:block;width:104px;height:104px;object-fit:contain;border:0!important;outline:0!important;border-radius:26px!important}
+
+/* Chat controls: bare glyphs, generous hit targets, and a separate action row. */
+#chat .head{gap:6px!important;padding:8px 12px 8px 6px!important;min-width:0}
+#chat .head #peerProfile{flex:1 1 0!important;min-width:0!important;width:0!important;padding:0!important}
+#chat .head #peerProfile>span:last-child{min-width:0;overflow:hidden}
+#chat .head #peerName{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chat .head :is(#voiceCall,#videoCall,#back){flex:0 0 44px!important;min-width:44px!important;width:44px!important;height:44px!important;margin:0!important;padding:10px!important;display:grid;place-items:center}
+#chat .head #back{padding:0!important}
+#composer .composer-line{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:6px!important}
+#composer .composer-box{display:flex!important;align-items:center!important;gap:6px!important;width:100%!important;background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important}
+#composer #draft{flex:1 1 0!important;width:0!important;min-width:0!important;min-height:44px!important;background:var(--card2)!important;border:1px solid var(--control-line)!important;border-radius:22px!important}
+#composer .composer-outside{display:flex!important;align-items:center!important;width:100%!important;gap:8px!important;padding:0 4px 4px!important}
+#composer .composer-tools{display:flex!important;align-items:center!important;gap:8px!important;padding:0!important}
+#composer :is(#emojiButton,#attach,#dictate,#recordVoice,.once-icon),#outgoing :is(#previewRecord,#previewDictate,.once-icon){background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;color:var(--cyan-text)!important;padding:0!important;margin:0!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;flex:0 0 44px!important;display:grid;place-items:center}
+#composer .once-icon:has(input:checked),#outgoing .once-icon:has(input:checked){color:var(--violet-text)!important}
+#composer #send{margin-left:auto!important}
+#composer #recordVoice{margin-right:8px!important}
+html[data-palette=orbit-cyan-navy] #chat .message.own .message-body{background:var(--violet)!important;color:#fff!important}
+.voice-note{gap:8px!important}
+#chat .message-body .voice-note-play{border:0!important;box-shadow:none!important;color:inherit!important;flex:0 0 44px!important;width:44px!important}
+
+.voice-note{--voice-accent:#22D3EE}
+html[data-theme=bright] .message:not(.own) .voice-note{--voice-accent:#0E7490}
+#chat .message-body .voice-note-play{color:var(--voice-accent)!important}
