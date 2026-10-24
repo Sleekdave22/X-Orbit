@@ -10,6 +10,7 @@ sys.path.insert(0,str(Path(__file__).parent/"vendor"))
 import qrcode
 from push import PushGateway
 import gaming
+import market
 import gamebox_core
 from functools import lru_cache
 @lru_cache(maxsize=1024)
@@ -63,6 +64,7 @@ class ChatServer(ThreadingHTTPServer):
             db.execute('CREATE TABLE IF NOT EXISTS chat_pins(owner TEXT NOT NULL,peer TEXT NOT NULL,PRIMARY KEY(owner,peer))')
             db.execute('CREATE TABLE IF NOT EXISTS chat_hidden(owner TEXT NOT NULL,peer TEXT NOT NULL,through_id INTEGER NOT NULL,PRIMARY KEY(owner,peer))')
         gaming.init(self)
+        market.init(self)
         self.calls={};self.call_lock=threading.RLock()
         self.login_attempts={}
         self.migrate_files()
@@ -155,7 +157,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             parsed=urlparse(self.path)
-            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js','/orbit-theme.css','/orbit-icon.png'):
+            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js','/orbit-theme.css','/orbit-icon.png','/market.html','/market.js','/market.css'):
                 data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if parsed.path.endswith('.js') else 'image/png' if parsed.path.endswith('.png') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/guardianchat-ca.crt':
                 data=(Path(__file__).parent.parent/'chat/src/main/res/raw/guardianchat_local_ca.crt').read_bytes();self.send_response(200);self.send_header('Content-Type','application/x-x509-ca-cert');self.send_header('Content-Disposition','attachment; filename=guardianchat-ca.crt');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
@@ -166,6 +168,10 @@ class Handler(BaseHTTPRequestHandler):
                 data=(Path(__file__).parent/'index.html').read_bytes()
                 self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(data);return
             uid=self.user()
+            if parsed.path.startswith('/market/'):
+                try:self.reply(200,market.get(self.server,uid,parsed.path,parse_qs(parsed.query)))
+                except ValueError as e:self.reply(400,{'error':str(e)})
+                return
             if parsed.path=='/gamebox/summary':
                 self.reply(200,gamebox_core.summary(self.server,uid));return
             if parsed.path=='/gamebox/studio':
@@ -324,6 +330,10 @@ class Handler(BaseHTTPRequestHandler):
             uid=self.user()
             if self.path.startswith('/gamebox/'):
                 self.reply(200,gamebox_core.post(self.server,uid,self.path.split('/')[-1],body));return
+            if self.path.startswith('/market/'):
+                try:self.reply(200,market.post(self.server,uid,self.path.split('/')[-1],body))
+                except ValueError as e:self.reply(400,{'error':str(e)})
+                return
             if self.path.startswith('/gaming/'):
                 try:self.reply(200,gaming.post(self.server,uid,self.path.split('/')[-1],body))
                 except ValueError as e:self.reply(400,{'error':str(e)})
