@@ -22,6 +22,13 @@ class ComparisonAssetPolicyTest {
    assertNull(path, policy.asset("GET", "https://192.168.1.171:8766$path"))
   assertNull(policy.asset("POST", "https://192.168.1.171:8766/gaming.html"))
  }
+ @Test fun marketPagesStayStaticButShopAndAdvertRequestsUseSharedBackend(){
+  for(file in listOf("market.html","market.js","market.css"))assertEquals("comparison-web/$file",policy.asset("GET","https://192.168.1.171:8766/$file"))
+  for(path in listOf("/market/summary","/market/ads","/market/register","/market/post_ad")){
+   assertNull(policy.asset("GET","https://192.168.1.171:8766$path"))
+   assertNull(policy.asset("POST","https://192.168.1.171:8766$path"))
+  }
+ }
  @Test fun foreignOriginsAndEncodedTraversalAreRejected() {
   for (url in listOf("http://192.168.1.171:8766/gaming.html", "https://example.com:8766/gaming.html",
    "https://192.168.1.171:443/gaming.html", "https://user@192.168.1.171:8766/gaming.html",

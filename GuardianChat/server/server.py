@@ -10,6 +10,7 @@ sys.path.insert(0,str(Path(__file__).parent/"vendor"))
 import qrcode
 from push import PushGateway
 import gaming
+import market
 import gamebox_core
 from functools import lru_cache
 @lru_cache(maxsize=1024)
@@ -67,6 +68,7 @@ class ChatServer(ThreadingHTTPServer):
         social.init(self)
         __import__("social_spaces").init(self)
         gaming.init(self)
+        market.init(self)
         __import__("wallet").init(self)
         __import__("account_invites").init(self)
         __import__("stream_lifecycle").init(self)
@@ -182,7 +184,7 @@ class Handler(BaseHTTPRequestHandler):
                 data=(Path(__file__).parent/'orbit-icon.png').read_bytes();self.send_response(200);self.send_header('Content-Type','image/png');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path in ('/branding/XOrbit-app-icon-1024.png','/branding/XOrbit-logo-dark.png','/branding/XOrbit-logo-light.png','/branding/orbit-wallpaper.png','/branding/orbit-wallpaper-v2.png','/branding/settings-dark.png','/branding/settings-light.png','/branding/orbit-icon-light.png'):
                 data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','image/png');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
-            if parsed.path in ('/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js','/orbit-theme.js','/orbit-theme.css','/social.js','/profile-tabs.css','/social-spaces.js','/phase-b.js','/form-panels.js','/form-panels.css','/scheduling.js','/wallet.html','/wallet.js','/live-room-ui.js','/stream-relay-ui.js','/invitations.js','/join.js','/account-search.js','/sponsored-ui.js','/personalization.js','/personalization.json'):
+            if parsed.path in ('/market.html','/market.js','/market.css','/calls.js','/call.html','/call-screen.js','/call-screen.css','/gaming.html','/gaming.js','/gaming.css','/studio.js','/result-room.js','/orbit-theme.js','/orbit-theme.css','/social.js','/profile-tabs.css','/social-spaces.js','/phase-b.js','/form-panels.js','/form-panels.css','/scheduling.js','/wallet.html','/wallet.js','/live-room-ui.js','/stream-relay-ui.js','/invitations.js','/join.js','/account-search.js','/sponsored-ui.js','/personalization.js','/personalization.json'):
                 data=(Path(__file__).parent/parsed.path[1:]).read_bytes();self.send_response(200);self.send_header('Content-Type','application/json' if parsed.path.endswith('.json') else 'text/javascript' if parsed.path.endswith('.js') else 'text/css' if parsed.path.endswith('.css') else 'text/html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if parsed.path=='/guardianchat-ca.crt':
                 data=(Path(__file__).parent.parent/'chat/src/main/res/raw/guardianchat_local_ca.crt').read_bytes();self.send_response(200);self.send_header('Content-Type','application/x-x509-ca-cert');self.send_header('Content-Disposition','attachment; filename=guardianchat-ca.crt');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
@@ -200,6 +202,10 @@ class Handler(BaseHTTPRequestHandler):
                 data=(Path(__file__).parent/'index.html').read_bytes()
                 self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(data);return
             uid=self.user()
+            if parsed.path.startswith('/market/'):
+                try:self.reply(200,market.get(self.server,uid,parsed.path,parse_qs(parsed.query)))
+                except ValueError as e:self.reply(400,{'error':str(e)})
+                return
             if parsed.path=='/preferences':
                 self.reply(200,__import__('account_preferences').get(self.server,uid));return
             if parsed.path=='/messages/notification':
@@ -447,6 +453,10 @@ class Handler(BaseHTTPRequestHandler):
                 with self.server.db() as db:
                     other=db.execute('SELECT id FROM users WHERE id=? OR nickname=? COLLATE NOCASE',(target,target)).fetchone()
                     if other and social.blocked(db,uid,other['id']):self.reply(403,{'error':'Account interaction unavailable'});return
+            if self.path.startswith('/market/'):
+                try:self.reply(200,market.post(self.server,uid,self.path.split('/')[-1],body))
+                except ValueError as e:self.reply(400,{'error':str(e)})
+                return
             if self.path.startswith('/gamebox/'):
                 self.reply(200,gamebox_core.post(self.server,uid,self.path.split('/')[-1],body));return
             if self.path in ('/gaming/match_stream_create','/gaming/stream_join','/gaming/stream_relay_offer','/gaming/stream_relay_close'):
