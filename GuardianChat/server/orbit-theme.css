@@ -272,3 +272,28 @@ body:has(#gamingBrand)>header>div:not(#topGamingProfile){flex:1;min-width:0}
 .palette-footer{display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:-18px;background:var(--card);padding:12px 0 6px;margin-top:6px}
 #paletteStatus{min-height:18px}
 @media(max-width:420px){#paletteOptions{grid-template-columns:1fr;max-height:210px}#personalizationDialog{padding:14px}.palette-footer{bottom:-14px}}
+
+/* Outgoing files stay in the conversation, attached above the composer. */
+#composer #outgoing{position:static;display:block;width:100%;max-width:none;margin:0;padding:6px 10px;max-height:var(--attachment-height,20dvh);min-height:0;overflow:auto;overscroll-behavior:contain;background:var(--card)!important;border:1px solid var(--line)!important;border-bottom:0!important;border-radius:16px 16px 0 0!important;color:var(--ink)}
+#composer:has(#outgoing:not([hidden])) .composer-line{border-radius:0 0 19px 19px!important}
+#outgoing .library-heading{display:flex;align-items:center;gap:6px}
+#outgoing .library-heading h2{font-size:13px;margin:0}
+#outgoing #previewBack{margin-left:auto;order:2;background:transparent!important;border:0!important;padding:0;min-width:32px;min-height:32px;color:var(--muted)!important}
+#outgoing #outName{font-size:12px;overflow-wrap:anywhere;margin:2px 0}
+#outgoing #outPreview{padding:0;background:transparent!important;min-height:0;font-size:12px}
+#outgoing #outPreview :is(img,video){display:block;width:auto;max-width:100%;height:64px;max-height:64px;object-fit:contain;border-radius:8px}
+#outgoing audio{display:block;width:min(100%,320px);height:32px}
+#composer #outgoing .row{gap:4px;padding:2px 0;background:transparent!important;border:0!important;flex-wrap:nowrap;overflow-x:auto}
+#outgoing .row>*{flex-shrink:0}
+#composer #outgoing :is(#previewRecord,#previewDictate,.once-icon){width:32px!important;min-width:32px!important;flex-basis:32px!important;height:32px!important;min-height:32px!important;font-size:18px}
+#outgoing :is(#cancelMedia,#sendMedia){font-size:12px;min-height:32px!important;min-width:36px!important;padding:4px 10px!important;margin:0!important}
+#outgoing :is(#previewStatus,#previewVoiceArea,#previewRecordHost):empty{display:none}
+#outgoing #previewStatus{font-size:12px;margin:3px 0}
+#composer #outgoing:not([hidden]){display:grid;grid-template-columns:64px minmax(0,1fr);column-gap:10px;align-content:start}
+#outgoing .library-heading{grid-column:2;grid-row:1}
+#outgoing #outName{grid-column:2;grid-row:2}
+#outgoing #outPreview{grid-column:1;grid-row:1/4;align-self:center;overflow:hidden}
+#outgoing #outPreview :is(img,video){width:64px;height:64px;object-fit:contain}
+#outgoing #outPreview audio{width:64px}
+#composer #outgoing .row{grid-column:2;grid-row:3}
+#outgoing :is(#previewStatus,#previewVoiceArea,#previewRecordHost){grid-column:1/-1}

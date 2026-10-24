@@ -483,33 +483,45 @@ class MainActivity:ComponentActivity(){
  private fun onceToggle(checked:Boolean,change:(Boolean)->Unit)=OnceToggle(this).apply {foreground=OrbitPalette.focus(this@MainActivity,bright);setPair(Color.parseColor(OrbitPalette.CYAN),Color.parseColor(OrbitPalette.BG),inputPaper,accentText);isChecked=checked;setOnCheckedChangeListener {_,value->contentDescription=if(value)"View once enabled" else "Send as view once";invalidate();change(value)}}
  private fun clearPreview(){pendingSend=null;val cleanup=previewCleanup;previewCleanup=null;cleanup?.invoke()}
  private fun previewSend(uri:Uri?=null,file:File?=null,filename:String,mime:String?,forwardPeers:List<JSONObject>?=null){
-  val target=peer;val source=uri?:file?.let {Uri.fromFile(it)};var submitted=false;var audio:MediaPlayer?=null
+  val host=composer?:run {file?.delete();return};val chatRoot=host.parent as? View?:return
+  clearPreview()
+  val target=peer;val source=uri?:file?.let {Uri.fromFile(it)};var audio:MediaPlayer?=null
   val body=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(8),dp(16),dp(8));addView(text(if(forwardPeers!=null)"Forward to "+forwardPeers.joinToString {it.getString("name")} else filename,14f))}
   var previewVideo:VideoView?=null
-  var previewTargets=forwardPeers?:listOf(JSONObject().put("id",peer).put("name",peerName));var note:File?=null;val dialog=android.app.Dialog(this)
+  var previewTargets=forwardPeers?:listOf(JSONObject().put("id",peer).put("name",peerName));var note:File?=null
   try{when {
-   mime?.startsWith("image/")==true->{val bitmap=contentResolver.openInputStream(source!!)?.use {BitmapFactory.decodeStream(it,null,BitmapFactory.Options().apply {inSampleSize=4})};body.addView(ImageView(this).apply {setImageBitmap(bitmap);adjustViewBounds=true;scaleType=ImageView.ScaleType.FIT_CENTER},LinearLayout.LayoutParams(-1,dp(150)))}
-   mime?.startsWith("video/")==true->{previewVideo=VideoView(this).apply {setVideoURI(source);setMediaController(MediaController(this@MainActivity).also {it.setAnchorView(this)})};body.addView(previewVideo,LinearLayout.LayoutParams(-1,dp(150)))}
+   mime?.startsWith("image/")==true->{val bitmap=contentResolver.openInputStream(source!!)?.use {BitmapFactory.decodeStream(it,null,BitmapFactory.Options().apply {inSampleSize=4})};body.addView(ImageView(this).apply {setImageBitmap(bitmap);adjustViewBounds=true;scaleType=ImageView.ScaleType.FIT_CENTER},LinearLayout.LayoutParams(-1,dp(64)))}
+   mime?.startsWith("video/")==true->{previewVideo=VideoView(this).apply {setVideoURI(source);setMediaController(MediaController(this@MainActivity).also {it.setAnchorView(this)})};body.addView(previewVideo,LinearLayout.LayoutParams(-1,dp(64)))}
    mime?.startsWith("audio/")==true->{body.addView(button("Play / pause preview"){try{if(audio==null){audio=MediaPlayer().apply {setDataSource(this@MainActivity,source!!);prepare()}};audio?.let {if(it.isPlaying)it.pause() else it.start()}}catch(e:Exception){toast("Audio preview unavailable")}})}
    else->body.addView(text("File ready to send"))
   }}catch(e:Exception){body.addView(text("Preview unavailable · you can still send this file"))}
-  clearPreview()
+  val title=body.getChildAt(0);val visual=body.getChildAt(1)
+  body.removeView(title);body.removeView(visual)
+  val fileRow=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL;addView(visual,LinearLayout.LayoutParams(if(visual is ImageView || visual is VideoView)dp(56) else dp(110),dp(56)));addView(title,LinearLayout.LayoutParams(0,-2,1f))}
+  body.setPadding(dp(8),dp(4),dp(8),dp(4));body.addView(fileRow,0)
   body.background=GradientDrawable().apply {setColor(inputPaper);cornerRadius=dp(18).toFloat();setStroke(dp(1),rule)}
-  val caption=EditText(this).apply {hint="Add a message…";setText(draft?.text);setTextColor(ink);setHintTextColor(muted);maxLines=3};body.addView(caption,LinearLayout.LayoutParams(-1,-2))
+  val caption=draft?:return
   val actions=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL}
   val choice=onceToggle(onceChoice?.isChecked==true){checked->onceChoice?.isChecked=checked}
   val notePlayer=button("Play attached voice note"){note?.let {f->try{audio?.release();audio=MediaPlayer().apply {setDataSource(f.absolutePath);prepare();start()}}catch(_:Exception){toast("Unable to play voice note")}}}.apply {visibility=View.GONE};body.addView(notePlayer)
+  recordResult={f->note?.delete();note=f;notePlayer.visibility=View.VISIBLE};recordHost=body;speechField=caption
   val record=button("♫"){if(recorder!=null)finishRecording()else if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),17)else{recordResult={f->note?.delete();note=f;notePlayer.visibility=View.VISIBLE};recordHost=body;recordingLocked=true;startRecording()}}.apply {contentDescription="Record or stop attached voice note";backgroundTintList=null;background=null;setTextColor(accentText);setCompoundDrawablesWithIntrinsicBounds(voiceWaveform(),null,null,null);text=""};record.setOnTouchListener {v,e->when(e.actionMasked){MotionEvent.ACTION_DOWN->{if(recordingLocked&&recorder!=null){finishRecording();return@setOnTouchListener true};if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO),17);return@setOnTouchListener true};recordResult={f->note?.delete();note=f;notePlayer.visibility=View.VISIBLE};recordHost=body;recordHeld=true;recordTouchY=e.rawY;startRecording()};MotionEvent.ACTION_MOVE->{if(recordHeld&&recorder!=null&&recordTouchY-e.rawY>dp(50)){recordingLocked=true;updateRecordingIndicator()}};MotionEvent.ACTION_UP->{recordHeld=false;if(!recordingLocked)finishRecording()};MotionEvent.ACTION_CANCEL->{recordHeld=false;if(!recordingLocked)cancelRecording()}};true};actions.addView(record,LinearLayout.LayoutParams(dp(44),dp(44)))
   actions.addView(button("🎙"){speechField=caption;voiceType()}.apply {contentDescription="Speak message";backgroundTintList=null;background=null;setTextColor(accentText)},LinearLayout.LayoutParams(dp(44),dp(44)))
   val protectedChoice=ToggleButton(this).apply {textOn="🔒";textOff="🔒";text="🔒";isChecked=false;contentDescription="Protected media on this device";setOnCheckedChangeListener {_,checked->if(checked)choice.isChecked=false}};choice.setOnCheckedChangeListener {_,checked->onceChoice?.isChecked=checked;if(checked)protectedChoice.isChecked=false};actions.addView(protectedChoice,LinearLayout.LayoutParams(dp(40),dp(40)))
   actions.addView(choice,LinearLayout.LayoutParams(dp(32),dp(32)))
-  actions.addView(button("Cancel"){clearPreview()})
+  onceChoice?.setOnCheckedChangeListener {_,checked->choice.isChecked=checked;if(checked)protectedChoice.isChecked=false}
+  actions.addView(button("Cancel"){if(!sending)clearPreview()})
   val submit={if(peer==target&&screen=="chat"&&recorder==null){forwardBatch(previewTargets,caption.text.toString().trim(),choice.isChecked,uri,file,if(file!=null||uri!=null)filename else null,mime,note,protectedChoice.isChecked){failed->previewTargets=failed}}}
 
-  actions.addView(button("Send"){submit()});body.addView(actions)
-  val page=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setBackgroundColor(paper);setPadding(dp(12),dp(24),dp(12),dp(16))};val heading=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL};heading.addView(text("‹",32f).apply {setTextColor(accentText);setOnClickListener {clearPreview()}},LinearLayout.LayoutParams(dp(44),dp(48)));heading.addView(text("Preview",24f));page.addView(heading);val scroll=ScrollView(this);scroll.addView(body);page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f));applyAppearance(page);dialog.setContentView(page);dialog.setOnCancelListener {clearPreview()};dialog.show();dialog.window?.setLayout(-1,-1);dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+  actions.addView(button("Send"){submit()});body.addView(HorizontalScrollView(this).apply {isHorizontalScrollBarEnabled=false;addView(actions)})
+  val tray=ScrollView(this).apply {contentDescription="Attachment preview";isFillViewport=false;addView(body)}
+  host.addView(tray,0,LinearLayout.LayoutParams(-1,1))
+  fun fitPreview(){val height=AttachmentPreviewLayout.height(chatRoot.height-chatRoot.paddingTop-chatRoot.paddingBottom);if(tray.layoutParams.height!=height){tray.layoutParams=tray.layoutParams.apply {this.height=height}}}
+  val resize=View.OnLayoutChangeListener {_,_,_,_,_,_,_,_,_->fitPreview()};chatRoot.addOnLayoutChangeListener(resize);fitPreview()
+  applyAppearance(body);revealLatestChat()
+
   pendingSend=submit
-  previewCleanup={cancelRecording();recordResult=null;recordHost=null;speechField=null;audio?.release();previewVideo?.stopPlayback();dialog.dismiss();file?.delete();note?.delete()}
+  previewCleanup={cancelRecording();recordResult=null;recordHost=null;speechField=null;onceChoice?.setOnCheckedChangeListener(null);audio?.release();previewVideo?.stopPlayback();chatRoot.removeOnLayoutChangeListener(resize);host.removeView(tray);file?.delete();note?.delete()}
 
  }
  override fun onSaveInstanceState(out:Bundle){cameraFile?.let {out.putString("chatCameraFile",it.name);out.putString("chatCameraPeer",cameraPeer);out.putString("chatCameraName",cameraName);out.putString("chatCameraOwner",cameraOwner)};super.onSaveInstanceState(out)}

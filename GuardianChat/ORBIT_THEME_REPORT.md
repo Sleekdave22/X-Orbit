@@ -150,3 +150,13 @@ The browser now runs the selected X-Orbit source at https://localhost:8766/ with
 5. Confirm the app icon, notifications and protected/view-once actions still behave as expected.
 
 GitHub review contains this visual-only change; deployment is a local test update, not a production-readiness claim.
+
+## Version 22 — inline outgoing attachment previews
+
+Outgoing photos, videos, audio and other files now appear inside the conversation, immediately above the message composer. The tray is capped at approximately one fifth of the available chat height and scrolls internally when needed. Keyboard resizing recalculates its height. The normal message field supplies the caption and the normal Send action sends the staged content. Cancel removes the attachment while preserving the typed caption.
+
+The outgoing full-screen dialog was removed on web and Android. Received-file viewing remains unchanged. Playback, forwarding/retry, view-once, protected-media selection and optional attached voice notes retain their existing send contracts. Recording from the normal composer while a file is staged attaches a voice note instead of replacing that file. Temporary previews and media resources are released on cancellation/navigation.
+
+Validation: 24 browser JavaScript regression scripts pass, including attachment types, size limits, caption preservation, cancellation, object-URL cleanup, keyboard-height calculation, Send routing, protected forwarding and recording gestures. Android debug assembly and all 9 chat JVM tests pass, including two preview-height tests. The live browser was inspected with an existing test image staged through Forward; its 126px preview tray occupied 20% of the 632px chat area. Cancel preserved an unsent caption. No message was sent during this visual check. Physical-phone visual/keyboard review still requires the owner; package installation alone does not verify its appearance.
+
+Deployment check: version 22 installed successfully over the existing handset app. Package version and the retained account were verified; authenticated profile, league and match APIs remain available. The live browser was refreshed with no draft pending. No backend migration or server restart was needed.
