@@ -497,7 +497,7 @@ class MainActivity:ComponentActivity(){
   }}catch(e:Exception){body.addView(text("Preview unavailable · you can still send this file"))}
   val title=body.getChildAt(0);val visual=body.getChildAt(1)
   body.removeView(title);body.removeView(visual)
-  val fileRow=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL;addView(visual,LinearLayout.LayoutParams(if(visual is ImageView || visual is VideoView)dp(56) else dp(110),dp(56)));addView(title,LinearLayout.LayoutParams(0,-2,1f))}
+  val fileRow=LinearLayout(this).apply {gravity=Gravity.CENTER_VERTICAL;addView(visual,LinearLayout.LayoutParams(if(visual is ImageView || visual is VideoView)dp(80) else dp(110),dp(80)));addView(title,LinearLayout.LayoutParams(0,-2,1f))}
   body.setPadding(dp(8),dp(4),dp(8),dp(4));body.addView(fileRow,0)
   body.background=GradientDrawable().apply {setColor(inputPaper);cornerRadius=dp(18).toFloat();setStroke(dp(1),rule)}
   val caption=draft?:return
@@ -516,12 +516,12 @@ class MainActivity:ComponentActivity(){
   actions.addView(button("Send"){submit()});body.addView(HorizontalScrollView(this).apply {isHorizontalScrollBarEnabled=false;addView(actions)})
   val tray=ScrollView(this).apply {contentDescription="Attachment preview";isFillViewport=false;addView(body)}
   host.addView(tray,0,LinearLayout.LayoutParams(-1,1))
-  fun fitPreview(){val height=AttachmentPreviewLayout.height(chatRoot.height-chatRoot.paddingTop-chatRoot.paddingBottom);if(tray.layoutParams.height!=height){tray.layoutParams=tray.layoutParams.apply {this.height=height}}}
-  val resize=View.OnLayoutChangeListener {_,_,_,_,_,_,_,_,_->fitPreview()};chatRoot.addOnLayoutChangeListener(resize);fitPreview()
+  fun fitPreview(){val height=AttachmentPreviewLayout.height(chatRoot.height-chatRoot.paddingTop-chatRoot.paddingBottom,dp(144));if(tray.layoutParams.height!=height){tray.layoutParams=tray.layoutParams.apply {this.height=height}}}
+  val resize=android.view.ViewTreeObserver.OnGlobalLayoutListener {fitPreview()};chatRoot.viewTreeObserver.addOnGlobalLayoutListener(resize);fitPreview()
   applyAppearance(body);revealLatestChat()
 
   pendingSend=submit
-  previewCleanup={cancelRecording();recordResult=null;recordHost=null;speechField=null;onceChoice?.setOnCheckedChangeListener(null);audio?.release();previewVideo?.stopPlayback();chatRoot.removeOnLayoutChangeListener(resize);host.removeView(tray);file?.delete();note?.delete()}
+  previewCleanup={cancelRecording();recordResult=null;recordHost=null;speechField=null;onceChoice?.setOnCheckedChangeListener(null);audio?.release();previewVideo?.stopPlayback();if(chatRoot.viewTreeObserver.isAlive)chatRoot.viewTreeObserver.removeOnGlobalLayoutListener(resize);host.removeView(tray);file?.delete();note?.delete()}
 
  }
  override fun onSaveInstanceState(out:Bundle){cameraFile?.let {out.putString("chatCameraFile",it.name);out.putString("chatCameraPeer",cameraPeer);out.putString("chatCameraName",cameraName);out.putString("chatCameraOwner",cameraOwner)};super.onSaveInstanceState(out)}

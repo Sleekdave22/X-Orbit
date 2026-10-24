@@ -1,6 +1,10 @@
 package com.guardianlab.chat
 
-/** Share of the available chat area, recalculated when the keyboard resizes it. */
+/** Comfortable preview space that still leaves the conversation and composer visible. */
 internal object AttachmentPreviewLayout {
- fun height(availableHeight:Int):Int=(availableHeight.coerceAtLeast(0)/5).coerceAtLeast(1)
+ fun height(availableHeight:Int,comfortableHeight:Int):Int {
+  val available=availableHeight.coerceAtLeast(0)
+  return maxOf(available*30/100,comfortableHeight.coerceAtLeast(0))
+   .coerceAtMost(available*45/100).coerceAtLeast(1)
+ }
 }

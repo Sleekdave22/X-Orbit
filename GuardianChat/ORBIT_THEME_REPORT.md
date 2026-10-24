@@ -160,3 +160,9 @@ The outgoing full-screen dialog was removed on web and Android. Received-file vi
 Validation: 24 browser JavaScript regression scripts pass, including attachment types, size limits, caption preservation, cancellation, object-URL cleanup, keyboard-height calculation, Send routing, protected forwarding and recording gestures. Android debug assembly and all 9 chat JVM tests pass, including two preview-height tests. The live browser was inspected with an existing test image staged through Forward; its 126px preview tray occupied 20% of the 632px chat area. Cancel preserved an unsent caption. No message was sent during this visual check. Physical-phone visual/keyboard review still requires the owner; package installation alone does not verify its appearance.
 
 Deployment check: version 22 installed successfully over the existing handset app. Package version and the retained account were verified; authenticated profile, league and match APIs remain available. The live browser was refreshed with no draft pending. No backend migration or server restart was needed.
+
+## Version 23 — roomier phone attachment preview
+
+The owner reported that the S21's version 22 preview was too small. Android now targets 30% of the available area, prefers at least 144dp for its contents, and caps the tray at 45% in cramped keyboard/landscape layouts so the chat and composer remain available. Photo/video thumbnails increase from 56dp to 80dp. Layout observation also responds to keyboard inset/padding changes. Internal scrolling remains available for long filenames or additional recording controls. Browser dimensions and all send contracts remain unchanged.
+
+Validation: Android debug assembly and all 10 chat JVM tests pass. Preview-height cases cover normal, keyboard, landscape, device-density and unmeasured layouts. The larger handset layout still needs owner visual confirmation.
