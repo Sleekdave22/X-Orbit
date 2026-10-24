@@ -43,6 +43,10 @@ class MarketTest(unittest.TestCase):
   self.assertEqual(len(self.call('/market/summary',token=us[0]['token'])['held']),1)
   self.call('/market/admin_restore',{'id':i},us[0]['token'])
   self.assertIn('Boots',[x['title'] for x in self.call('/market/ads',token=us[1]['token'])['ads']])
+ def test_contact_for_messaging_and_owner_name(self):
+  a=self.shop('Ada','Ada Boots');c=self.register('Chi');self.ad(a,'Boots')
+  ad=self.call('/market/ads',token=c['token'])['ads'][0];self.assertEqual(ad['owner_name'],'Ada')
+  self.call('/contacts',{'code':ad['uid']},c['token']);self.assertIn(a['id'],[u['id'] for u in self.call('/users',token=c['token'])['users']])
  def test_unauthenticated_rejected(self):
   with self.assertRaises(urllib.error.HTTPError):self.call('/market/ads')
 if __name__=='__main__':unittest.main()

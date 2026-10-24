@@ -53,10 +53,10 @@ def account_of(db, uid):
 def ad_view(r, me):
     return {'id': r['id'], 'title': r['title'], 'description': r['description'], 'category': r['category'],
             'price': r['price'], 'created': r['created'], 'expires': r['expires'], 'status': r['status'],
-            'uid': r['uid'], 'shop_name': r['shop_name'], 'nickname': r['nickname'] or '', 'mine': r['uid'] == me}
+            'uid': r['uid'], 'shop_name': r['shop_name'], 'nickname': r['nickname'] or '', 'owner_name': r['owner_name'] or '', 'mine': r['uid'] == me}
 
 
-BASE = '''SELECT a.*, m.shop_name, u.nickname FROM market_ads a
+BASE = '''SELECT a.*, m.shop_name, u.nickname, u.name AS owner_name FROM market_ads a
           JOIN market_accounts m ON m.uid=a.uid JOIN users u ON u.id=a.uid '''
 LIVE = "a.status='active' AND a.expires>?"
 
@@ -107,7 +107,7 @@ def get(server, uid, path, query):
             rows = d.execute(BASE + where + ' ORDER BY a.created DESC LIMIT 300', params).fetchall()
             shops = {}
             for r in rows:
-                s = shops.setdefault(r['uid'], {'uid': r['uid'], 'shop_name': r['shop_name'], 'nickname': r['nickname'] or '',
+                s = shops.setdefault(r['uid'], {'uid': r['uid'], 'shop_name': r['shop_name'], 'nickname': r['nickname'] or '', 'owner_name': r['owner_name'] or '',
                                                  'matches': 0, 'latest': 0, 'ads': []})
                 s['matches'] += 1
                 s['latest'] = max(s['latest'], r['created'])
@@ -123,9 +123,9 @@ def get(server, uid, path, query):
             shop = account_of(d, target)
             if not shop:
                 raise ValueError('Shop not found')
-            nick = d.execute('SELECT nickname FROM users WHERE id=?', (target,)).fetchone()
+            nick = d.execute('SELECT nickname, name FROM users WHERE id=?', (target,)).fetchone()
             rows = d.execute(BASE + 'WHERE a.uid=? AND ' + LIVE + ' ORDER BY a.created DESC', (target, now)).fetchall()
-            return {'uid': target, 'shop_name': shop['shop_name'], 'about': shop['about'], 'nickname': (nick['nickname'] or '') if nick else '',
+            return {'uid': target, 'shop_name': shop['shop_name'], 'about': shop['about'], 'nickname': (nick['nickname'] or '') if nick else '', 'owner_name': (nick['name'] or '') if nick else '',
                     'ads': [ad_view(r, uid) for r in rows]}
     raise ValueError('Unknown market request')
 
