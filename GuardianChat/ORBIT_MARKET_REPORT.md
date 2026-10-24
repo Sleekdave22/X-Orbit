@@ -21,7 +21,9 @@ The additive migration creates `market_accounts`, `market_ads`, `market_reports`
 
 Eight temporary-database integration tests cover authentication, shop ownership/uniqueness, shared advert visibility/search, expiry/rate limits/removal, reports and administrator permissions, seller contact, blocked seller contact and repeated additive initialization preserving existing accounts/messages/adverts. All pass.
 
-All 24 existing browser JavaScript regression scripts plus the Market UI script pass. The Market script checks syntax, the home-only entry, web/native seller routing, blocked contacts and account-switch handling. Android debug assembly and all 16 chat JVM tests pass, including Market static-asset separation from live API calls. Physical-phone Market navigation and live-browser checks follow backend deployment; the automated results do not claim those checks.
+All 24 existing browser JavaScript regression scripts plus the Market UI script pass. The Market script checks syntax, the home-only entry, web/native seller routing, blocked contacts and account-switch handling. Android debug assembly and all 16 chat JVM tests pass, including Market static-asset separation from live API calls.
+
+Deployment checks completed on 24 October 2026: the shared backend restarted successfully against its existing data after a database backup. Both browser origins serve the Market page and assets; authenticated summary and advert responses match, and unauthenticated Market API requests return 401. Existing profile, contacts, match and gaming summary responses also match through the shared preview. Browser navigation from home to Market, Browse, My shop and back was verified without creating a live shop or advert. Android version 25 was installed in place and its saved account and server connection verified. The owner confirmed that the Market entry is visible on the S21 and both Browse and My shop open normally. Live advert creation, seller messaging and moderation were not exercised against real accounts; those flows are covered by the temporary-database and UI tests above.
 
 ## Verification after deployment
 
