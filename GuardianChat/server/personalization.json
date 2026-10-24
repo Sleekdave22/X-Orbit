@@ -1,5 +1,18 @@
 [
   {
+    "id": "orbit-cyan-navy",
+    "name": "Orbit violet / Blue",
+    "roles": 2,
+    "accent": "#7C3AED",
+    "bubble": "#7C3AED",
+    "ink": "#FFFFFF",
+    "received": "#202546",
+    "receivedInk": "#F1F5F9",
+    "headingDark": "#22D3EE",
+    "headingLight": "#0E7490",
+    "aliases": []
+  },
+  {
     "id": "oxblood-gold",
     "name": "Gold / Oxblood",
     "roles": 2,
@@ -133,6 +146,19 @@
     "receivedInk": "#fff5f7",
     "headingDark": "#91d4f2",
     "headingLight": "#2a0d12",
+    "aliases": []
+  },
+  {
+    "id": "charcoal-black",
+    "name": "Charcoal / Black",
+    "roles": 2,
+    "accent": "#262626",
+    "bubble": "#262626",
+    "ink": "#F1F5F9",
+    "received": "#000000",
+    "receivedInk": "#F1F5F9",
+    "headingDark": "#F1F5F9",
+    "headingLight": "#262626",
     "aliases": []
   }
 ]

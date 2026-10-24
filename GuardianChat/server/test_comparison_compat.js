@@ -73,7 +73,7 @@ async function test(name,fn) {await fn();count++;console.log('PASS '+name);}
   });
   await test('The source theme and tab layout are retained without writing published settings',async()=>{
     const {state,calls}=setup(responders()),result=await(await state.fetch('/gamebox/summary',auth)).json();
-    assert.equal(result.config.theme.accent,'#8e1b38');assert.equal(result.config.theme.paper,'#1b0709');
+    assert.equal(result.config.theme.accent,'#7C3AED');assert.equal(result.config.theme.paper,'#0B1520');
     assert.equal(result.config.start_rating,undefined);assert.equal(result.config.presentation.labels.gaming,'Orbit Play');
     assert.deepEqual(result.config.presentation.game_tabs,['leagues','seasons','open','ratings','profile','streams']);assert.deepEqual(result.config.presentation.custom_sections,[]);
     assert.ok(calls.every(c=>c.effective.method==='GET'));
@@ -121,7 +121,7 @@ async function test(name,fn) {await fn();count++;console.log('PASS '+name);}
     const config={theme:{accent:'#ffffff'},presentation:{game_tabs:['open'],labels:{gaming:'Server'}}};
     const {state}=setup({'/gamebox/studio':{limits:{accept_seconds:[1,10],group_size:[6,16],open_schedule_seconds:[60,120]},published:{config:JSON.stringify(config)},draft:{config:JSON.stringify(config)},versions:[]}});
     const result=await(await state.fetch('/gamebox/studio',auth)).json();
-    assert.deepEqual(Object.keys(result.limits),['accept_seconds','group_size']);assert.equal(JSON.parse(result.published.config).theme.accent,'#8e1b38');
+    assert.deepEqual(Object.keys(result.limits),['accept_seconds','group_size']);assert.equal(JSON.parse(result.published.config).theme.accent,'#7C3AED');
     assert.ok(!JSON.parse(result.published.config).presentation.game_tabs.includes('ratings'));
     state.XOrbitComparison.ready();assert.doesNotThrow(()=>state.applyPublishedTheme(config));
   });

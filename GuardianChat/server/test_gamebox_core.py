@@ -39,7 +39,7 @@ class CoreTest(unittest.TestCase):
   self.call('/gamebox/studio_save',{'base':v['id'],'config':config},us[0]['token']);self.call('/gamebox/studio_publish',{'reason':'Update supported radius'},us[0]['token'])
   with self.assertRaises(urllib.error.HTTPError):self.call('/gamebox/studio_save',{'base':v['id'],'config':config},us[0]['token'])
   gamebox_core.init(self.server);self.assertEqual(self.call('/gamebox/summary',token=us[1]['token'])['config']['theme']['radius'],10)
-  self.call('/gamebox/studio_rollback',{'version':v['id'],'reason':'Restore earlier styling'},us[0]['token']);self.assertEqual(self.call('/gamebox/summary',token=us[1]['token'])['config']['theme']['radius'],8)
+  self.call('/gamebox/studio_rollback',{'version':v['id'],'reason':'Restore earlier styling'},us[0]['token']);self.assertEqual(self.call('/gamebox/summary',token=us[1]['token'])['config']['theme']['radius'],16)
  def test_expired_proposal_requeues_ready_player_without_rating(self):
   us,m=self.match();self.call('/gamebox/accept',{'match':m['id']},us[0]['token'])
   gamebox_core.tick(self.server,m['deadline']+1)

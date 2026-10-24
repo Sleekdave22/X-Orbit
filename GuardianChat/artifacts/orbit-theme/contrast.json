@@ -1,0 +1,626 @@
+[
+  {
+    "mode": "Dark",
+    "role": "ink on bg",
+    "foreground": "#f1f5f9",
+    "background": "#0b1520",
+    "ratio": 16.78,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "muted on bg",
+    "foreground": "#94a3b8",
+    "background": "#0b1520",
+    "ratio": 7.17,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "cyan-text on bg",
+    "foreground": "#22d3ee",
+    "background": "#0b1520",
+    "ratio": 10.17,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "violet-text on bg",
+    "foreground": "#a78bfa",
+    "background": "#0b1520",
+    "ratio": 6.75,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "mint on bg",
+    "foreground": "#34d399",
+    "background": "#0b1520",
+    "ratio": 9.56,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "coral on bg",
+    "foreground": "#ff7185",
+    "background": "#0b1520",
+    "ratio": 6.96,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "amber-text on bg",
+    "foreground": "#ffb822",
+    "background": "#0b1520",
+    "ratio": 10.62,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "ink on card",
+    "foreground": "#f1f5f9",
+    "background": "#131932",
+    "ratio": 15.81,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "muted on card",
+    "foreground": "#94a3b8",
+    "background": "#131932",
+    "ratio": 6.75,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "cyan-text on card",
+    "foreground": "#22d3ee",
+    "background": "#131932",
+    "ratio": 9.58,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "violet-text on card",
+    "foreground": "#a78bfa",
+    "background": "#131932",
+    "ratio": 6.36,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "mint on card",
+    "foreground": "#34d399",
+    "background": "#131932",
+    "ratio": 9.01,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "coral on card",
+    "foreground": "#ff7185",
+    "background": "#131932",
+    "ratio": 6.56,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "amber-text on card",
+    "foreground": "#ffb822",
+    "background": "#131932",
+    "ratio": 10.0,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "ink on card2",
+    "foreground": "#f1f5f9",
+    "background": "#202546",
+    "ratio": 13.55,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "muted on card2",
+    "foreground": "#94a3b8",
+    "background": "#202546",
+    "ratio": 5.79,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "cyan-text on card2",
+    "foreground": "#22d3ee",
+    "background": "#202546",
+    "ratio": 8.22,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "violet-text on card2",
+    "foreground": "#a78bfa",
+    "background": "#202546",
+    "ratio": 5.46,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "mint on card2",
+    "foreground": "#34d399",
+    "background": "#202546",
+    "ratio": 7.72,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "coral on card2",
+    "foreground": "#ff7185",
+    "background": "#202546",
+    "ratio": 5.62,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "amber-text on card2",
+    "foreground": "#ffb822",
+    "background": "#202546",
+    "ratio": 8.58,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "Primary button",
+    "foreground": "#ffffff",
+    "background": "#7c3aed",
+    "ratio": 5.7,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "Send button",
+    "foreground": "#0b1520",
+    "background": "#22d3ee",
+    "ratio": 10.17,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "Own default bubble",
+    "foreground": "#ffffff",
+    "background": "#7c3aed",
+    "ratio": 5.7,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "Voice-note waveform on sent bubble",
+    "foreground": "#22d3ee",
+    "background": "#7c3aed",
+    "ratio": 3.15,
+    "minimum": 3
+  },
+  {
+    "mode": "Dark",
+    "role": "Amber action",
+    "foreground": "#0b1520",
+    "background": "#ffb822",
+    "ratio": 10.62,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Dark",
+    "role": "Input edge on raised surface",
+    "foreground": "#64759a",
+    "background": "#202546",
+    "ratio": 3.22,
+    "minimum": 3
+  },
+  {
+    "mode": "Dark",
+    "role": "Input edge on card",
+    "foreground": "#64759a",
+    "background": "#131932",
+    "ratio": 3.75,
+    "minimum": 3
+  },
+  {
+    "mode": "Light",
+    "role": "ink on bg",
+    "foreground": "#0b1520",
+    "background": "#f4f7fb",
+    "ratio": 17.11,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "muted on bg",
+    "foreground": "#4a5878",
+    "background": "#f4f7fb",
+    "ratio": 6.61,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "cyan-text on bg",
+    "foreground": "#0e7490",
+    "background": "#f4f7fb",
+    "ratio": 4.99,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "violet-text on bg",
+    "foreground": "#6d28d9",
+    "background": "#f4f7fb",
+    "ratio": 6.61,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "mint on bg",
+    "foreground": "#047857",
+    "background": "#f4f7fb",
+    "ratio": 5.1,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "coral on bg",
+    "foreground": "#be123c",
+    "background": "#f4f7fb",
+    "ratio": 5.85,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "amber-text on bg",
+    "foreground": "#8a5a00",
+    "background": "#f4f7fb",
+    "ratio": 5.52,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "ink on card",
+    "foreground": "#0b1520",
+    "background": "#ffffff",
+    "ratio": 18.38,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "muted on card",
+    "foreground": "#4a5878",
+    "background": "#ffffff",
+    "ratio": 7.1,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "cyan-text on card",
+    "foreground": "#0e7490",
+    "background": "#ffffff",
+    "ratio": 5.36,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "violet-text on card",
+    "foreground": "#6d28d9",
+    "background": "#ffffff",
+    "ratio": 7.1,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "mint on card",
+    "foreground": "#047857",
+    "background": "#ffffff",
+    "ratio": 5.48,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "coral on card",
+    "foreground": "#be123c",
+    "background": "#ffffff",
+    "ratio": 6.29,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "amber-text on card",
+    "foreground": "#8a5a00",
+    "background": "#ffffff",
+    "ratio": 5.93,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "ink on card2",
+    "foreground": "#0b1520",
+    "background": "#e8edf6",
+    "ratio": 15.65,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "muted on card2",
+    "foreground": "#4a5878",
+    "background": "#e8edf6",
+    "ratio": 6.04,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "cyan-text on card2",
+    "foreground": "#0e7490",
+    "background": "#e8edf6",
+    "ratio": 4.56,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "violet-text on card2",
+    "foreground": "#6d28d9",
+    "background": "#e8edf6",
+    "ratio": 6.05,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "mint on card2",
+    "foreground": "#047857",
+    "background": "#e8edf6",
+    "ratio": 4.67,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "coral on card2",
+    "foreground": "#be123c",
+    "background": "#e8edf6",
+    "ratio": 5.35,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "amber-text on card2",
+    "foreground": "#8a5a00",
+    "background": "#e8edf6",
+    "ratio": 5.05,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "Primary button",
+    "foreground": "#ffffff",
+    "background": "#6d28d9",
+    "ratio": 7.1,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "Send button",
+    "foreground": "#0b1520",
+    "background": "#22d3ee",
+    "ratio": 10.17,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "Own default bubble",
+    "foreground": "#ffffff",
+    "background": "#6d28d9",
+    "ratio": 7.1,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "Voice-note waveform on sent bubble",
+    "foreground": "#22d3ee",
+    "background": "#6d28d9",
+    "ratio": 3.93,
+    "minimum": 3
+  },
+  {
+    "mode": "Light",
+    "role": "Amber action",
+    "foreground": "#0b1520",
+    "background": "#ffb822",
+    "ratio": 10.62,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Light",
+    "role": "Input edge on raised surface",
+    "foreground": "#78859f",
+    "background": "#e8edf6",
+    "ratio": 3.16,
+    "minimum": 3
+  },
+  {
+    "mode": "Light",
+    "role": "Input edge on card",
+    "foreground": "#78859f",
+    "background": "#ffffff",
+    "ratio": 3.71,
+    "minimum": 3
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Orbit violet / Blue sent",
+    "foreground": "#FFFFFF",
+    "background": "#7C3AED",
+    "ratio": 5.7,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Orbit violet / Blue received",
+    "foreground": "#F1F5F9",
+    "background": "#202546",
+    "ratio": 13.55,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Gold / Oxblood sent",
+    "foreground": "#24170a",
+    "background": "#e8b84a",
+    "ratio": 9.47,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Gold / Oxblood received",
+    "foreground": "#f4eee6",
+    "background": "#341923",
+    "ratio": 13.91,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Oxblood / Gold sent",
+    "foreground": "#fff5f7",
+    "background": "#6a1833",
+    "ratio": 10.97,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Oxblood / Gold received",
+    "foreground": "#24170a",
+    "background": "#e8b84a",
+    "ratio": 9.47,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Blue / Gold sent",
+    "foreground": "#ffffff",
+    "background": "#2458bc",
+    "ratio": 6.57,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Blue / Gold received",
+    "foreground": "#24170a",
+    "background": "#e8b84a",
+    "ratio": 9.47,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Red / Sky blue sent",
+    "foreground": "#ffffff",
+    "background": "#c62828",
+    "ratio": 5.62,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Red / Sky blue received",
+    "foreground": "#102635",
+    "background": "#91d4f2",
+    "ratio": 9.55,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Green / Pink sent",
+    "foreground": "#ffffff",
+    "background": "#1d7148",
+    "ratio": 5.99,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Green / Pink received",
+    "foreground": "#351623",
+    "background": "#f2c0d5",
+    "ratio": 10.29,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Pink / Matte black sent",
+    "foreground": "#351623",
+    "background": "#f29abb",
+    "ratio": 7.84,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Pink / Matte black received",
+    "foreground": "#f4eee6",
+    "background": "#222224",
+    "ratio": 13.78,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Purple / Lemon sent",
+    "foreground": "#ffffff",
+    "background": "#713c98",
+    "ratio": 7.49,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Purple / Lemon received",
+    "foreground": "#302140",
+    "background": "#ffe49a",
+    "ratio": 11.87,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Matte black / Sky blue sent",
+    "foreground": "#f4eee6",
+    "background": "#222224",
+    "ratio": 13.78,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Matte black / Sky blue received",
+    "foreground": "#102635",
+    "background": "#91d4f2",
+    "ratio": 9.55,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Sky blue / Oxblood sent",
+    "foreground": "#102635",
+    "background": "#91d4f2",
+    "ratio": 9.55,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Sky blue / Oxblood received",
+    "foreground": "#fff5f7",
+    "background": "#6a1833",
+    "ratio": 10.97,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Charcoal / Black sent",
+    "foreground": "#F1F5F9",
+    "background": "#262626",
+    "ratio": 13.81,
+    "minimum": 4.5
+  },
+  {
+    "mode": "Personal pair",
+    "role": "Charcoal / Black received",
+    "foreground": "#F1F5F9",
+    "background": "#000000",
+    "ratio": 19.17,
+    "minimum": 4.5
+  }
+]

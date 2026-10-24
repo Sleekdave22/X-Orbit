@@ -26,21 +26,21 @@ class GuardianProtection private constructor(
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
         setPadding(dp(20), dp(20), dp(20), dp(20))
-        setBackgroundColor(Color.parseColor("#1b0709"))
+        setBackgroundColor(Color.parseColor("#131932"))
         isClickable = true
         visibility = View.GONE
     }
     private val title = TextView(root.context).apply {
-        setTextColor(Color.parseColor("#e8b84a")); textSize = 20f; gravity = Gravity.CENTER
+        setTextColor(Color.parseColor("#22D3EE")); textSize = 20f; gravity = Gravity.CENTER
         accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
     }
     private val guidance = TextView(root.context).apply {
-        setTextColor(Color.parseColor("#f7ecdd")); textSize = 16f; gravity = Gravity.CENTER
+        setTextColor(Color.parseColor("#F1F5F9")); textSize = 16f; gravity = Gravity.CENTER
         setPadding(0, dp(16), 0, dp(16))
         setText(if (allowOverride) R.string.guardianlab_guidance else R.string.guardianlab_guidance_no_override)
     }
     private val button = Button(root.context).apply {
-        setBackgroundColor(Color.parseColor("#e8b84a")); setTextColor(Color.parseColor("#1b0709"))
+        setBackgroundColor(Color.parseColor("#22D3EE")); setTextColor(Color.parseColor("#131932"))
     }
     private val tick = object : Runnable {
         override fun run() {

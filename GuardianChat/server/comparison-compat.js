@@ -7,7 +7,7 @@
   const explanation = 'Competition editing is available in X ORBIT Original while you compare interfaces.';
   const readCache = new Map();
   let cacheScope = null, installed = false;
-  const forkTheme = Object.freeze({accent:'#8e1b38', surface:'#2a0a10', paper:'#1b0709', ink:'#f7ecdd', radius:8, tab_padding:12, font_size:14, font_family:'system-ui'});
+  const forkTheme = Object.freeze({accent:'#7C3AED',surface:'#131932',paper:'#0B1520',ink:'#F1F5F9',radius:16,tab_padding:12,font_size:14,font_family:'system-ui'});
   const clone = value => JSON.parse(JSON.stringify(value));
   const headerText = document.querySelector('header h1')?.textContent || 'Orbit Play';
   const forkTabs = Array.from(document.querySelectorAll('nav [data-tab]'), item => item.dataset.tab).filter(key => !['admin','studio'].includes(key));

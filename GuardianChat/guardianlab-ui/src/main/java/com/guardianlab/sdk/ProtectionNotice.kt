@@ -14,10 +14,11 @@ class ProtectionNotice(context: Context) : LinearLayout(context) {
     private var paused = false
     private val note = TextView(context).apply {
         textSize = 14f
-        setTextColor(Color.rgb(83,100,116))
+        setTextColor(Color.parseColor("#94A3B8"))
     }
     private val action = Button(context).apply {
         isAllCaps = false
+        setBackgroundColor(Color.parseColor("#7C3AED")); setTextColor(Color.WHITE)
         setOnClickListener { if (paused) onResume?.invoke() else onPause?.invoke() }
     }
     init { orientation = VERTICAL; addView(note); addView(action); visibility = GONE }

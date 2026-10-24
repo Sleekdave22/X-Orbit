@@ -8,7 +8,7 @@ class PreferencesTest(unittest.TestCase):
   a,b=self.register('A'),self.register('B')
   with self.assertRaises(urllib.error.HTTPError):self.call('/preferences')
   for _ in range(2):self.assertEqual(self.call('/preferences',{'palette':'ocean'},a['token'])['palette'],'blue-gold')
-  self.assertEqual(self.call('/preferences',token=a['token'])['palette'],'blue-gold');self.assertEqual(self.call('/preferences',token=b['token'])['palette'],'oxblood-gold')
+  self.assertEqual(self.call('/preferences',token=a['token'])['palette'],'blue-gold');self.assertEqual(self.call('/preferences',token=b['token'])['palette'],'orbit-cyan-navy')
   for body in ({'palette':'invalid'},{'palette':'rose','uid':b['id']},{'palette':'#ff0000'},{}):
    with self.assertRaises(urllib.error.HTTPError):self.call('/preferences',body,a['token'])
   self.assertEqual(self.call('/preferences',token=a['token'])['palette'],'blue-gold')

@@ -1,6 +1,6 @@
 # Run X ORBIT from Android Studio
 
-This repo was redesigned in the oxblood and gold style. The Android changes have not been compiled by the person who wrote them, so the first build is also the first test.
+This branch applies the Orbit navy, violet and cyan visual theme. Build and device verification results are recorded in ORBIT_THEME_REPORT.md.
 
 ## 1. Open the project
 1. Install Android Studio and open the **repository root** (the folder with `settings.gradle.kts`), not `GuardianChat/chat`.
@@ -28,10 +28,23 @@ Your phone and computer must be on the same Wi-Fi network.
 3. Sign up with the invitation code, or sign in.
 
 ## 5. What to check first
-- Intro screen shows the app icon and a gold X ORBIT title.
-- Chat bubbles: yours oxblood, theirs on a bordered surface.
-- Open **Orbit Play** from the chat screen: the new entry screen, then the tabs grouped Play / Compete / Me / Admin.
+- Intro screen shows the unchanged app icon, a cyan/violet ring and a soft-white X ORBIT title.
+- Default chat bubbles: yours cyan with navy text, theirs on a bordered navy surface (pale blue in light mode). Existing saved bubble colour pairs remain selectable.
+- Open **Orbit Play** from the chat screen: the wallpaper entry screen, then the existing Play / Compete / Me / Admin groups. Selected tabs are violet with white text; inactive actions use a neutral fill without a blue border. Back arrows have no box.
 - Sign in as the admin account (Mainfirst) to see Administration and Admin Studio.
 
 ## If the build fails
-Copy the first error from the Build tab (the lines starting with `e:`) and send it back. The Android edits were small: default colours and the intro screen in `chat/.../MainActivity.kt`.
+Copy the first error from the Build tab (the lines starting with `e:`) and send it back. Only visual tokens, fonts, control shapes, focus and motion are changed. Protection, view-once, notification routing and match rules retain their existing workflows.
+\nChat follow-up: check the single-line composer (emoji/+ inside, view-once/mic/camera/voice note/Send outside). Tap the camera, allow access if asked, capture a photo, review it and cancel first. A photo must only be sent after pressing Send. Audio has play/pause and seeking without 10-second skips.\n
+Version 19 uses the supplied purple/navy dark wallpaper and neon white-line light wallpaper. Switch appearance in chat Settings to check both. Focus the message field: it should keep the single outer pill without an inner typing boundary. Keyboard focus remains visible on other controls.
+
+Version 20 adds the supplied neon launcher icon and light/dark Orbit Play entry icons. The right menu and Settings use the supplied smooth gradients. Check that only OrbitChat/OrbitPlay headings follow the personal colour pair; other labels and inactive buttons retain their normal theme. In the arena, the compact profile is at the top right and its handle is outside the card.
+\nVersion 21 replaces the colour dropdown with split-circle choices and a matching wallpaper preview. Dark/Light preview is independent of the app appearance setting. Select confirms the pair; Close abandons an unconfirmed preview. Palette choices remain account-specific. Original artwork files stay unchanged; matching colours are rendered as a display layer.\n
+
+Version 22 moves outgoing file previews into a compact tray attached above the normal message box, capped around 20% of the available chat height. Attach a photo, video, voice note or document; the conversation should remain visible. Type its caption in the normal Message field, then Cancel first: the caption should remain. Attach again and check the tray resizes with the keyboard. Send only when you intend to deliver the file. Check both the main Send button and forwarding options, and verify view-once/protected choices remain mutually exclusive. A received attachment should still open in its existing viewer.
+
+Version 23 enlarges the phone preview to roughly 30%, with an 80dp thumbnail and a preferred 144dp content height. On cramped screens it uses up to 45% of the available area. Check with the keyboard open and closed, and after rotation; the normal composer must remain visible and the attachment options should be easier to reach. The browser keeps its existing preview size.
+
+Version 24 retains ordinary files after a successful send. Send a normal photo, video, document and voice note: the sender should see its preview/playback/Open control immediately, without downloading the file again. Reopen the chat/app and check again. Also check forwarding and a file with an extra voice note. View-once/protected sends retain their existing restricted presentation. An older file sent before the fix may still need one download; clearing app cache can also remove ordinary local copies.
+
+Version 25 adds Orbit Market beside Orbit Play on the signed-in home screen. Market uses the same backend account as chat and gaming. Check Browse, category/search controls and My shop. A seller's Message seller button should open the authorized seller conversation; blocked-account rules still apply. Existing chat, attachment and notification behavior remains in the selected build.
